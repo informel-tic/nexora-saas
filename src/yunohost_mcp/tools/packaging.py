@@ -50,7 +50,12 @@ def register_packaging_tools(mcp: FastMCP, settings=None):
     async def ynh_pkg_manifest_generate(package_name: str, output_path: str) -> str:
         validate_name(package_name, "package name")
         safe_path = validate_output_path(output_path)
-        content = f'''packaging_format = 2\nid = "{package_name}"\nname = "{package_name}"\nversion = "0.1.0~ynh1"\n\n[integration]\nyunohost = ">= 12.1"\nhelpers_version = "2.1"\narchitectures = "all"\nmulti_instance = false\nldap = "not_relevant"\nsso = "not_relevant"\n\n[install.domain]\ntype = "domain"\n\n[install.path]\ntype = "path"\ndefault = "/"\n'''
+        content = (
+            f'packaging_format = 2\nid = "{package_name}"\nname = "{package_name}"\nversion = "0.1.0~ynh1"\n\n'
+            "[integration]\nyunohost = \">= 12.1\"\nhelpers_version = \"2.1\"\narchitectures = \"all\"\n"
+            "multi_instance = false\nldap = \"not_relevant\"\nsso = \"not_relevant\"\n\n"
+            "[install.domain]\ntype = \"domain\"\n\n[install.path]\ntype = \"path\"\ndefault = \"/\"\n"
+        )
         _write(safe_path, content)
         return f"✅ Manifest généré: {safe_path}"
 

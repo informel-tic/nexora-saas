@@ -13,11 +13,23 @@ permissions:
   pull-requests: read
 
 jobs:
-  # Reuse the operator CI file's core jobs by including similar gates.
+  # Detect whether any Python/code files changed to enable a fast path for docs-only PRs.
   changes:
     runs-on: ubuntu-latest
+    outputs:
+      code_changed: ${{ steps.filter.outputs.code_changed }}
     steps:
       - uses: actions/checkout@v4
+      - name: Detect code changes
+        id: filter
+        run: |
+          git fetch origin ${{ github.base_ref || 'main' }} --depth=1 2>/dev/null || true
+          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -E '\.(py|sh|toml|cfg)$' | head -1 || echo '')
+          if [ -n "$CHANGED" ]; then
+            echo "code_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "code_changed=false" >> "$GITHUB_OUTPUT"
+          fi
 
   test-collection:
     needs: [changes]
@@ -25,7 +37,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Collect tests
+        if: "needs.changes.outputs.code_changed == 'true'"
         run: PYTHONPATH=src python -m pytest --collect-only -q
+      - name: Docs-only fast path
+        if: "needs.changes.outputs.code_changed != 'true'"
+        run: echo "No code changes detected — skipping test collection"
 
   docs-quality:
     runs-on: ubuntu-latest
@@ -54,7 +70,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run tests
+        if: "needs.changes.outputs.code_changed == 'true'"
         run: PYTHONPATH=src python -m pytest tests/ -v --tb=short --junitxml=dist/ci/junit.xml
+      - name: Docs-only fast path
+        if: "needs.changes.outputs.code_changed != 'true'"
+        run: echo "No code changes detected — skipping full test run"
 
   lint:
     needs: [changes]
