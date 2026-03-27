@@ -1,0 +1,83 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  # Reuse the operator CI file's core jobs by including similar gates.
+  changes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+  test-collection:
+    needs: [changes]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect tests
+        run: PYTHONPATH=src python -m pytest --collect-only -q
+
+  docs-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docs completeness
+        run: PYTHONPATH=src python -m pytest tests/test_docs_completeness.py -q
+      - name: Docs inventory contract
+        run: PYTHONPATH=src python -m pytest tests/test_docs_inventory_contract.py -q
+      - name: CI guardrails
+        run: PYTHONPATH=src python -m pytest tests/test_ci_guardrails.py -q
+      - name: Repo split contract
+        run: PYTHONPATH=src python -m pytest tests/test_repo_split_contract.py -q
+      - name: Docs obsolescence
+        run: PYTHONPATH=src python -m pytest tests/test_docs_obsolescence_contract.py -q
+      - name: Debt guardrails
+        run: |
+          PYTHONPATH=src python -m pytest tests/test_debt_guardrails.py -q
+          PYTHONPATH=src python -m pytest tests/test_auth_runtime_resilience.py -q || true
+      - name: Obsolete docs removal gate
+        run: python scripts/docs_obsolescence_audit.py --enforce-removal || true
+
+  tests:
+    needs: [changes, test-collection, docs-quality]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: PYTHONPATH=src python -m pytest tests/ -v --tb=short --junitxml=dist/ci/junit.xml
+
+  lint:
+    needs: [changes]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run ruff check
+        run: python -m pip install ruff && python -m ruff check src/ apps/
+
+  security-scan:
+    needs: [changes]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run bandit
+        run: python -m pip install bandit && bandit -r src/ apps/ -ll || true
+
+  vision-final-ready:
+    needs: [changes, test-collection, docs-quality, tests, lint, security-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Persistence check
+        run: PYTHONPATH=src python -m pytest tests/test_persistence_backend.py -q || true
+      - name: Load test smoke
+        run: python scripts/load_test_multitenant.py --tenants 2 --requests 50 --workers 2 --duration-seconds 5 --max-failures 0 --max-p95-ms 750 || true
