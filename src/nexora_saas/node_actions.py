@@ -9,13 +9,14 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from nexora_node_sdk.docker import docker_compose_up, write_compose_file
+from nexora_node_sdk.pra import build_restore_plan
+from nexora_node_sdk.privileged_actions import build_privileged_execution_plan
+from nexora_node_sdk.sync import detect_sync_conflicts
+
 from .failover import apply_maintenance_mode, remove_maintenance_mode
 from .governance import executive_report
 from .operator_actions import AGENT_ACTION_CAPABILITIES, apply_branding
-from nexora_node_sdk.pra import build_restore_plan
-from nexora_node_sdk.privileged_actions import build_privileged_execution_plan
 from .scoring import compute_pra_score
-from nexora_node_sdk.sync import detect_sync_conflicts
 
 ActionHandler = Callable[[Any, dict[str, Any], bool], dict[str, Any]]
 logger = logging.getLogger(__name__)
@@ -57,15 +58,10 @@ def _audit_preview(value: Any) -> dict[str, Any]:
 
 def _sanitize_param_value(value: Any, *, key_path: tuple[str, ...] = ()) -> Any:
     current_key = key_path[-1].lower() if key_path else ""
-    if any(
-        token in current_key for token in _SENSITIVE_PARAM_TOKENS + _OPAQUE_PARAM_TOKENS
-    ):
+    if any(token in current_key for token in _SENSITIVE_PARAM_TOKENS + _OPAQUE_PARAM_TOKENS):
         return _audit_preview(value)
     if isinstance(value, dict):
-        return {
-            key: _sanitize_param_value(nested, key_path=(*key_path, str(key)))
-            for key, nested in value.items()
-        }
+        return {key: _sanitize_param_value(nested, key_path=(*key_path, str(key))) for key, nested in value.items()}
     if isinstance(value, list):
         items = [
             _sanitize_param_value(item, key_path=(*key_path, f"[{index}]"))
@@ -90,10 +86,7 @@ def _sanitize_param_value(value: Any, *, key_path: tuple[str, ...] = ()) -> Any:
 
 
 def _sanitize_params(params: dict[str, Any]) -> dict[str, Any]:
-    return {
-        key: _sanitize_param_value(value, key_path=(str(key),))
-        for key, value in params.items()
-    }
+    return {key: _sanitize_param_value(value, key_path=(str(key),)) for key, value in params.items()}
 
 
 def _estimate_payload_size(params: dict[str, Any]) -> int:
@@ -119,9 +112,7 @@ def _append_action_event(state: dict[str, Any], payload: dict[str, Any]) -> None
     state.setdefault("node_action_events", []).append(payload)
 
 
-def _base_result(
-    spec: ActionSpec, *, dry_run: bool, changed: bool, trace_id: str
-) -> dict[str, Any]:
+def _base_result(spec: ActionSpec, *, dry_run: bool, changed: bool, trace_id: str) -> dict[str, Any]:
     return {
         "success": True,
         "action": spec.action,
@@ -140,9 +131,7 @@ def _base_result(
     }
 
 
-def _error_result(
-    spec: ActionSpec, *, dry_run: bool, trace_id: str, message: str
-) -> dict[str, Any]:
+def _error_result(spec: ActionSpec, *, dry_run: bool, trace_id: str, message: str) -> dict[str, Any]:
     result = _base_result(spec, dry_run=dry_run, changed=False, trace_id=trace_id)
     result["success"] = False
     result["error"] = message
@@ -151,9 +140,7 @@ def _error_result(
     return result
 
 
-def _blocked_result(
-    spec: ActionSpec, *, dry_run: bool, trace_id: str, params: dict[str, Any]
-) -> dict[str, Any]:
+def _blocked_result(spec: ActionSpec, *, dry_run: bool, trace_id: str, params: dict[str, Any]) -> dict[str, Any]:
     result = _error_result(
         spec,
         dry_run=dry_run,
@@ -165,9 +152,7 @@ def _blocked_result(
     )
     result["requires_privileged_runtime"] = True
     result["privileged_plan"] = build_privileged_execution_plan(spec.action, params)
-    result["rollback_hint"] = result["privileged_plan"].get(
-        "rollback_hint", result["rollback_hint"]
-    )
+    result["rollback_hint"] = result["privileged_plan"].get("rollback_hint", result["rollback_hint"])
     return result
 
 
@@ -182,10 +167,7 @@ def _validate_params(
             trace_id=trace_id,
             message=f"Missing required parameter(s): {', '.join(missing)}",
         )
-    if (
-        spec.max_payload_bytes is not None
-        and _estimate_payload_size(params) > spec.max_payload_bytes
-    ):
+    if spec.max_payload_bytes is not None and _estimate_payload_size(params) > spec.max_payload_bytes:
         return _error_result(
             spec,
             dry_run=dry_run,
@@ -210,9 +192,7 @@ def _finalize_result(
     normalized.setdefault("changed", False)
     normalized.setdefault("warnings", [])
     normalized.setdefault("errors", [])
-    normalized.setdefault(
-        "rollback_hint", "rerun the inverse action or restore from state backup"
-    )
+    normalized.setdefault("rollback_hint", "rerun the inverse action or restore from state backup")
     normalized.setdefault("trace_id", trace_id)
     normalized.setdefault("observed_at", _utc_now())
     audit = dict(normalized.get("audit", {}))
@@ -249,18 +229,14 @@ def _finalize_result(
     return normalized
 
 
-def run_inventory_refresh(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_inventory_refresh(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Refresh inventory cache and persist a dated snapshot."""
 
     service.invalidate_cache()
     inventory = service.local_inventory()
     result = {
         "inventory_sections": sorted(inventory.keys()),
-        "apps_count": len(inventory.get("apps", {}).get("apps", []))
-        if isinstance(inventory.get("apps"), dict)
-        else 0,
+        "apps_count": len(inventory.get("apps", {}).get("apps", [])) if isinstance(inventory.get("apps"), dict) else 0,
         "domains_count": len(inventory.get("domains", {}).get("domains", []))
         if isinstance(inventory.get("domains"), dict)
         else 0,
@@ -284,20 +260,14 @@ def run_inventory_refresh(
     return result
 
 
-def run_permissions_sync(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_permissions_sync(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Sync local permissions into Nexora's managed desired-state snapshot."""
 
     current = service.inventory_slice("permissions")
     state = service.state.load()
     desired_state = state.setdefault("desired_state", {})
     existing = desired_state.get("permissions")
-    conflicts = (
-        detect_sync_conflicts(existing or {}, current)
-        if isinstance(existing, dict)
-        else []
-    )
+    conflicts = detect_sync_conflicts(existing or {}, current) if isinstance(existing, dict) else []
     will_change = existing != current
     result = {
         "changed": will_change and not dry_run,
@@ -305,9 +275,7 @@ def run_permissions_sync(
         "conflicts": conflicts[:20],
     }
     if dry_run:
-        result["planned_mode"] = (
-            "create_baseline" if existing is None else "reconcile_from_local"
-        )
+        result["planned_mode"] = "create_baseline" if existing is None else "reconcile_from_local"
         return result
 
     desired_state["permissions"] = current
@@ -323,9 +291,7 @@ def run_permissions_sync(
     return result
 
 
-def run_healthcheck(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_healthcheck(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Run a real healthcheck based on current service inventory and compatibility."""
 
     summary = service.local_node_summary().model_dump()
@@ -353,9 +319,7 @@ def run_healthcheck(
     }
 
 
-def run_branding_apply(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_branding_apply(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Apply the current branding state to the managed runtime state file."""
 
     state = service.state.load()
@@ -382,24 +346,15 @@ def run_branding_apply(
     return result
 
 
-def run_pra_snapshot(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_pra_snapshot(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Create a persistent PRA snapshot based on current inventory and governance data."""
 
     inventory = service.local_inventory()
     pra_score = compute_pra_score(inventory)
     node_id = service.identity().get("node_id", "local")
-    tenant_id = params.get("tenant_id") or _extract_tenant_id(
-        service.local_node_summary()
-    )
-    snapshot_id = (
-        params.get("snapshot_id")
-        or f"pra-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
-    )
-    restore_plan = build_restore_plan(
-        snapshot_id, target_node=node_id, offsite_source=params.get("offsite_source")
-    )
+    tenant_id = params.get("tenant_id") or _extract_tenant_id(service.local_node_summary())
+    snapshot_id = params.get("snapshot_id") or f"pra-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}"
+    restore_plan = build_restore_plan(snapshot_id, target_node=node_id, offsite_source=params.get("offsite_source"))
     snapshot = {
         "snapshot_id": snapshot_id,
         "timestamp": _utc_now(),
@@ -436,9 +391,7 @@ def run_pra_snapshot(
     }
 
 
-def run_maintenance_enable(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_maintenance_enable(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Enable maintenance mode for a domain using the failover helpers."""
 
     domain = str(params["domain"])
@@ -461,9 +414,7 @@ def run_maintenance_enable(
     }
 
 
-def run_maintenance_disable(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_maintenance_disable(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Disable maintenance mode for a domain using the failover helpers."""
 
     domain = str(params["domain"])
@@ -484,15 +435,10 @@ def run_maintenance_disable(
     }
 
 
-def run_docker_compose_apply(
-    service: Any, params: dict[str, Any], dry_run: bool
-) -> dict[str, Any]:
+def run_docker_compose_apply(service: Any, params: dict[str, Any], dry_run: bool) -> dict[str, Any]:
     """Write a compose file and optionally apply it through docker compose up."""
 
-    compose_path = str(
-        params.get("path")
-        or (service.state.path.parent / "docker" / "docker-compose.yml")
-    )
+    compose_path = str(params.get("path") or (service.state.path.parent / "docker" / "docker-compose.yml"))
     content = params.get("content")
     detach = bool(params.get("detach", True))
     if not isinstance(content, str) or not content.strip():
@@ -513,8 +459,7 @@ def run_docker_compose_apply(
     write_result = write_compose_file(content, compose_path)
     apply_result = docker_compose_up(compose_path, detach=detach)
     return {
-        "changed": bool(write_result.get("written"))
-        or bool(apply_result.get("success")),
+        "changed": bool(write_result.get("written")) or bool(apply_result.get("success")),
         "compose_path": compose_path,
         "write_result": write_result,
         "apply_result": apply_result,
@@ -525,9 +470,7 @@ def run_docker_compose_apply(
 
 
 ACTION_SPECS: dict[str, ActionSpec] = {
-    "branding/apply": ActionSpec(
-        "branding/apply", run_branding_apply, capacity_class="safe"
-    ),
+    "branding/apply": ActionSpec("branding/apply", run_branding_apply, capacity_class="safe"),
     "automation/install": ActionSpec(
         "automation/install",
         None,
@@ -540,12 +483,8 @@ ACTION_SPECS: dict[str, ActionSpec] = {
         capacity_class="privileged",
         requires_privileged_runtime=True,
     ),
-    "inventory/refresh": ActionSpec(
-        "inventory/refresh", run_inventory_refresh, capacity_class="safe"
-    ),
-    "permissions/sync": ActionSpec(
-        "permissions/sync", run_permissions_sync, capacity_class="safe"
-    ),
+    "inventory/refresh": ActionSpec("inventory/refresh", run_inventory_refresh, capacity_class="safe"),
+    "permissions/sync": ActionSpec("permissions/sync", run_permissions_sync, capacity_class="safe"),
     "pra/snapshot": ActionSpec("pra/snapshot", run_pra_snapshot, capacity_class="safe"),
     "maintenance/enable": ActionSpec(
         "maintenance/enable",
@@ -566,9 +505,7 @@ ACTION_SPECS: dict[str, ActionSpec] = {
         required_params=("content",),
         max_payload_bytes=131072,
     ),
-    "healthcheck/run": ActionSpec(
-        "healthcheck/run", run_healthcheck, capacity_class="safe"
-    ),
+    "healthcheck/run": ActionSpec("healthcheck/run", run_healthcheck, capacity_class="safe"),
 }
 
 
@@ -616,9 +553,7 @@ class NodeActionEngine:
             )
 
         trace_id = _new_trace_id(action)
-        validation_error = _validate_params(
-            spec, payload, dry_run=dry_run, trace_id=trace_id
-        )
+        validation_error = _validate_params(spec, payload, dry_run=dry_run, trace_id=trace_id)
         if validation_error is not None:
             return _finalize_result(
                 self.service,
@@ -630,9 +565,7 @@ class NodeActionEngine:
             )
 
         if spec.requires_privileged_runtime:
-            blocked = _blocked_result(
-                spec, dry_run=dry_run, trace_id=trace_id, params=payload
-            )
+            blocked = _blocked_result(spec, dry_run=dry_run, trace_id=trace_id, params=payload)
             return _finalize_result(
                 self.service,
                 spec,
@@ -643,13 +576,9 @@ class NodeActionEngine:
             )
 
         try:
-            result = (
-                spec.handler(self.service, payload, dry_run) if spec.handler else {}
-            )
+            result = spec.handler(self.service, payload, dry_run) if spec.handler else {}
         except Exception as exc:  # pragma: no cover - defensive path
-            result = _error_result(
-                spec, dry_run=dry_run, trace_id=trace_id, message=str(exc)
-            )
+            result = _error_result(spec, dry_run=dry_run, trace_id=trace_id, message=str(exc))
         return _finalize_result(
             self.service,
             spec,

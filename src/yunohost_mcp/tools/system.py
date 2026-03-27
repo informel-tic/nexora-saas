@@ -1,7 +1,8 @@
 """Outils MCP pour l'administration système YunoHost."""
 
 from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.runner import run_ynh_command, run_shell_command, format_result
+
+from yunohost_mcp.utils.runner import format_result, run_shell_command, run_ynh_command
 
 
 def register_system_tools(mcp: FastMCP, settings=None):
@@ -46,9 +47,7 @@ def register_system_tools(mcp: FastMCP, settings=None):
             service: Nom du service
             lines: Nombre de lignes (défaut: 50)
         """
-        result = await run_ynh_command(
-            "service", "log", service, "--number", str(lines), json_output=False
-        )
+        result = await run_ynh_command("service", "log", service, "--number", str(lines), json_output=False)
         return format_result(result)
 
     @mcp.tool()

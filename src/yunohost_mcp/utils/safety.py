@@ -81,9 +81,7 @@ _RE_SAFE_ALPHANUM = re.compile(r"^[a-zA-Z0-9_-]{1,100}$")
 def validate_name(value: str, label: str = "name") -> str:
     """Validate a backup name, app id, service name, etc."""
     if not _RE_SAFE_NAME.match(value):
-        raise ValueError(
-            f"Invalid {label}: must be alphanumeric/dash/dot, got {value!r}"
-        )
+        raise ValueError(f"Invalid {label}: must be alphanumeric/dash/dot, got {value!r}")
     return value
 
 
@@ -101,9 +99,7 @@ def validate_alphanum(value: str, label: str = "value") -> str:
     return value
 
 
-def validate_positive_int(
-    value: int, label: str = "value", maximum: int = 10000
-) -> int:
+def validate_positive_int(value: int, label: str = "value", maximum: int = 10000) -> int:
     """Validate a positive bounded integer."""
     if not isinstance(value, int) or value < 1 or value > maximum:
         raise ValueError(f"Invalid {label}: must be 1-{maximum}, got {value!r}")

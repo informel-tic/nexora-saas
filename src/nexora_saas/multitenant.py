@@ -48,19 +48,13 @@ def generate_tenant_setup_commands(tenant: dict[str, Any]) -> list[str]:
     if group:
         commands.append(f"yunohost user group create {group}")
     for user in tenant.get("users", []):
-        commands.append(
-            f'yunohost user create {user} --domain {domain} --fullname "{user}" --password "__CHANGE__"'
-        )
+        commands.append(f'yunohost user create {user} --domain {domain} --fullname "{user}" --password "__CHANGE__"')
         if group:
             commands.append(f"yunohost user group add {group} {user}")
     for app in tenant.get("apps", []):
-        commands.append(
-            f'yunohost app install {app} --args "domain={domain}&path=/" --label "{app}"'
-        )
+        commands.append(f'yunohost app install {app} --args "domain={domain}&path=/" --label "{app}"')
         if group:
-            commands.append(
-                f"yunohost user permission update {app}.main --add {group} --remove all_users"
-            )
+            commands.append(f"yunohost user permission update {app}.main --add {group} --remove all_users")
     return commands
 
 

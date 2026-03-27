@@ -22,65 +22,65 @@ Mutable globals used by tests live in the submodules:
 from __future__ import annotations
 
 # ── Make submodules accessible as attributes (auth._token, etc.) ──────
-from . import _token, _scopes, _rate_limit, _middleware, _secret_store  # noqa: F401
+from . import _middleware, _rate_limit, _scopes, _secret_store, _token  # noqa: F401
 
-# ── Token management ──────────────────────────────────────────────────
-from ._token import (
-    _DEFAULT_TOKEN_PATH_CANDIDATES,
-    _token_path_candidates,
-    _token_scope_path_candidates,
-    _token_role_path_candidates,
-    _load_or_generate_token,
-    _resolve_primary_token_path,
-    _token_meta_path,
-    _read_token_meta,
-    _write_token_meta,
-    rotate_api_token,
-    _maybe_auto_rotate_token,
-    get_api_token,
-    generate_session_token,
-    validate_session_age,
-)
-
-# ── Tenant scopes & actor roles ───────────────────────────────────────
-from ._scopes import (
-    NODE_TOKEN_SCOPES,
-    _load_token_tenant_scopes,
-    _enforce_token_tenant_scope,
-    _load_token_actor_roles,
-    resolve_actor_role_for_token,
-    build_tenant_scope_claim,
-    validate_actor_role,
-    validate_operator_surface_role,
-    validate_scope,
-    issue_node_secret,
+# ── HTTP middlewares ───────────────────────────────────────────────────
+from ._middleware import (
+    _PUBLIC_PATHS,
+    _SAFE_METHODS,
+    _STATIC_PREFIXES,
+    CSRFProtectionMiddleware,
+    SecurityHeadersMiddleware,
+    TokenAuthMiddleware,
 )
 
 # ── Rate limiting ─────────────────────────────────────────────────────
 from ._rate_limit import (
     _AUTH_FAILURES,
-    _MAX_AUTH_FAILURES,
     _AUTH_WINDOW_SECONDS,
+    _MAX_AUTH_FAILURES,
     _auth_runtime_file,
     _check_rate_limit,
     _record_auth_failure,
 )
 
-# ── HTTP middlewares ───────────────────────────────────────────────────
-from ._middleware import (
-    _PUBLIC_PATHS,
-    _STATIC_PREFIXES,
-    _SAFE_METHODS,
-    TokenAuthMiddleware,
-    SecurityHeadersMiddleware,
-    CSRFProtectionMiddleware,
+# ── Tenant scopes & actor roles ───────────────────────────────────────
+from ._scopes import (
+    NODE_TOKEN_SCOPES,
+    _enforce_token_tenant_scope,
+    _load_token_actor_roles,
+    _load_token_tenant_scopes,
+    build_tenant_scope_claim,
+    issue_node_secret,
+    resolve_actor_role_for_token,
+    validate_actor_role,
+    validate_operator_surface_role,
+    validate_scope,
 )
 
 # ── SecretStore ───────────────────────────────────────────────────────
 from ._secret_store import (
-    VALID_SCOPES,
     SCOPE_PERMISSIONS,
+    VALID_SCOPES,
     SecretStore,
+)
+
+# ── Token management ──────────────────────────────────────────────────
+from ._token import (
+    _DEFAULT_TOKEN_PATH_CANDIDATES,
+    _load_or_generate_token,
+    _maybe_auto_rotate_token,
+    _read_token_meta,
+    _resolve_primary_token_path,
+    _token_meta_path,
+    _token_path_candidates,
+    _token_role_path_candidates,
+    _token_scope_path_candidates,
+    _write_token_meta,
+    generate_session_token,
+    get_api_token,
+    rotate_api_token,
+    validate_session_age,
 )
 
 __all__ = [

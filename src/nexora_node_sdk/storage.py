@@ -137,13 +137,9 @@ echo "Backup synced to S3 at $(date)"
     }
 
 
-def generate_nfs_mount_config(
-    server: str, share: str, mount_point: str = "/mnt/nexora-nfs"
-) -> dict[str, Any]:
+def generate_nfs_mount_config(server: str, share: str, mount_point: str = "/mnt/nexora-nfs") -> dict[str, Any]:
     """Generate NFS mount configuration for shared storage."""
-    fstab_line = (
-        f"{server}:{share} {mount_point} nfs4 defaults,_netdev,soft,timeo=150 0 0"
-    )
+    fstab_line = f"{server}:{share} {mount_point} nfs4 defaults,_netdev,soft,timeo=150 0 0"
     return {
         "fstab_entry": fstab_line,
         "mount_point": mount_point,

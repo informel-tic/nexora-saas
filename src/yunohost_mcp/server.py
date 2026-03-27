@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+
 from mcp.server.fastmcp import FastMCP
 
 from yunohost_mcp.config import load_settings
@@ -8,39 +9,39 @@ from yunohost_mcp.policy import tool_allowed
 
 # Phase 1 — Core admin
 from yunohost_mcp.tools.app import register_app_tools
+from yunohost_mcp.tools.automation import register_automation_tools
 from yunohost_mcp.tools.backup import register_backup_tools
-from yunohost_mcp.tools.domain import register_domain_tools
-from yunohost_mcp.tools.user import register_user_tools
-from yunohost_mcp.tools.system import register_system_tools
-from yunohost_mcp.tools.pra import register_pra_tools
-from yunohost_mcp.tools.security import register_security_tools
-from yunohost_mcp.tools.monitoring import register_monitoring_tools
-from yunohost_mcp.tools.documentation import register_documentation_tools
-from yunohost_mcp.tools.packaging import register_packaging_tools
 
 # Phase 2 — YunoHost Pro
 from yunohost_mcp.tools.blueprints import register_blueprint_tools
-from yunohost_mcp.tools.portal import register_portal_tools
-from yunohost_mcp.tools.governance import register_governance_tools
-from yunohost_mcp.tools.automation import register_automation_tools
 
-# Phase 3 — Fleet
-from yunohost_mcp.tools.fleet import register_fleet_tools
-from yunohost_mcp.tools.sync import register_sync_tools
+# Phase 5 — Plateforme sur mesure
+from yunohost_mcp.tools.docker import register_docker_tools
+from yunohost_mcp.tools.documentation import register_documentation_tools
+from yunohost_mcp.tools.domain import register_domain_tools
 
 # Phase 4 — Edge / infra avancée
 from yunohost_mcp.tools.edge import register_edge_tools
 from yunohost_mcp.tools.failover import register_failover_tools
-from yunohost_mcp.tools.storage import register_storage_tools
 
-# Phase 5 — Plateforme sur mesure
-from yunohost_mcp.tools.docker import register_docker_tools
-from yunohost_mcp.tools.notifications import register_notification_tools
-from yunohost_mcp.tools.sla import register_sla_tools
-from yunohost_mcp.tools.migration import register_migration_tools
-from yunohost_mcp.tools.multitenant import register_multitenant_tools
+# Phase 3 — Fleet
+from yunohost_mcp.tools.fleet import register_fleet_tools
+from yunohost_mcp.tools.governance import register_governance_tools
 from yunohost_mcp.tools.hooks import register_hooks_tools
+from yunohost_mcp.tools.migration import register_migration_tools
 from yunohost_mcp.tools.modes import register_mode_tools
+from yunohost_mcp.tools.monitoring import register_monitoring_tools
+from yunohost_mcp.tools.multitenant import register_multitenant_tools
+from yunohost_mcp.tools.notifications import register_notification_tools
+from yunohost_mcp.tools.packaging import register_packaging_tools
+from yunohost_mcp.tools.portal import register_portal_tools
+from yunohost_mcp.tools.pra import register_pra_tools
+from yunohost_mcp.tools.security import register_security_tools
+from yunohost_mcp.tools.sla import register_sla_tools
+from yunohost_mcp.tools.storage import register_storage_tools
+from yunohost_mcp.tools.sync import register_sync_tools
+from yunohost_mcp.tools.system import register_system_tools
+from yunohost_mcp.tools.user import register_user_tools
 
 logger = logging.getLogger(__name__)
 settings = load_settings()

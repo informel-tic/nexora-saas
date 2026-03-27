@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import shlex
+
 from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.runner import run_ynh_command, run_shell_command, format_result
-from yunohost_mcp.utils.safety import validate_positive_int, validate_alphanum
+
+from yunohost_mcp.utils.runner import format_result, run_shell_command, run_ynh_command
+from yunohost_mcp.utils.safety import validate_alphanum, validate_positive_int
 
 
 def register_monitoring_tools(mcp: FastMCP, settings=None):
@@ -53,15 +55,9 @@ def register_monitoring_tools(mcp: FastMCP, settings=None):
         return "\n".join(
             [
                 "=== Databases ===",
-                await run_shell_command(
-                    "systemctl is-active mysql 2>/dev/null || true"
-                ),
-                await run_shell_command(
-                    "systemctl is-active mariadb 2>/dev/null || true"
-                ),
-                await run_shell_command(
-                    "systemctl is-active postgresql 2>/dev/null || true"
-                ),
+                await run_shell_command("systemctl is-active mysql 2>/dev/null || true"),
+                await run_shell_command("systemctl is-active mariadb 2>/dev/null || true"),
+                await run_shell_command("systemctl is-active postgresql 2>/dev/null || true"),
             ]
         )
 
@@ -83,18 +79,14 @@ def register_monitoring_tools(mcp: FastMCP, settings=None):
         return "\n\n".join(
             [
                 format_result(await run_ynh_command("backup", "list")),
-                await run_shell_command(
-                    "ls -lht /home/yunohost.backup/archives 2>/dev/null | head -n 20"
-                ),
+                await run_shell_command("ls -lht /home/yunohost.backup/archives 2>/dev/null | head -n 20"),
             ]
         )
 
     @mcp.tool()
     async def ynh_monitor_fail2ban() -> str:
         """Résume l'activité récente de Fail2Ban."""
-        return await run_shell_command(
-            "fail2ban-client status 2>/dev/null || echo 'Fail2Ban indisponible'"
-        )
+        return await run_shell_command("fail2ban-client status 2>/dev/null || echo 'Fail2Ban indisponible'")
 
     @mcp.tool()
     async def ynh_monitor_ports() -> str:
@@ -111,11 +103,7 @@ def register_monitoring_tools(mcp: FastMCP, settings=None):
         validate_alphanum(pattern, "search pattern")
         lines = validate_positive_int(int(lines), "lines", 500)
         fetch_lines = lines * 5
-        cmd = (
-            f"journalctl -n {fetch_lines} --no-pager 2>/dev/null"
-            f" | grep -i {shlex.quote(pattern)}"
-            f" | tail -n {lines}"
-        )
+        cmd = f"journalctl -n {fetch_lines} --no-pager 2>/dev/null | grep -i {shlex.quote(pattern)} | tail -n {lines}"
         return await run_shell_command(cmd)
 
     @mcp.tool()
@@ -124,13 +112,8 @@ def register_monitoring_tools(mcp: FastMCP, settings=None):
         return "\n\n".join(
             [
                 "=== Résumé incidents ===",
-                "Services en échec:\n"
-                + await run_shell_command(
-                    "systemctl --failed --no-legend 2>/dev/null || true"
-                ),
+                "Services en échec:\n" + await run_shell_command("systemctl --failed --no-legend 2>/dev/null || true"),
                 "Logs récents niveau err:\n"
-                + await run_shell_command(
-                    "journalctl -p err -n 20 --no-pager 2>/dev/null || true"
-                ),
+                + await run_shell_command("journalctl -p err -n 20 --no-pager 2>/dev/null || true"),
             ]
         )

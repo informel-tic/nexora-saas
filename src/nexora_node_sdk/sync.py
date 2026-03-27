@@ -43,9 +43,7 @@ def build_sync_plan(
                         }
                     )
                 elif isinstance(data, dict) and isinstance(tgt_perms.get(perm), dict):
-                    if sorted(data.get("allowed", [])) != sorted(
-                        tgt_perms[perm].get("allowed", [])
-                    ):
+                    if sorted(data.get("allowed", [])) != sorted(tgt_perms[perm].get("allowed", [])):
                         actions.append(
                             {
                                 "type": "update_permission",
@@ -112,17 +110,13 @@ def generate_sync_policy(settings: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def detect_sync_conflicts(
-    reference: dict[str, Any], target: dict[str, Any]
-) -> list[dict[str, Any]]:
+def detect_sync_conflicts(reference: dict[str, Any], target: dict[str, Any]) -> list[dict[str, Any]]:
     """Detect simple sync conflicts between reference and target metadata."""
 
     conflicts = []
     for key in sorted(set(reference) & set(target)):
         if reference.get(key) != target.get(key):
-            conflicts.append(
-                {"key": key, "reference": reference.get(key), "target": target.get(key)}
-            )
+            conflicts.append({"key": key, "reference": reference.get(key), "target": target.get(key)})
     return conflicts
 
 

@@ -1,11 +1,13 @@
 """Outils MCP pour la gestion des sauvegardes YunoHost."""
 
 import shlex
+
 from mcp.server.fastmcp import FastMCP
+
 from yunohost_mcp.utils.runner import (
-    run_ynh_command,
-    run_shell_command_safe,
     format_result,
+    run_shell_command_safe,
+    run_ynh_command,
 )
 from yunohost_mcp.utils.safety import validate_name
 
@@ -29,9 +31,7 @@ def register_backup_tools(mcp: FastMCP, settings=None):
         return format_result(result)
 
     @mcp.tool()
-    async def ynh_backup_create(
-        name: str = "", description: str = "", apps: str = "", system: str = ""
-    ) -> str:
+    async def ynh_backup_create(name: str = "", description: str = "", apps: str = "", system: str = "") -> str:
         """Crée une sauvegarde YunoHost.
         Args:
             name: Nom de l'archive (optionnel, auto-généré si vide)

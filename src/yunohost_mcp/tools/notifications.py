@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -46,9 +47,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
         return json.dumps(alert, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_notify_generate_webhook(
-        template_id: str, format: str = "slack"
-    ) -> str:
+    async def ynh_notify_generate_webhook(template_id: str, format: str = "slack") -> str:
         """Génère le payload webhook pour une alerte.
         Args:
             template_id: ID du template d'alerte
@@ -56,9 +55,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
         """
         from nexora_core.notifications import format_alert, generate_webhook_payload
 
-        examples = {
-            "service_down": {"service": "nginx", "node_id": "srv1", "since": "10 min"}
-        }
+        examples = {"service_down": {"service": "nginx", "node_id": "srv1", "since": "10 min"}}
         params = examples.get(template_id, {"node_id": "srv1"})
         alert = format_alert(template_id, **params)
         if not alert:
@@ -75,9 +72,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
         from nexora_core.notifications import generate_notification_config
 
         ch_list = [c.strip() for c in channels.split(",")]
-        return json.dumps(
-            generate_notification_config(ch_list), indent=2, ensure_ascii=False
-        )
+        return json.dumps(generate_notification_config(ch_list), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_notify_send_webhook(template_id: str, webhook_url: str) -> str:
@@ -100,9 +95,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_notify_send_ntfy(
-        template_id: str, topic: str, server: str = "https://ntfy.sh"
-    ) -> str:
+    async def ynh_notify_send_ntfy(template_id: str, topic: str, server: str = "https://ntfy.sh") -> str:
         """[OPERATOR] Envoie une notification push via ntfy.
         Args:
             template_id: ID du template d'alerte
@@ -119,7 +112,5 @@ def register_notification_tools(mcp: FastMCP, settings=None):
             }
         }
         params = examples.get(template_id, {"node_id": "local"})
-        result = send_alert(
-            template_id, "ntfy", ntfy_topic=topic, ntfy_server=server, **params
-        )
+        result = send_alert(template_id, "ntfy", ntfy_topic=topic, ntfy_server=server, **params)
         return json.dumps(result, indent=2, ensure_ascii=False)

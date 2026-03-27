@@ -76,11 +76,7 @@ def get_allowed_templates(tier: TenantTier | str) -> list[dict[str, Any]]:
     tier = _resolve_tier(tier)
     profile = _TIER_PROFILES.get(tier, "minimal")
     allowed_ids = _PROFILE_TEMPLATES.get(profile, _PROFILE_TEMPLATES["minimal"])
-    return [
-        {"id": k, **v}
-        for k, v in AUTOMATION_TEMPLATES.items()
-        if k in allowed_ids
-    ]
+    return [{"id": k, **v} for k, v in AUTOMATION_TEMPLATES.items() if k in allowed_ids]
 
 
 def get_blocked_templates(tier: TenantTier | str) -> list[dict[str, Any]]:
@@ -92,14 +88,16 @@ def get_blocked_templates(tier: TenantTier | str) -> list[dict[str, Any]]:
     for k, v in AUTOMATION_TEMPLATES.items():
         if k not in allowed_ids:
             required_tier = _minimum_tier_for_template(k)
-            blocked.append({
-                "id": k,
-                **v,
-                "required_tier": required_tier.value if required_tier else "unknown",
-                "upgrade_hint": f"Upgrade to {required_tier.value} to unlock '{v['name']}'."
-                if required_tier
-                else "",
-            })
+            blocked.append(
+                {
+                    "id": k,
+                    **v,
+                    "required_tier": required_tier.value if required_tier else "unknown",
+                    "upgrade_hint": f"Upgrade to {required_tier.value} to unlock '{v['name']}'."
+                    if required_tier
+                    else "",
+                }
+            )
     return blocked
 
 
@@ -109,9 +107,7 @@ def generate_tier_automation_plan(tier: TenantTier | str) -> dict[str, Any]:
     profile = get_automation_profile_for_tier(tier)
     plan = generate_automation_plan(profile)
     plan["tier"] = tier.value
-    plan["allowed_template_count"] = len(
-        _PROFILE_TEMPLATES.get(profile, _PROFILE_TEMPLATES["minimal"])
-    )
+    plan["allowed_template_count"] = len(_PROFILE_TEMPLATES.get(profile, _PROFILE_TEMPLATES["minimal"]))
     plan["total_template_count"] = len(AUTOMATION_TEMPLATES)
 
     # Add upgrade info if not on the highest tier
@@ -126,9 +122,7 @@ def generate_tier_automation_plan(tier: TenantTier | str) -> dict[str, Any]:
     return plan
 
 
-def generate_tier_crontab(
-    tier: TenantTier | str, user: str = "nexora"
-) -> dict[str, Any]:
+def generate_tier_crontab(tier: TenantTier | str, user: str = "nexora") -> dict[str, Any]:
     """Generate the crontab content for a tier, with metadata."""
     tier = _resolve_tier(tier)
     plan = generate_tier_automation_plan(tier)
@@ -193,9 +187,7 @@ def record_job_execution(
     }
 
 
-def get_job_history(
-    *, tier: TenantTier | str | None = None, state_path: str | None = None
-) -> dict[str, Any]:
+def get_job_history(*, tier: TenantTier | str | None = None, state_path: str | None = None) -> dict[str, Any]:
     """Get automation job execution history, optionally filtered by tier."""
     path = Path(state_path) if state_path else Path("/opt/nexora/var/automation-history.json")
     try:

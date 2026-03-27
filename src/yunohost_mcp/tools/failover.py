@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -16,9 +17,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         return json.dumps(list_health_check_strategies(), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_failover_generate_pair(
-        app_id: str, domain: str, primary_host: str, secondary_host: str
-    ) -> str:
+    async def ynh_failover_generate_pair(app_id: str, domain: str, primary_host: str, secondary_host: str) -> str:
         """Génère une configuration failover active/passive pour une app.
         Args:
             app_id: Identifiant de l'application
@@ -37,9 +36,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_failover_generate_nginx(
-        app_id: str, domain: str, primary_host: str, secondary_host: str
-    ) -> str:
+    async def ynh_failover_generate_nginx(app_id: str, domain: str, primary_host: str, secondary_host: str) -> str:
         """Génère une configuration nginx avec failover automatique.
         Args:
             app_id: Identifiant de l'app
@@ -49,9 +46,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         """
         from nexora_core.failover import generate_failover_nginx_config
 
-        return generate_failover_nginx_config(
-            app_id, primary_host, secondary_host, domain
-        )
+        return generate_failover_nginx_config(app_id, primary_host, secondary_host, domain)
 
     @mcp.tool()
     async def ynh_failover_plan() -> str:
@@ -90,9 +85,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         return json.dumps(plan, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_failover_generate_keepalived(
-        vip: str, primary_host: str, secondary_host: str
-    ) -> str:
+    async def ynh_failover_generate_keepalived(vip: str, primary_host: str, secondary_host: str) -> str:
         """Génère une configuration keepalived pour failover IP.
         Args:
             vip: IP virtuelle flottante
@@ -104,9 +97,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         return generate_keepalived_config(vip, primary_host, secondary_host)
 
     @mcp.tool()
-    async def ynh_failover_apply_nginx(
-        app_id: str, domain: str, primary_host: str, secondary_host: str
-    ) -> str:
+    async def ynh_failover_apply_nginx(app_id: str, domain: str, primary_host: str, secondary_host: str) -> str:
         """[OPERATOR] Applique une config nginx failover et recharge nginx.
         Args:
             app_id: Identifiant de l'app
@@ -123,9 +114,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         )
 
     @mcp.tool()
-    async def ynh_failover_apply_maintenance(
-        domain: str, message: str = "Maintenance en cours"
-    ) -> str:
+    async def ynh_failover_apply_maintenance(domain: str, message: str = "Maintenance en cours") -> str:
         """[OPERATOR] Active le mode maintenance sur un domaine (503).
         Args:
             domain: Domaine
@@ -133,9 +122,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         """
         from nexora_core.failover import apply_maintenance_mode
 
-        return json.dumps(
-            apply_maintenance_mode(domain, message), indent=2, ensure_ascii=False
-        )
+        return json.dumps(apply_maintenance_mode(domain, message), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_failover_remove_maintenance(domain: str) -> str:

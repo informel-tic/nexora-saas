@@ -31,11 +31,7 @@ def load_blueprints(root: str | Path) -> list[Blueprint]:
         return items
     for profile in sorted(root.glob("*/profile.yaml")):
         raw = profile.read_text()
-        data = (
-            _yaml.safe_load(raw)
-            if _yaml is not None
-            else (_simple_yaml_load(raw) or {})
-        )
+        data = _yaml.safe_load(raw) if _yaml is not None else (_simple_yaml_load(raw) or {})
         data = data if isinstance(data, dict) else {}
         items.append(
             Blueprint(
@@ -61,9 +57,7 @@ def resolve_blueprint(root: str | Path, slug: str) -> Blueprint | None:
     return next((bp for bp in load_blueprints(root) if bp.slug == slug), None)
 
 
-def _blueprint_target_domain(
-    domain: str, subdomains: list[str], index: int
-) -> tuple[str, str]:
+def _blueprint_target_domain(domain: str, subdomains: list[str], index: int) -> tuple[str, str]:
     subdomain = subdomains[index] if index < len(subdomains) else ""
     target_domain = f"{subdomain}.{domain}" if subdomain else domain
     return target_domain, subdomain
@@ -78,9 +72,7 @@ def resolve_blueprint_plan(blueprint: Blueprint, domain: str) -> dict[str, Any]:
     manual_review_required = False
 
     for index, app_id in enumerate(blueprint.recommended_apps):
-        target_domain, subdomain = _blueprint_target_domain(
-            domain, blueprint.subdomains, index
-        )
+        target_domain, subdomain = _blueprint_target_domain(domain, blueprint.subdomains, index)
         try:
             profile = resolve_app_profile(app_id)
         except AppProfileError as exc:
@@ -109,9 +101,7 @@ def resolve_blueprint_plan(blueprint: Blueprint, domain: str) -> dict[str, Any]:
 
         if install_mode == "subdomain_only":
             if not subdomain:
-                app_blocking.append(
-                    "missing_blueprint_subdomain_for_subdomain_only_profile"
-                )
+                app_blocking.append("missing_blueprint_subdomain_for_subdomain_only_profile")
             target_path = "/"
         elif subdomain:
             target_path = "/"
@@ -147,13 +137,7 @@ def resolve_blueprint_plan(blueprint: Blueprint, domain: str) -> dict[str, Any]:
         if app_plan["blocking_issues"]:
             blocking_issues.append(f"app:{app_id}")
 
-    status = (
-        "blocked"
-        if blocking_issues
-        else "manual_review_required"
-        if manual_review_required
-        else "ready"
-    )
+    status = "blocked" if blocking_issues else "manual_review_required" if manual_review_required else "ready"
     return {
         "blueprint": blueprint.slug,
         "name": blueprint.name,

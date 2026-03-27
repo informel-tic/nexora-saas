@@ -10,9 +10,7 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def create_heartbeat(
-    node_id: str, *, status: str, roles: list[str], inventory_version: str = "1.0"
-) -> dict[str, Any]:
+def create_heartbeat(node_id: str, *, status: str, roles: list[str], inventory_version: str = "1.0") -> dict[str, Any]:
     """Create a versioned heartbeat payload for a node."""
 
     return {
@@ -24,9 +22,7 @@ def create_heartbeat(
     }
 
 
-def record_heartbeat(
-    state: dict[str, Any], heartbeat: dict[str, Any]
-) -> dict[str, Any]:
+def record_heartbeat(state: dict[str, Any], heartbeat: dict[str, Any]) -> dict[str, Any]:
     """Store a heartbeat in the JSON state cache."""
 
     state.setdefault("heartbeats", []).append(heartbeat)
@@ -49,7 +45,5 @@ def summarize_heartbeat_state(heartbeats: list[dict[str, Any]]) -> dict[str, Any
     return {
         "total_nodes": len(latest),
         "latest_by_node": latest,
-        "last_seen_at": max(
-            (entry["sent_at"] for entry in latest.values()), default=None
-        ),
+        "last_seen_at": max((entry["sent_at"] for entry in latest.values()), default=None),
     }

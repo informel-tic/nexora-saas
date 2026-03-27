@@ -144,12 +144,8 @@ def _clear_crl_entry(certs_dir: str, node_id: str) -> None:
     if not crl_path.exists():
         return
     payload = json.loads(crl_path.read_text(encoding="utf-8"))
-    payload["revoked"] = [
-        e for e in payload.get("revoked", []) if e.get("node_id") != node_id
-    ]
-    crl_path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    payload["revoked"] = [e for e in payload.get("revoked", []) if e.get("node_id") != node_id]
+    crl_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 # ── Revoke ───────────────────────────────────────────────────────────

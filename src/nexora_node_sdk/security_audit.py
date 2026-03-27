@@ -136,9 +136,7 @@ def build_security_event(
 
 
 # TASK-3-2-3-2 / TASK-3-15-3-1: Security audit trail.
-def append_security_event(
-    state: dict[str, Any], event: dict[str, Any]
-) -> dict[str, Any]:
+def append_security_event(state: dict[str, Any], event: dict[str, Any]) -> dict[str, Any]:
     """Append a security event to the mutable application state."""
 
     state.setdefault("security_audit", []).append(event)
@@ -160,26 +158,20 @@ def emit_security_event(
 
     This is the preferred entry-point for all security logging.
     """
-    event = build_security_event(
-        category, action, severity=severity, tenant_id=tenant_id, **details
-    )
+    event = build_security_event(category, action, severity=severity, tenant_id=tenant_id, **details)
     append_security_event(state, event)
 
     if state_path:
         try:
             append_security_event_to_file(state_path, event)
         except Exception as exc:
-            logger.warning(
-                "Failed to persist security event to %s: %s", state_path, exc
-            )
+            logger.warning("Failed to persist security event to %s: %s", state_path, exc)
 
     return event
 
 
 # TASK-3-15-3-1: Security audit trail.
-def append_security_event_to_file(
-    state_path: str | Path, event: dict[str, Any]
-) -> dict[str, Any]:
+def append_security_event_to_file(state_path: str | Path, event: dict[str, Any]) -> dict[str, Any]:
     """Append a security event to the JSON state file."""
 
     path = Path(state_path)
@@ -301,9 +293,7 @@ class SecurityJournal:
         if self._path.exists():
             try:
                 data = json.loads(self._path.read_text(encoding="utf-8"))
-                self._events = (
-                    data if isinstance(data, list) else data.get("events", [])
-                )
+                self._events = data if isinstance(data, list) else data.get("events", [])
             except (json.JSONDecodeError, OSError):
                 self._events = []
 
@@ -324,18 +314,14 @@ class SecurityJournal:
 
         # Deterministic serialization of the event content
         content = {k: v for k, v in event.items() if k not in ("hmac", "prev_hash")}
-        serialized = json.dumps(content, sort_keys=True, ensure_ascii=False).encode(
-            "utf-8"
-        )
+        serialized = json.dumps(content, sort_keys=True, ensure_ascii=False).encode("utf-8")
         return hashlib.sha256(serialized).hexdigest()
 
     def _compute_hmac(self, event: dict[str, Any]) -> str:
         """Compute HMAC-SHA256 of the event including prev_hash but excluding hmac."""
 
         content = {k: v for k, v in event.items() if k != "hmac"}
-        serialized = json.dumps(content, sort_keys=True, ensure_ascii=False).encode(
-            "utf-8"
-        )
+        serialized = json.dumps(content, sort_keys=True, ensure_ascii=False).encode("utf-8")
         return _hmac.new(self._signing_key, serialized, hashlib.sha256).hexdigest()
 
     @property
@@ -363,9 +349,7 @@ class SecurityJournal:
         """
 
         if severity not in VALID_SEVERITIES:
-            raise ValueError(
-                f"Invalid severity: {severity}. Must be one of {VALID_SEVERITIES}"
-            )
+            raise ValueError(f"Invalid severity: {severity}. Must be one of {VALID_SEVERITIES}")
 
         # Compute prev_hash from last event
         if self._events:
@@ -392,9 +376,7 @@ class SecurityJournal:
         self._save()
         return event
 
-    def verify_integrity(
-        self, events: list[dict[str, Any]] | None = None
-    ) -> dict[str, Any]:
+    def verify_integrity(self, events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """Verify the HMAC chain integrity of the event journal.
 
         Returns:
@@ -410,9 +392,7 @@ class SecurityJournal:
             expected_hmac = self._compute_hmac(event)
             stored_hmac = event.get("hmac", "")
             if not _hmac.compare_digest(expected_hmac, stored_hmac):
-                errors.append(
-                    f"event {i} ({event.get('event_id', '?')}): HMAC mismatch"
-                )
+                errors.append(f"event {i} ({event.get('event_id', '?')}): HMAC mismatch")
                 if first_invalid is None:
                     first_invalid = i
                 continue
@@ -424,9 +404,7 @@ class SecurityJournal:
                 expected_prev = self._compute_event_hash(evts[i - 1])
 
             if event.get("prev_hash") != expected_prev:
-                errors.append(
-                    f"event {i} ({event.get('event_id', '?')}): prev_hash chain broken"
-                )
+                errors.append(f"event {i} ({event.get('event_id', '?')}): prev_hash chain broken")
                 if first_invalid is None:
                     first_invalid = i
 
@@ -504,11 +482,7 @@ class SecurityJournal:
 
         if max_age_days is not None:
             cutoff = now - timedelta(days=max_age_days)
-            self._events = [
-                e
-                for e in self._events
-                if (_parse_iso(e.get("timestamp")) or now) >= cutoff
-            ]
+            self._events = [e for e in self._events if (_parse_iso(e.get("timestamp")) or now) >= cutoff]
 
         if max_events is not None and len(self._events) > max_events:
             self._events = self._events[-max_events:]
@@ -558,9 +532,7 @@ class SecurityJournal:
             elif period == "month":
                 key = ts.strftime("%Y-%m")
             else:
-                raise ValueError(
-                    f"Invalid period: {period}. Must be one of hour, day, week, month"
-                )
+                raise ValueError(f"Invalid period: {period}. Must be one of hour, day, week, month")
 
             buckets[key]["total"] += 1
             buckets[key]["categories"][event.get("category", "unknown")] += 1

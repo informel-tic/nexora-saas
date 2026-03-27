@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
 import shutil
+import sqlite3
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -42,9 +42,7 @@ class JsonStateRepository:
     backend_name: str = "json-file"
     backup_retention: int = 10
     schema_version: str = "ws2-v2"
-    _lock: threading.RLock = field(
-        default_factory=threading.RLock, init=False, repr=False
-    )
+    _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
 
     @property
     def path(self) -> Path:
@@ -69,11 +67,7 @@ class JsonStateRepository:
         payload.setdefault("inventory_cache", {})
         payload.setdefault("node_action_events", [])
         payload.setdefault("state_backups", [])
-        payload["nodes"] = [
-            normalize_node_record(node)
-            for node in payload.get("nodes", [])
-            if isinstance(node, dict)
-        ]
+        payload["nodes"] = [normalize_node_record(node) for node in payload.get("nodes", []) if isinstance(node, dict)]
         payload.setdefault("_persistence", {})
         payload["_persistence"].update(
             {
@@ -86,9 +80,7 @@ class JsonStateRepository:
 
     def _write_json(self, path: Path, payload: dict[str, Any]) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
     def _load_json(self, path: Path) -> dict[str, Any]:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -131,9 +123,7 @@ class JsonStateRepository:
             {
                 "path": str(path),
                 "size_bytes": path.stat().st_size,
-                "modified_at": datetime.fromtimestamp(
-                    path.stat().st_mtime, tz=timezone.utc
-                ).isoformat(),
+                "modified_at": datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc).isoformat(),
             }
             for path in self._list_backup_paths()
         ]
@@ -143,9 +133,7 @@ class JsonStateRepository:
             selected = (
                 Path(backup_path)
                 if backup_path
-                else (
-                    self._list_backup_paths()[-1] if self._list_backup_paths() else None
-                )
+                else (self._list_backup_paths()[-1] if self._list_backup_paths() else None)
             )
             if selected is None or not selected.exists():
                 return {"restored": False, "error": "No backup available"}
@@ -206,9 +194,7 @@ class JsonStateRepository:
     def load(self) -> dict[str, Any]:
         with self._lock:
             recovery = self._recover_from_journal()
-            journal_warning = (
-                recovery if recovery and not recovery.get("recovered") else None
-            )
+            journal_warning = recovery if recovery and not recovery.get("recovered") else None
             data = self.store.load()
             primary_healthy = self.path.exists() and "_state_warning" not in data
             if primary_healthy:
@@ -284,9 +270,7 @@ class JsonStateRepository:
             "counts": {
                 "nodes": len(payload.get("nodes", [])),
                 "inventory_snapshots": len(payload.get("inventory_snapshots", [])),
-                "security_events": len(
-                    (payload.get("security_audit", {}) or {}).get("events", [])
-                )
+                "security_events": len((payload.get("security_audit", {}) or {}).get("events", []))
                 if isinstance(payload.get("security_audit", {}), dict)
                 else len(payload.get("security_audit", []))
                 if isinstance(payload.get("security_audit", []), list)
@@ -297,9 +281,7 @@ class JsonStateRepository:
         }
 
 
-def migrate_legacy_state_file(
-    source: str | Path, destination: str | Path
-) -> dict[str, Any]:
+def migrate_legacy_state_file(source: str | Path, destination: str | Path) -> dict[str, Any]:
     """Normalize a legacy JSON state file into the active repository format."""
 
     source_path = Path(source)
@@ -311,9 +293,7 @@ def migrate_legacy_state_file(
     normalized.setdefault("inventory_cache", {})
     normalized.setdefault("node_action_events", [])
     normalized["nodes"] = [
-        normalize_node_record(node)
-        for node in normalized.get("nodes", [])
-        if isinstance(node, dict)
+        normalize_node_record(node) for node in normalized.get("nodes", []) if isinstance(node, dict)
     ]
 
     backup_path = None
@@ -334,14 +314,10 @@ def migrate_legacy_state_file(
 
 def build_state_repository(path: str | Path) -> StateRepository:
     """Build the default persistence backend for the current deployment."""
-    backend = (
-        str(os.environ.get("NEXORA_PERSISTENCE_BACKEND", "json-file")).strip().lower()
-    )
+    backend = str(os.environ.get("NEXORA_PERSISTENCE_BACKEND", "json-file")).strip().lower()
     if backend == "sql":
         sqlite_path = os.environ.get("NEXORA_SQLITE_PATH")
-        db_path = (
-            Path(sqlite_path) if sqlite_path else Path(path).with_suffix(".sqlite3")
-        )
+        db_path = Path(sqlite_path) if sqlite_path else Path(path).with_suffix(".sqlite3")
         return SqliteStateRepository(db_path=db_path, fallback_path=Path(path))
     return JsonStateRepository(StateStore(path))
 
@@ -354,9 +330,7 @@ class SqliteStateRepository:
     fallback_path: Path
     backend_name: str = "sql"
     schema_version: str = "ws2-sql-v1"
-    _lock: threading.RLock = field(
-        default_factory=threading.RLock, init=False, repr=False
-    )
+    _lock: threading.RLock = field(default_factory=threading.RLock, init=False, repr=False)
     dual_write: bool = True
 
     @property
@@ -391,9 +365,7 @@ class SqliteStateRepository:
             )
             """
         )
-        conn.execute(
-            "CREATE INDEX IF NOT EXISTS idx_tenant_artifacts_tenant_kind ON tenant_artifacts(tenant_id, kind)"
-        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_tenant_artifacts_tenant_kind ON tenant_artifacts(tenant_id, kind)")
         conn.commit()
 
     def _normalized_payload(self, data: dict[str, Any]) -> dict[str, Any]:
@@ -403,11 +375,7 @@ class SqliteStateRepository:
         payload.setdefault("inventory_cache", {})
         payload.setdefault("node_action_events", [])
         payload.setdefault("state_backups", [])
-        payload["nodes"] = [
-            normalize_node_record(node)
-            for node in payload.get("nodes", [])
-            if isinstance(node, dict)
-        ]
+        payload["nodes"] = [normalize_node_record(node) for node in payload.get("nodes", []) if isinstance(node, dict)]
         payload.setdefault("_persistence", {})
         payload["_persistence"].update(
             {
@@ -419,9 +387,7 @@ class SqliteStateRepository:
         )
         return payload
 
-    def _extract_tenant_artifacts(
-        self, payload: dict[str, Any]
-    ) -> list[tuple[str, str, str]]:
+    def _extract_tenant_artifacts(self, payload: dict[str, Any]) -> list[tuple[str, str, str]]:
         rows: list[tuple[str, str, str]] = []
         for snapshot in payload.get("inventory_snapshots", []):
             if not isinstance(snapshot, dict):
@@ -449,9 +415,7 @@ class SqliteStateRepository:
             tenant_id = str(event.get("tenant_id") or "").strip()
             if not tenant_id:
                 continue
-            rows.append(
-                (tenant_id, "security_event", json.dumps(event, ensure_ascii=False))
-            )
+            rows.append((tenant_id, "security_event", json.dumps(event, ensure_ascii=False)))
         return rows
 
     def load(self) -> dict[str, Any]:
@@ -459,13 +423,9 @@ class SqliteStateRepository:
             conn = self._connect()
             try:
                 self._ensure_schema(conn)
-                row = conn.execute(
-                    "SELECT payload FROM control_plane_state WHERE id = 1"
-                ).fetchone()
+                row = conn.execute("SELECT payload FROM control_plane_state WHERE id = 1").fetchone()
                 if row is None:
-                    fallback = JsonStateRepository(
-                        StateStore(self.fallback_path)
-                    ).load()
+                    fallback = JsonStateRepository(StateStore(self.fallback_path)).load()
                     normalized = self._normalized_payload(fallback)
                     self.save(normalized)
                     normalized.setdefault("_state_recovery", {})
@@ -506,10 +466,7 @@ class SqliteStateRepository:
                 if tenant_rows:
                     conn.executemany(
                         "INSERT INTO tenant_artifacts(tenant_id, kind, payload, created_at) VALUES (?, ?, ?, ?)",
-                        [
-                            (tenant_id, kind, payload_json, _utc_now())
-                            for tenant_id, kind, payload_json in tenant_rows
-                        ],
+                        [(tenant_id, kind, payload_json, _utc_now()) for tenant_id, kind, payload_json in tenant_rows],
                     )
                 conn.commit()
             finally:
@@ -522,12 +479,8 @@ class SqliteStateRepository:
         conn = self._connect()
         try:
             self._ensure_schema(conn)
-            state_row = conn.execute(
-                "SELECT updated_at FROM control_plane_state WHERE id = 1"
-            ).fetchone()
-            tenant_count = conn.execute(
-                "SELECT COUNT(*) FROM tenant_artifacts"
-            ).fetchone()
+            state_row = conn.execute("SELECT updated_at FROM control_plane_state WHERE id = 1").fetchone()
+            tenant_count = conn.execute("SELECT COUNT(*) FROM tenant_artifacts").fetchone()
             return {
                 "backend": self.backend_name,
                 "path": str(self.db_path),
@@ -543,9 +496,7 @@ class SqliteStateRepository:
         finally:
             conn.close()
 
-    def tenant_artifacts(
-        self, tenant_id: str, kind: str | None = None
-    ) -> list[dict[str, Any]]:
+    def tenant_artifacts(self, tenant_id: str, kind: str | None = None) -> list[dict[str, Any]]:
         scoped_tenant = str(tenant_id).strip()
         if not scoped_tenant:
             return []

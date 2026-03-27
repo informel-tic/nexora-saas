@@ -1,10 +1,10 @@
 """SLA monitoring: uptime tracking, response time, compliance reporting."""
 
 from __future__ import annotations
-import json
-import logging
 
 import datetime
+import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -38,9 +38,7 @@ SLA_TIERS = {
 }
 
 
-def generate_sla_policy(
-    tier: str = "standard", *, custom_targets: dict | None = None
-) -> dict[str, Any]:
+def generate_sla_policy(tier: str = "standard", *, custom_targets: dict | None = None) -> dict[str, Any]:
     base = SLA_TIERS.get(tier, SLA_TIERS["standard"]).copy()
     if custom_targets:
         base.update(custom_targets)
@@ -91,27 +89,11 @@ def generate_sla_report(
     target = policy["targets"]["uptime_target"]
     compliant = uptime["uptime_percent"] >= target
 
-    services = (
-        inventory.get("services", {})
-        if isinstance(inventory.get("services"), dict)
-        else {}
-    )
-    running = sum(
-        1
-        for v in services.values()
-        if isinstance(v, dict) and v.get("status") == "running"
-    )
+    services = inventory.get("services", {}) if isinstance(inventory.get("services"), dict) else {}
+    running = sum(1 for v in services.values() if isinstance(v, dict) and v.get("status") == "running")
 
-    apps = (
-        inventory.get("apps", {}).get("apps", [])
-        if isinstance(inventory.get("apps"), dict)
-        else []
-    )
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    apps = inventory.get("apps", {}).get("apps", []) if isinstance(inventory.get("apps"), dict) else []
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
 
     return {
         "period_days": period_days,
@@ -142,17 +124,11 @@ def list_sla_tiers() -> list[dict[str, Any]]:
 _SLA_STATE_PATH = Path("/opt/nexora/var/sla-data.json")
 
 
-def record_downtime(
-    minutes: int, reason: str = "", state_path: str | None = None
-) -> dict[str, Any]:
+def record_downtime(minutes: int, reason: str = "", state_path: str | None = None) -> dict[str, Any]:
     """Record a downtime event for SLA tracking."""
     path = Path(state_path) if state_path else _SLA_STATE_PATH
     try:
-        data = (
-            json.loads(path.read_text())
-            if path.exists()
-            else {"events": [], "total_downtime_minutes": 0}
-        )
+        data = json.loads(path.read_text()) if path.exists() else {"events": [], "total_downtime_minutes": 0}
     except Exception as exc:
         logger.warning(
             "failed to read SLA state; recreating payload",
@@ -183,11 +159,7 @@ def get_sla_history(state_path: str | None = None) -> dict[str, Any]:
     """Get historical SLA data."""
     path = Path(state_path) if state_path else _SLA_STATE_PATH
     try:
-        return (
-            json.loads(path.read_text())
-            if path.exists()
-            else {"events": [], "total_downtime_minutes": 0}
-        )
+        return json.loads(path.read_text()) if path.exists() else {"events": [], "total_downtime_minutes": 0}
     except Exception as exc:
         logger.warning(
             "failed to read SLA history; returning empty payload",

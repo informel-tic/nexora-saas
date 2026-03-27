@@ -9,25 +9,24 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 # Shared modules from nexora_node_sdk
 from nexora_node_sdk.compatibility import resolve_compatibility_matrix_path
-from nexora_node_sdk.node_service import NodeService
 from nexora_node_sdk.models import (
     DashboardSummary,
     FleetSummary,
     NodeRecord,
     TenantTier,
 )
+from nexora_node_sdk.node_service import NodeService
 from nexora_node_sdk.state import normalize_node_record, transition_node_status
 
 # SaaS-only modules
 from .adoption import build_adoption_report
 from .enrollment import attest_node, consume_enrollment_token, issue_enrollment_token
 from .node_lifecycle import apply_lifecycle_action, summarize_fleet_lifecycle
-from .quotas import is_quota_exceeded, get_quota_limit, get_tenant_entitlements
+from .quotas import get_quota_limit, get_tenant_entitlements, is_quota_exceeded
 
 logger = logging.getLogger(__name__)
 
@@ -97,11 +96,7 @@ class NexoraService(NodeService):
             filtered: list[Any] = []
             for item in items:
                 if isinstance(item, dict):
-                    text = " ".join(
-                        str(v).lower()
-                        for v in item.values()
-                        if isinstance(v, (str, int, float))
-                    )
+                    text = " ".join(str(v).lower() for v in item.values() if isinstance(v, (str, int, float)))
                 else:
                     text = str(item).lower()
                 if any(domain.lower() in text for domain in tenant_domains):
@@ -121,38 +116,19 @@ class NexoraService(NodeService):
         backups_payload = self._fetch_section("backups")
 
         apps = apps_payload.get("apps", []) if isinstance(apps_payload, dict) else []
-        services_data = (
-            services_payload.get("services", {})
-            if isinstance(services_payload, dict)
-            else {}
-        )
-        certs_data = (
-            certs_payload.get("certificates", {})
-            if isinstance(certs_payload, dict)
-            else {}
-        )
-        backups_data = (
-            backups_payload.get("archives", [])
-            if isinstance(backups_payload, dict)
-            else []
-        )
+        services_data = services_payload.get("services", {}) if isinstance(services_payload, dict) else {}
+        certs_data = certs_payload.get("certificates", {}) if isinstance(certs_payload, dict) else {}
+        backups_data = backups_payload.get("archives", []) if isinstance(backups_payload, dict) else []
 
         top_apps = _tenant_filter_items(list(apps))[:10]
         scoped_services = _tenant_filter_items(
-            [
-                {"name": k, **(v if isinstance(v, dict) else {"status": str(v)})}
-                for k, v in services_data.items()
-            ]
+            [{"name": k, **(v if isinstance(v, dict) else {"status": str(v)})} for k, v in services_data.items()]
         )[:15]
         scoped_certs = _tenant_filter_items(
-            [
-                {"domain": k, **(v if isinstance(v, dict) else {"value": str(v)})}
-                for k, v in certs_data.items()
-            ]
+            [{"domain": k, **(v if isinstance(v, dict) else {"value": str(v)})} for k, v in certs_data.items()]
         )[:15]
         normalized_backups = [
-            entry if isinstance(entry, dict) else {"name": str(entry)}
-            for entry in list(backups_data)
+            entry if isinstance(entry, dict) else {"name": str(entry)} for entry in list(backups_data)
         ]
         scoped_backups = _tenant_filter_items(normalized_backups)[:10]
 
@@ -174,16 +150,12 @@ class NexoraService(NodeService):
             raw={"tenant_id": tenant_id, "tenant_filter_applied": bool(tenant_id)},
         )
 
-    def import_existing_state(
-        self, domain: str | None = None, path: str | None = None
-    ) -> dict[str, Any]:
+    def import_existing_state(self, domain: str | None = None, path: str | None = None) -> dict[str, Any]:
         self.invalidate_cache()
         inv = self.local_inventory()
         report = build_adoption_report(inv, domain, path)
         node_summary = self.local_node_summary().model_dump()
-        state = self._ensure_identity_state(
-            self.state.load(), enrolled_by="local-bootstrap"
-        )
+        state = self._ensure_identity_state(self.state.load(), enrolled_by="local-bootstrap")
         compatibility = self.compatibility_report()["assessment"]
         node_record = normalize_node_record(
             {
@@ -212,9 +184,7 @@ class NexoraService(NodeService):
             node_record, "healthy" if compatibility["bootstrap_allowed"] else "degraded"
         )
         state.setdefault("nodes", [])
-        state["nodes"] = [
-            n for n in state["nodes"] if n.get("node_id") != node_record["node_id"]
-        ] + [node_record]
+        state["nodes"] = [n for n in state["nodes"] if n.get("node_id") != node_record["node_id"]] + [node_record]
         imports = state.setdefault("imports", [])
         import_payload = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -243,9 +213,7 @@ class NexoraService(NodeService):
             "tenant_id": node_record.get("tenant_id"),
         }
         duplicate_snapshot = any(
-            isinstance(entry, dict)
-            and entry.get("kind") == "adoption-import"
-            and entry.get("inventory") == inv
+            isinstance(entry, dict) and entry.get("kind") == "adoption-import" and entry.get("inventory") == inv
             for entry in snapshots
         )
         if not duplicate_snapshot:
@@ -322,9 +290,7 @@ class NexoraService(NodeService):
         state = self._ensure_identity_state(self.state.load())
         result = attest_node(
             state,
-            compatibility_matrix_path=str(
-                resolve_compatibility_matrix_path(self.repo_root)
-            ),
+            compatibility_matrix_path=str(resolve_compatibility_matrix_path(self.repo_root)),
             **payload,
         )
         self.state.save(state)
@@ -357,18 +323,12 @@ class NexoraService(NodeService):
         tenant_id = token_record.get("tenant_id")
         if tenant_id:
             tenant_info = next(
-                (
-                    t
-                    for t in state.get("tenants", [])
-                    if t.get("tenant_id") == tenant_id
-                ),
+                (t for t in state.get("tenants", []) if t.get("tenant_id") == tenant_id),
                 {},
             )
             tier = tenant_info.get("tier", TenantTier.FREE)
 
-            tenant_nodes = [
-                n for n in state.get("nodes", []) if n.get("tenant_id") == tenant_id
-            ]
+            tenant_nodes = [n for n in state.get("nodes", []) if n.get("tenant_id") == tenant_id]
             if is_quota_exceeded(tier, "max_nodes", len(tenant_nodes)):
                 return {
                     "registered": False,
@@ -416,9 +376,7 @@ class NexoraService(NodeService):
             }
         )
         record = transition_node_status(record, "registered")
-        state["nodes"] = [
-            node for node in state.get("nodes", []) if node.get("node_id") != node_id
-        ] + [record]
+        state["nodes"] = [node for node in state.get("nodes", []) if node.get("node_id") != node_id] + [record]
         state.setdefault("fleet", {}).setdefault("managed_nodes", [])
         if node_id not in state["fleet"]["managed_nodes"]:
             state["fleet"]["managed_nodes"].append(node_id)
@@ -508,15 +466,11 @@ class NexoraService(NodeService):
 
         state = self.state.load()
         tenants = [
-            tenant
-            for tenant in state.get("tenants", [])
-            if isinstance(tenant, dict) and tenant.get("tenant_id")
+            tenant for tenant in state.get("tenants", []) if isinstance(tenant, dict) and tenant.get("tenant_id")
         ]
 
         if tenant_id:
-            tenants = [
-                tenant for tenant in tenants if tenant.get("tenant_id") == tenant_id
-            ]
+            tenants = [tenant for tenant in tenants if tenant.get("tenant_id") == tenant_id]
             if not tenants:
                 return {
                     "tenant_id": tenant_id,
@@ -537,19 +491,13 @@ class NexoraService(NodeService):
         for tenant in tenants:
             current_tenant_id = str(tenant.get("tenant_id"))
             tier = str(tenant.get("tier") or TenantTier.FREE)
-            tenant_nodes = [
-                node for node in nodes if node.get("tenant_id") == current_tenant_id
-            ]
+            tenant_nodes = [node for node in nodes if node.get("tenant_id") == current_tenant_id]
 
             nodes_count = len(tenant_nodes)
-            apps_per_node = [
-                _coerce_int(node.get("apps_count")) for node in tenant_nodes
-            ]
+            apps_per_node = [_coerce_int(node.get("apps_count")) for node in tenant_nodes]
             apps_total = sum(apps_per_node)
             max_apps_on_single_node = max(apps_per_node) if apps_per_node else 0
-            storage_used_gb = sum(
-                _coerce_int(node.get("storage_gb")) for node in tenant_nodes
-            )
+            storage_used_gb = sum(_coerce_int(node.get("storage_gb")) for node in tenant_nodes)
 
             limits = {
                 "max_nodes": get_quota_limit(tier, "max_nodes"),
@@ -564,12 +512,8 @@ class NexoraService(NodeService):
             }
             exceeded = {
                 "max_nodes": is_quota_exceeded(tier, "max_nodes", nodes_count),
-                "max_apps_per_node": is_quota_exceeded(
-                    tier, "max_apps_per_node", max_apps_on_single_node
-                ),
-                "max_storage_gb": is_quota_exceeded(
-                    tier, "max_storage_gb", storage_used_gb
-                ),
+                "max_apps_per_node": is_quota_exceeded(tier, "max_apps_per_node", max_apps_on_single_node),
+                "max_storage_gb": is_quota_exceeded(tier, "max_storage_gb", storage_used_gb),
             }
 
             reports.append(
@@ -589,18 +533,14 @@ class NexoraService(NodeService):
             return reports[0]
         return {"tenants": reports, "total_tenants": len(reports)}
 
-    def adoption_report(
-        self, domain: str | None = None, path: str | None = None
-    ) -> dict[str, Any]:
+    def adoption_report(self, domain: str | None = None, path: str | None = None) -> dict[str, Any]:
         return build_adoption_report(self.local_inventory(), domain, path)
 
     def purge_tenant_data(self, tenant_id: str) -> dict[str, Any]:
         """Securely purge all data related to a tenant (GDPR/Offboarding)."""
         state = self.state.load()
 
-        tenant_nodes = [
-            n for n in state.get("nodes", []) if n.get("tenant_id") == tenant_id
-        ]
+        tenant_nodes = [n for n in state.get("nodes", []) if n.get("tenant_id") == tenant_id]
         node_ids = [n.get("node_id") for n in tenant_nodes]
 
         from nexora_node_sdk.auth import SecretStore
@@ -608,27 +548,17 @@ class NexoraService(NodeService):
         store = SecretStore(self.state.path.parent / "secrets")
         store.purge_tenant_secrets(tenant_id)
 
-        state["nodes"] = [
-            n for n in state.get("nodes", []) if n.get("tenant_id") != tenant_id
-        ]
-        state["tenants"] = [
-            t for t in state.get("tenants", []) if t.get("tenant_id") != tenant_id
-        ]
+        state["nodes"] = [n for n in state.get("nodes", []) if n.get("tenant_id") != tenant_id]
+        state["tenants"] = [t for t in state.get("tenants", []) if t.get("tenant_id") != tenant_id]
 
         if "security_audit" in state:
-            state["security_audit"] = [
-                e for e in state["security_audit"] if e.get("tenant_id") != tenant_id
-            ]
+            state["security_audit"] = [e for e in state["security_audit"] if e.get("tenant_id") != tenant_id]
 
         if "enrollment_events" in state:
-            state["enrollment_events"] = [
-                e for e in state["enrollment_events"] if e.get("tenant_id") != tenant_id
-            ]
+            state["enrollment_events"] = [e for e in state["enrollment_events"] if e.get("tenant_id") != tenant_id]
 
         if "fleet" in state and "managed_nodes" in state["fleet"]:
-            state["fleet"]["managed_nodes"] = [
-                nid for nid in state["fleet"]["managed_nodes"] if nid not in node_ids
-            ]
+            state["fleet"]["managed_nodes"] = [nid for nid in state["fleet"]["managed_nodes"] if nid not in node_ids]
 
         self.state.save(state)
         self.invalidate_cache()
@@ -640,9 +570,7 @@ class NexoraService(NodeService):
             "message": f"Tenant {tenant_id} and all associated data have been purged successfully.",
         }
 
-    def onboard_tenant(
-        self, tenant_id: str, organization_id: str, tier: str = "free"
-    ) -> dict[str, Any]:
+    def onboard_tenant(self, tenant_id: str, organization_id: str, tier: str = "free") -> dict[str, Any]:
         """Formalize tenant onboarding and environment separation."""
         state = self.state.load()
         state.setdefault("tenants", [])

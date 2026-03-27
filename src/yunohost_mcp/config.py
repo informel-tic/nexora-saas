@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from pathlib import Path
 import os
 import sys
+from dataclasses import dataclass, field
+from pathlib import Path
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -71,12 +71,8 @@ def load_settings() -> MCPSettings:
                     setattr(settings, key, value)
             break
     settings.bind_host = os.environ.get("YUNOHOST_MCP_BIND_HOST", settings.bind_host)
-    settings.bind_port = int(
-        os.environ.get("YUNOHOST_MCP_BIND_PORT", settings.bind_port)
-    )
+    settings.bind_port = int(os.environ.get("YUNOHOST_MCP_BIND_PORT", settings.bind_port))
     settings.profile = os.environ.get("YUNOHOST_MCP_PROFILE", settings.profile)
     if os.environ.get("YUNOHOST_MCP_ALLOW_DESTRUCTIVE"):
-        settings.allow_destructive_tools = os.environ[
-            "YUNOHOST_MCP_ALLOW_DESTRUCTIVE"
-        ].lower() in {"1", "true", "yes"}
+        settings.allow_destructive_tools = os.environ["YUNOHOST_MCP_ALLOW_DESTRUCTIVE"].lower() in {"1", "true", "yes"}
     return settings

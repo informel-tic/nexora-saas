@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-
 # ── Security score ────────────────────────────────────────────────────
 
 
@@ -24,19 +23,13 @@ def compute_security_score(inventory: dict[str, Any]) -> dict[str, Any]:
     for name, perm in permissions.items():
         if isinstance(perm, dict) and "visitors" in perm.get("allowed", []):
             public_count += 1
-            details.append(
-                {"type": "public_permission", "name": name, "severity": "warning"}
-            )
+            details.append({"type": "public_permission", "name": name, "severity": "warning"})
     if public_count > 0:
         penalty = min(public_count * 5, 25)
         score -= penalty
         deductions.append(f"-{penalty} pts: {public_count} public permission(s)")
 
-    services = (
-        inventory.get("services", {})
-        if isinstance(inventory.get("services"), dict)
-        else {}
-    )
+    services = inventory.get("services", {}) if isinstance(inventory.get("services"), dict) else {}
     down_count = 0
     for svc, info in services.items():
         if isinstance(info, dict) and info.get("status") not in (
@@ -45,37 +38,25 @@ def compute_security_score(inventory: dict[str, Any]) -> dict[str, Any]:
             None,
         ):
             down_count += 1
-            details.append(
-                {"type": "service_down", "name": svc, "severity": "critical"}
-            )
+            details.append({"type": "service_down", "name": svc, "severity": "critical"})
     if down_count:
         penalty = min(down_count * 8, 30)
         score -= penalty
         deductions.append(f"-{penalty} pts: {down_count} service(s) down")
 
-    certs = (
-        inventory.get("certs", {}).get("certificates", {})
-        if isinstance(inventory.get("certs"), dict)
-        else {}
-    )
+    certs = inventory.get("certs", {}).get("certificates", {}) if isinstance(inventory.get("certs"), dict) else {}
     expired = 0
     for domain, data in certs.items():
         if isinstance(data, dict):
             validity = data.get("validity", 0)
             if isinstance(validity, (int, float)) and validity <= 0:
                 expired += 1
-                details.append(
-                    {"type": "cert_expired", "domain": domain, "severity": "critical"}
-                )
+                details.append({"type": "cert_expired", "domain": domain, "severity": "critical"})
     if expired:
         score -= min(expired * 10, 20)
         deductions.append(f"-{min(expired * 10, 20)} pts: {expired} expired cert(s)")
 
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     if backups:
         bonuses.append("+5 pts: backups present")
         score += 5
@@ -84,17 +65,7 @@ def compute_security_score(inventory: dict[str, Any]) -> dict[str, Any]:
         score -= 10
 
     score = max(0, min(100, score))
-    grade = (
-        "A"
-        if score >= 85
-        else "B"
-        if score >= 70
-        else "C"
-        if score >= 50
-        else "D"
-        if score >= 30
-        else "F"
-    )
+    grade = "A" if score >= 85 else "B" if score >= 70 else "C" if score >= 50 else "D" if score >= 30 else "F"
 
     return {
         "score": score,
@@ -113,11 +84,7 @@ def compute_pra_score(inventory: dict[str, Any]) -> dict[str, Any]:
     score = 40
     details: list[str] = []
 
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     if len(backups) >= 3:
         score += 20
         details.append("+20 pts: 3+ backup archives")
@@ -128,47 +95,27 @@ def compute_pra_score(inventory: dict[str, Any]) -> dict[str, Any]:
         score -= 20
         details.append("-20 pts: no backup archives")
 
-    apps = (
-        inventory.get("apps", {}).get("apps", [])
-        if isinstance(inventory.get("apps"), dict)
-        else []
-    )
+    apps = inventory.get("apps", {}).get("apps", []) if isinstance(inventory.get("apps"), dict) else []
     if apps:
         score += 5
         details.append("+5 pts: apps inventory available")
 
-    domains = (
-        inventory.get("domains", {}).get("domains", [])
-        if isinstance(inventory.get("domains"), dict)
-        else []
-    )
+    domains = inventory.get("domains", {}).get("domains", []) if isinstance(inventory.get("domains"), dict) else []
     if domains:
         score += 5
         details.append("+5 pts: domains inventory available")
 
-    certs = (
-        inventory.get("certs", {}).get("certificates", {})
-        if isinstance(inventory.get("certs"), dict)
-        else {}
-    )
+    certs = inventory.get("certs", {}).get("certificates", {}) if isinstance(inventory.get("certs"), dict) else {}
     if certs:
         score += 5
         details.append("+5 pts: certificates documented")
 
-    permissions = (
-        inventory.get("permissions", {})
-        if isinstance(inventory.get("permissions"), dict)
-        else {}
-    )
+    permissions = inventory.get("permissions", {}) if isinstance(inventory.get("permissions"), dict) else {}
     if permissions:
         score += 5
         details.append("+5 pts: permissions documented")
 
-    services = (
-        inventory.get("services", {})
-        if isinstance(inventory.get("services"), dict)
-        else {}
-    )
+    services = inventory.get("services", {}) if isinstance(inventory.get("services"), dict) else {}
     if services:
         score += 5
         details.append("+5 pts: services inventory available")
@@ -176,15 +123,7 @@ def compute_pra_score(inventory: dict[str, Any]) -> dict[str, Any]:
     score = max(0, min(100, score))
     return {
         "score": score,
-        "grade": "A"
-        if score >= 80
-        else "B"
-        if score >= 60
-        else "C"
-        if score >= 40
-        else "D"
-        if score >= 20
-        else "F",
+        "grade": "A" if score >= 80 else "B" if score >= 60 else "C" if score >= 40 else "D" if score >= 20 else "F",
         "details": details,
         "backup_count": len(backups),
         "app_count": len(apps),
@@ -200,37 +139,21 @@ def compute_health_score(inventory: dict[str, Any]) -> dict[str, Any]:
     score = 70
     details: list[str] = []
 
-    services = (
-        inventory.get("services", {})
-        if isinstance(inventory.get("services"), dict)
-        else {}
-    )
+    services = inventory.get("services", {}) if isinstance(inventory.get("services"), dict) else {}
     total_svc = len(services)
-    running = sum(
-        1
-        for v in services.values()
-        if isinstance(v, dict) and v.get("status") == "running"
-    )
+    running = sum(1 for v in services.values() if isinstance(v, dict) and v.get("status") == "running")
     if total_svc > 0:
         ratio = running / total_svc
         bonus = int(ratio * 20)
         score += bonus
         details.append(f"+{bonus} pts: {running}/{total_svc} services running")
 
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     if backups:
         score += 5
         details.append("+5 pts: backups present")
 
-    certs = (
-        inventory.get("certs", {}).get("certificates", {})
-        if isinstance(inventory.get("certs"), dict)
-        else {}
-    )
+    certs = inventory.get("certs", {}).get("certificates", {}) if isinstance(inventory.get("certs"), dict) else {}
     if certs:
         score += 5
         details.append("+5 pts: certs documented")
@@ -238,13 +161,7 @@ def compute_health_score(inventory: dict[str, Any]) -> dict[str, Any]:
     score = max(0, min(100, score))
     return {
         "score": score,
-        "grade": "A"
-        if score >= 85
-        else "B"
-        if score >= 70
-        else "C"
-        if score >= 50
-        else "D",
+        "grade": "A" if score >= 85 else "B" if score >= 70 else "C" if score >= 50 else "D",
         "details": details,
         "timestamp": datetime.datetime.now().isoformat(),
     }
@@ -292,11 +209,7 @@ def compute_compliance_score(
         details.append("+10: fleet management active")
 
     # Security baseline
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     if len(backups) >= 2:
         score += 10
         details.append("+10: multi-generation backups")
@@ -357,23 +270,11 @@ def diff_snapshots(before: dict[str, Any], after: dict[str, Any]) -> dict[str, A
     _list_diff("backups", "archives")
     _list_diff("permissions", "permissions")
 
-    b_services = (
-        before.get("services", {}) if isinstance(before.get("services"), dict) else {}
-    )
-    a_services = (
-        after.get("services", {}) if isinstance(after.get("services"), dict) else {}
-    )
+    b_services = before.get("services", {}) if isinstance(before.get("services"), dict) else {}
+    a_services = after.get("services", {}) if isinstance(after.get("services"), dict) else {}
     for svc in set(list(b_services) + list(a_services)):
-        b_st = (
-            b_services.get(svc, {}).get("status")
-            if isinstance(b_services.get(svc), dict)
-            else None
-        )
-        a_st = (
-            a_services.get(svc, {}).get("status")
-            if isinstance(a_services.get(svc), dict)
-            else None
-        )
+        b_st = b_services.get(svc, {}).get("status") if isinstance(b_services.get(svc), dict) else None
+        a_st = a_services.get(svc, {}).get("status") if isinstance(a_services.get(svc), dict) else None
         if b_st != a_st:
             changes.append(
                 {

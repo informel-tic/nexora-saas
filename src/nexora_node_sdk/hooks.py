@@ -75,16 +75,12 @@ def generate_hooks_config(hooks: dict[str, list[str]]) -> dict[str, Any]:
 HOOK_PRESETS = {
     "minimal": {
         "post_backup": ["echo 'Backup completed successfully'"],
-        "health_check_failed": [
-            "/opt/nexora/venv/bin/nexora-notify health_check_failed"
-        ],
+        "health_check_failed": ["/opt/nexora/venv/bin/nexora-notify health_check_failed"],
     },
     "standard": {
         "post_install": ["/opt/nexora/venv/bin/nexora-job daily_backup"],
         "post_backup": ["/opt/nexora/scripts/sync-backup-offsite.sh || true"],
-        "health_check_failed": [
-            "/opt/nexora/venv/bin/nexora-notify health_check_failed"
-        ],
+        "health_check_failed": ["/opt/nexora/venv/bin/nexora-notify health_check_failed"],
         "cert_expiring": ["yunohost domain cert install $DOMAIN --no-checks || true"],
         "disk_warning": ["/opt/nexora/venv/bin/nexora-notify disk_critical"],
     },
@@ -100,9 +96,7 @@ HOOK_PRESETS = {
             "/opt/nexora/venv/bin/nexora-notify pra_ready",
         ],
         "failover_triggered": ["/opt/nexora/venv/bin/nexora-notify failover_triggered"],
-        "health_check_failed": [
-            "/opt/nexora/venv/bin/nexora-notify health_check_failed"
-        ],
+        "health_check_failed": ["/opt/nexora/venv/bin/nexora-notify health_check_failed"],
         "score_changed": ["/opt/nexora/venv/bin/nexora-notify security_score_drop"],
         "drift_detected": ["/opt/nexora/venv/bin/nexora-notify fleet_drift"],
         "cert_expiring": [
@@ -118,10 +112,7 @@ HOOK_PRESETS = {
 
 
 def list_hook_presets() -> list[dict[str, Any]]:
-    return [
-        {"name": k, "hooks_count": len(v), "events": list(v.keys())}
-        for k, v in HOOK_PRESETS.items()
-    ]
+    return [{"name": k, "hooks_count": len(v), "events": list(v.keys())} for k, v in HOOK_PRESETS.items()]
 
 
 def install_hook(event: str, actions: list[str]) -> dict[str, Any]:

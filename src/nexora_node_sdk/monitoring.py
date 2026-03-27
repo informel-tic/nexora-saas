@@ -62,11 +62,7 @@ _CERT_THRESHOLDS_DAYS = (30, 14, 7)
 
 def check_certificates(inventory: dict[str, Any]) -> list[Alert]:
     """Analyze certificate inventory and generate alerts for expiring/expired certs."""
-    certs = (
-        inventory.get("certs", {}).get("certificates", {})
-        if isinstance(inventory.get("certs"), dict)
-        else {}
-    )
+    certs = inventory.get("certs", {}).get("certificates", {}) if isinstance(inventory.get("certs"), dict) else {}
     alerts: list[Alert] = []
     for domain, data in certs.items():
         if not isinstance(data, dict):
@@ -76,60 +72,76 @@ def check_certificates(inventory: dict[str, Any]) -> list[Alert]:
             continue
 
         if validity <= 0:
-            alerts.append(Alert(
-                id=f"cert-expired-{domain}",
-                severity=AlertSeverity.CRITICAL,
-                category=AlertCategory.CERT,
-                title=f"Certificat expiré: {domain}",
-                detail=f"Le certificat SSL pour {domain} est expiré (validity={validity}).",
-                remediation=f"Renouveler: yunohost domain cert install {domain} --force",
-            ))
+            alerts.append(
+                Alert(
+                    id=f"cert-expired-{domain}",
+                    severity=AlertSeverity.CRITICAL,
+                    category=AlertCategory.CERT,
+                    title=f"Certificat expiré: {domain}",
+                    detail=f"Le certificat SSL pour {domain} est expiré (validity={validity}).",
+                    remediation=f"Renouveler: yunohost domain cert install {domain} --force",
+                )
+            )
         elif validity <= 7:
-            alerts.append(Alert(
-                id=f"cert-expiring-7d-{domain}",
-                severity=AlertSeverity.CRITICAL,
-                category=AlertCategory.CERT,
-                title=f"Certificat expire dans {validity}j: {domain}",
-                detail=f"Le certificat SSL pour {domain} expire dans {validity} jours.",
-                remediation=f"Vérifier le renouvellement LE: yunohost domain cert status {domain}",
-            ))
+            alerts.append(
+                Alert(
+                    id=f"cert-expiring-7d-{domain}",
+                    severity=AlertSeverity.CRITICAL,
+                    category=AlertCategory.CERT,
+                    title=f"Certificat expire dans {validity}j: {domain}",
+                    detail=f"Le certificat SSL pour {domain} expire dans {validity} jours.",
+                    remediation=f"Vérifier le renouvellement LE: yunohost domain cert status {domain}",
+                )
+            )
         elif validity <= 14:
-            alerts.append(Alert(
-                id=f"cert-expiring-14d-{domain}",
-                severity=AlertSeverity.WARNING,
-                category=AlertCategory.CERT,
-                title=f"Certificat expire dans {validity}j: {domain}",
-                detail=f"Le certificat SSL pour {domain} expire dans {validity} jours.",
-                remediation=f"Vérifier le renouvellement LE: yunohost domain cert status {domain}",
-            ))
+            alerts.append(
+                Alert(
+                    id=f"cert-expiring-14d-{domain}",
+                    severity=AlertSeverity.WARNING,
+                    category=AlertCategory.CERT,
+                    title=f"Certificat expire dans {validity}j: {domain}",
+                    detail=f"Le certificat SSL pour {domain} expire dans {validity} jours.",
+                    remediation=f"Vérifier le renouvellement LE: yunohost domain cert status {domain}",
+                )
+            )
         elif validity <= 30:
-            alerts.append(Alert(
-                id=f"cert-expiring-30d-{domain}",
-                severity=AlertSeverity.INFO,
-                category=AlertCategory.CERT,
-                title=f"Certificat expire dans {validity}j: {domain}",
-                detail=f"Le certificat pour {domain} expire bientôt — vérifier que Let's Encrypt est actif.",
-                remediation="Vérifier la config LE et le timer de renouvellement.",
-            ))
+            alerts.append(
+                Alert(
+                    id=f"cert-expiring-30d-{domain}",
+                    severity=AlertSeverity.INFO,
+                    category=AlertCategory.CERT,
+                    title=f"Certificat expire dans {validity}j: {domain}",
+                    detail=f"Le certificat pour {domain} expire bientôt — vérifier que Let's Encrypt est actif.",
+                    remediation="Vérifier la config LE et le timer de renouvellement.",
+                )
+            )
     return alerts
 
 
 # ── Service monitoring ────────────────────────────────────────────────
 
-_CRITICAL_SERVICES = frozenset({
-    "nginx", "slapd", "postfix", "dovecot", "rspamd",
-    "yunohost-api", "yunohost-firewall", "ssh", "dnsmasq",
-    "mysql", "postgresql", "redis-server", "fail2ban",
-})
+_CRITICAL_SERVICES = frozenset(
+    {
+        "nginx",
+        "slapd",
+        "postfix",
+        "dovecot",
+        "rspamd",
+        "yunohost-api",
+        "yunohost-firewall",
+        "ssh",
+        "dnsmasq",
+        "mysql",
+        "postgresql",
+        "redis-server",
+        "fail2ban",
+    }
+)
 
 
 def check_services(inventory: dict[str, Any]) -> list[Alert]:
     """Check all services and alert on non-running critical/standard services."""
-    services = (
-        inventory.get("services", {})
-        if isinstance(inventory.get("services"), dict)
-        else {}
-    )
+    services = inventory.get("services", {}) if isinstance(inventory.get("services"), dict) else {}
     alerts: list[Alert] = []
     for svc, info in services.items():
         if not isinstance(info, dict):
@@ -138,39 +150,37 @@ def check_services(inventory: dict[str, Any]) -> list[Alert]:
         if status in ("running", "enabled"):
             continue
         is_critical = svc in _CRITICAL_SERVICES
-        alerts.append(Alert(
-            id=f"svc-down-{svc}",
-            severity=AlertSeverity.CRITICAL if is_critical else AlertSeverity.WARNING,
-            category=AlertCategory.SERVICE,
-            title=f"Service {'critique ' if is_critical else ''}arrêté: {svc}",
-            detail=f"Le service {svc} est en état '{status}'.",
-            remediation=f"Redémarrer: systemctl restart {svc}",
-        ))
+        alerts.append(
+            Alert(
+                id=f"svc-down-{svc}",
+                severity=AlertSeverity.CRITICAL if is_critical else AlertSeverity.WARNING,
+                category=AlertCategory.SERVICE,
+                title=f"Service {'critique ' if is_critical else ''}arrêté: {svc}",
+                detail=f"Le service {svc} est en état '{status}'.",
+                remediation=f"Redémarrer: systemctl restart {svc}",
+            )
+        )
     return alerts
 
 
 # ── Backup freshness monitoring ───────────────────────────────────────
 
 
-def check_backup_freshness(
-    inventory: dict[str, Any], *, max_age_days: int = 7
-) -> list[Alert]:
+def check_backup_freshness(inventory: dict[str, Any], *, max_age_days: int = 7) -> list[Alert]:
     """Alert if no recent backup exists within the configured window."""
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     alerts: list[Alert] = []
     if not backups:
-        alerts.append(Alert(
-            id="backup-none",
-            severity=AlertSeverity.CRITICAL,
-            category=AlertCategory.BACKUP,
-            title="Aucune sauvegarde détectée",
-            detail="Aucune archive de sauvegarde YunoHost n'a été trouvée.",
-            remediation="Créer une sauvegarde: yunohost backup create",
-        ))
+        alerts.append(
+            Alert(
+                id="backup-none",
+                severity=AlertSeverity.CRITICAL,
+                category=AlertCategory.BACKUP,
+                title="Aucune sauvegarde détectée",
+                detail="Aucune archive de sauvegarde YunoHost n'a été trouvée.",
+                remediation="Créer une sauvegarde: yunohost backup create",
+            )
+        )
         return alerts
 
     now = datetime.datetime.now(datetime.timezone.utc)
@@ -188,14 +198,16 @@ def check_backup_freshness(
                     pass
 
     if newest_age_days is not None and newest_age_days > max_age_days:
-        alerts.append(Alert(
-            id="backup-stale",
-            severity=AlertSeverity.WARNING,
-            category=AlertCategory.BACKUP,
-            title=f"Sauvegarde obsolète ({int(newest_age_days)}j)",
-            detail=f"La sauvegarde la plus récente date de {int(newest_age_days)} jours (seuil: {max_age_days}j).",
-            remediation="Créer une sauvegarde fraîche: yunohost backup create",
-        ))
+        alerts.append(
+            Alert(
+                id="backup-stale",
+                severity=AlertSeverity.WARNING,
+                category=AlertCategory.BACKUP,
+                title=f"Sauvegarde obsolète ({int(newest_age_days)}j)",
+                detail=f"La sauvegarde la plus récente date de {int(newest_age_days)} jours (seuil: {max_age_days}j).",
+                remediation="Créer une sauvegarde fraîche: yunohost backup create",
+            )
+        )
 
     return alerts
 
@@ -205,11 +217,7 @@ def check_backup_freshness(
 
 def check_disk_space(inventory: dict[str, Any], *, threshold_pct: int = 85) -> list[Alert]:
     """Alert on disk usage above threshold based on diagnosis data."""
-    diagnosis = (
-        inventory.get("diagnosis", {})
-        if isinstance(inventory.get("diagnosis"), dict)
-        else {}
-    )
+    diagnosis = inventory.get("diagnosis", {}) if isinstance(inventory.get("diagnosis"), dict) else {}
     alerts: list[Alert] = []
     # YunoHost diagnosis may include disk stats under various keys
     items = diagnosis.get("items", []) if isinstance(diagnosis.get("items"), list) else []
@@ -225,14 +233,16 @@ def check_disk_space(inventory: dict[str, Any], *, threshold_pct: int = 85) -> l
             mount = detail.get("mountpoint", "/")
             if isinstance(usage_pct, (int, float)) and usage_pct >= threshold_pct:
                 sev = AlertSeverity.CRITICAL if usage_pct >= 95 else AlertSeverity.WARNING
-                alerts.append(Alert(
-                    id=f"disk-full-{mount.replace('/', '_')}",
-                    severity=sev,
-                    category=AlertCategory.DISK,
-                    title=f"Disque {mount} à {int(usage_pct)}%",
-                    detail=f"L'espace disque sur {mount} est à {int(usage_pct)}% (seuil: {threshold_pct}%).",
-                    remediation="Libérer de l'espace: supprimer vieux backups, purger logs, ou augmenter le disque.",
-                ))
+                alerts.append(
+                    Alert(
+                        id=f"disk-full-{mount.replace('/', '_')}",
+                        severity=sev,
+                        category=AlertCategory.DISK,
+                        title=f"Disque {mount} à {int(usage_pct)}%",
+                        detail=f"L'espace disque sur {mount} est à {int(usage_pct)}% (seuil: {threshold_pct}%).",
+                        remediation="Libérer de l'espace: supprimer vieux backups, purger logs, ou augmenter le disque.",
+                    )
+                )
     return alerts
 
 
@@ -250,18 +260,19 @@ def check_security_posture(inventory: dict[str, Any]) -> list[Alert]:
         else {}
     )
     public_perms = [
-        name for name, perm in permissions.items()
-        if isinstance(perm, dict) and "visitors" in perm.get("allowed", [])
+        name for name, perm in permissions.items() if isinstance(perm, dict) and "visitors" in perm.get("allowed", [])
     ]
     if len(public_perms) > 3:
-        alerts.append(Alert(
-            id="security-many-public-perms",
-            severity=AlertSeverity.WARNING,
-            category=AlertCategory.SECURITY,
-            title=f"{len(public_perms)} permissions publiques détectées",
-            detail=f"Permissions ouvertes aux visiteurs: {', '.join(public_perms[:5])}{'...' if len(public_perms) > 5 else ''}",
-            remediation="Auditer les permissions: yunohost user permission list --full",
-        ))
+        alerts.append(
+            Alert(
+                id="security-many-public-perms",
+                severity=AlertSeverity.WARNING,
+                category=AlertCategory.SECURITY,
+                title=f"{len(public_perms)} permissions publiques détectées",
+                detail=f"Permissions ouvertes aux visiteurs: {', '.join(public_perms[:5])}{'...' if len(public_perms) > 5 else ''}",
+                remediation="Auditer les permissions: yunohost user permission list --full",
+            )
+        )
 
     return alerts
 
@@ -322,9 +333,7 @@ def run_monitoring_check(
 _ALERT_STATE_PATH = Path("/opt/nexora/var/monitoring-alerts.json")
 
 
-def persist_alerts(
-    report: dict[str, Any], *, state_path: str | None = None
-) -> dict[str, Any]:
+def persist_alerts(report: dict[str, Any], *, state_path: str | None = None) -> dict[str, Any]:
     """Persist monitoring alerts to disk for historical tracking."""
     path = Path(state_path) if state_path else _ALERT_STATE_PATH
     try:

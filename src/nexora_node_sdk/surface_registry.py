@@ -20,9 +20,7 @@ class SurfaceRegistry:
         self._catalog = load_capability_catalog(self._path)
         self._capabilities = list_capabilities(self._path)
         self._by_id: dict[str, dict[str, Any]] = {
-            cap["id"]: cap
-            for cap in self._capabilities
-            if isinstance(cap, dict) and "id" in cap
+            cap["id"]: cap for cap in self._capabilities if isinstance(cap, dict) and "id" in cap
         }
 
     # ── Core accessors ───────────────────────────────────────────────────
@@ -49,11 +47,7 @@ class SurfaceRegistry:
 
     def list_by_domain(self, domain: str) -> list[dict[str, Any]]:
         """Return all capabilities belonging to a given domain."""
-        return [
-            cap
-            for cap in self._capabilities
-            if isinstance(cap, dict) and cap.get("domain") == domain
-        ]
+        return [cap for cap in self._capabilities if isinstance(cap, dict) and cap.get("domain") == domain]
 
     # ── Parity analysis ──────────────────────────────────────────────────
 

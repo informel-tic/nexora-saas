@@ -136,9 +136,7 @@ class SecretStore:
         now = time.time()
         retention = self._replay_retention_seconds()
         self._consumed_tokens_seen_at = {
-            digest: ts
-            for digest, ts in self._consumed_tokens_seen_at.items()
-            if now - ts <= retention
+            digest: ts for digest, ts in self._consumed_tokens_seen_at.items() if now - ts <= retention
         }
         self._consumed_tokens = set(self._consumed_tokens_seen_at.keys())
 
@@ -146,16 +144,12 @@ class SecretStore:
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "tokens": [
                 {"digest": digest, "consumed_at": ts}
-                for digest, ts in sorted(
-                    self._consumed_tokens_seen_at.items(), key=lambda item: item[1]
-                )
+                for digest, ts in sorted(self._consumed_tokens_seen_at.items(), key=lambda item: item[1])
             ],
         }
         try:
             self._consumed_tokens_path.parent.mkdir(parents=True, exist_ok=True)
-            self._consumed_tokens_path.write_text(
-                json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-            )
+            self._consumed_tokens_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
             self._consumed_tokens_path.chmod(0o600)
         except OSError:
             logger.warning(
@@ -223,9 +217,7 @@ class SecretStore:
             "permissions": permissions,
             "issued_at": now.isoformat(),
             "expires_at_ts": expires_at,
-            "expires_at": datetime.fromtimestamp(
-                expires_at, tz=timezone.utc
-            ).isoformat(),
+            "expires_at": datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(),
             "revoked": False,
             "revoked_at": None,
         }
@@ -241,9 +233,7 @@ class SecretStore:
                 records = []
         records.append(record)
 
-        rpath.write_text(
-            json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        rpath.write_text(json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8")
         try:
             rpath.chmod(0o600)
         except OSError:
@@ -318,9 +308,7 @@ class SecretStore:
                     continue
 
                 for record in records:
-                    if not secrets.compare_digest(
-                        record.get("token_digest", ""), token_digest
-                    ):
+                    if not secrets.compare_digest(record.get("token_digest", ""), token_digest):
                         continue
 
                     # Found matching token — all validation logic is inside the loop
@@ -335,9 +323,7 @@ class SecretStore:
                         }
 
                     if record.get("scope") != required_scope:
-                        reasons.append(
-                            f"token scope '{record['scope']}' does not match required '{required_scope}'"
-                        )
+                        reasons.append(f"token scope '{record['scope']}' does not match required '{required_scope}'")
                         return {
                             "valid": False,
                             "entity_id": record["entity_id"],
@@ -345,10 +331,7 @@ class SecretStore:
                             "reasons": reasons,
                         }
 
-                    if (
-                        required_tenant_id
-                        and record.get("tenant_id") != required_tenant_id
-                    ):
+                    if required_tenant_id and record.get("tenant_id") != required_tenant_id:
                         reasons.append(
                             f"token tenant '{record.get('tenant_id')}' does not match required '{required_tenant_id}'"
                         )
@@ -368,12 +351,8 @@ class SecretStore:
                             "reasons": reasons,
                         }
 
-                    if required_permission and required_permission not in record.get(
-                        "permissions", []
-                    ):
-                        reasons.append(
-                            f"token lacks required permission: {required_permission}"
-                        )
+                    if required_permission and required_permission not in record.get("permissions", []):
+                        reasons.append(f"token lacks required permission: {required_permission}")
                         return {
                             "valid": False,
                             "entity_id": record["entity_id"],
@@ -431,9 +410,7 @@ class SecretStore:
                         record["revoked"] = True
                         record["revoked_at"] = _utc_now_iso()
                         revoked_count += 1
-                rpath.write_text(
-                    json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8"
-                )
+                rpath.write_text(json.dumps(records, indent=2, ensure_ascii=False), encoding="utf-8")
             except (json.JSONDecodeError, OSError):
                 pass
 
@@ -454,9 +431,7 @@ class SecretStore:
                 shutil.rmtree(tenant_dir)
                 return True
             except OSError as exc:
-                logger.error(
-                    "Failed to purge tenant secrets for %s: %s", tenant_id, exc
-                )
+                logger.error("Failed to purge tenant secrets for %s: %s", tenant_id, exc)
                 return False
         return False
 
@@ -469,11 +444,7 @@ class SecretStore:
         """List secret metadata (without token values) for a scope/tenant or all."""
 
         scopes = [scope] if scope else list(VALID_SCOPES)
-        tenants = (
-            [tenant_id]
-            if tenant_id
-            else [p.name for p in self._secrets_dir.iterdir() if p.is_dir()]
-        )
+        tenants = [tenant_id] if tenant_id else [p.name for p in self._secrets_dir.iterdir() if p.is_dir()]
 
         results: list[dict[str, Any]] = []
         for t in tenants:

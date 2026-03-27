@@ -32,9 +32,7 @@ def ensure_fleet_ca(certs_dir: str | Path, fleet_id: str) -> dict[str, str]:
 
 
 # TASK-3-2-1-2: mTLS with fleet CA.
-def issue_node_certificate(
-    node_id: str, fleet_id: str, certs_dir: str | Path
-) -> dict[str, Any]:
+def issue_node_certificate(node_id: str, fleet_id: str, certs_dir: str | Path) -> dict[str, Any]:
     """Issue a CA-signed certificate bundle for a node."""
 
     ensure_fleet_ca(certs_dir, fleet_id)
@@ -42,9 +40,7 @@ def issue_node_certificate(
 
 
 # TASK-3-2-1-2: mTLS with fleet CA.
-def build_mtls_config(
-    node_id: str, fleet_id: str, certs_dir: str | Path
-) -> dict[str, Any]:
+def build_mtls_config(node_id: str, fleet_id: str, certs_dir: str | Path) -> dict[str, Any]:
     """Build client-side mTLS settings for remote fleet calls."""
 
     bundle = issue_node_certificate(node_id, fleet_id, certs_dir)
@@ -91,19 +87,13 @@ def verify_mtls_preconditions(
 
 
 # TASK-3-2-3-2: Security channel audit logging / CRL-like revocation.
-def revoke_certificate(
-    certs_dir: str | Path, node_id: str, *, reason: str
-) -> dict[str, Any]:
+def revoke_certificate(certs_dir: str | Path, node_id: str, *, reason: str) -> dict[str, Any]:
     """Record a certificate revocation in a local JSON CRL with timestamp."""
 
     certs_path = Path(certs_dir)
     certs_path.mkdir(parents=True, exist_ok=True)
     crl_path = certs_path / "fleet-crl.json"
-    payload = (
-        json.loads(crl_path.read_text(encoding="utf-8"))
-        if crl_path.exists()
-        else {"revoked": []}
-    )
+    payload = json.loads(crl_path.read_text(encoding="utf-8")) if crl_path.exists() else {"revoked": []}
     payload.setdefault("revoked", []).append(
         {
             "node_id": node_id,
@@ -112,9 +102,7 @@ def revoke_certificate(
         }
     )
     payload["updated_at"] = _utc_now_iso()
-    crl_path.write_text(
-        json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    crl_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     return payload
 
 
@@ -186,9 +174,7 @@ def verify_client_certificate(
             check=False,
         )
         if proc.returncode != 0:
-            reasons.append(
-                f"certificate chain verification failed: {proc.stderr.strip()}"
-            )
+            reasons.append(f"certificate chain verification failed: {proc.stderr.strip()}")
             return {
                 "valid": False,
                 "node_id": None,
@@ -208,13 +194,7 @@ def verify_client_certificate(
         node_id = None
         if "CN=" in subject_line or "CN =" in subject_line:
             # Handle both "CN = value" and "CN=value" formats
-            cn_part = (
-                subject_line.split("CN")[-1]
-                .lstrip(" =")
-                .split("/")[0]
-                .split(",")[0]
-                .strip()
-            )
+            cn_part = subject_line.split("CN")[-1].lstrip(" =").split("/")[0].split(",")[0].strip()
             node_id = cn_part
             reasons.append(f"extracted CN: {node_id}")
 
@@ -239,9 +219,7 @@ def verify_client_certificate(
         if proc_dates.returncode == 0:
             date_str = proc_dates.stdout.strip().split("=", 1)[-1]
             try:
-                expires = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z").replace(
-                    tzinfo=timezone.utc
-                )
+                expires = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
                 now = datetime.now(timezone.utc)
                 if expires < now:
                     reasons.append(f"certificate expired on {date_str}")

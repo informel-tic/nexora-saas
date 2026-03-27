@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from nexora_node_sdk import yh_adapter
 from nexora_node_sdk.app_profiles import AppProfileError, validate_install_request
 from nexora_node_sdk.compatibility import assess_compatibility, load_compatibility_matrix
-from nexora_node_sdk import yh_adapter
 
 
 def _local_yunohost_version() -> str | None:
@@ -61,9 +61,7 @@ def _public_permissions() -> list[str]:
 
 
 def _compatibility_report(capability: str) -> dict[str, Any]:
-    compatibility = assess_compatibility(
-        "2.0.0", _local_yunohost_version(), matrix=load_compatibility_matrix()
-    )
+    compatibility = assess_compatibility("2.0.0", _local_yunohost_version(), matrix=load_compatibility_matrix())
     verdict = (
         compatibility.get("capability_verdicts", {}).get(capability, {})
         if isinstance(compatibility.get("capability_verdicts"), dict)
@@ -80,9 +78,7 @@ def _status_for(blocking_issues: list[str], manual_review_required: bool) -> str
     return "allowed"
 
 
-def build_install_preflight(
-    app_id: str, domain: str, path: str = "/", args: str = ""
-) -> dict[str, Any]:
+def build_install_preflight(app_id: str, domain: str, path: str = "/", args: str = "") -> dict[str, Any]:
     """Validate whether an automated app install is currently safe to attempt."""
 
     report: dict[str, Any] = {
@@ -116,11 +112,7 @@ def build_install_preflight(
 
     compatibility_report = _compatibility_report("install_app")
     report["compatibility"] = compatibility_report["compatibility"]
-    verdict = (
-        compatibility_report["verdict"]
-        if isinstance(compatibility_report["verdict"], dict)
-        else {}
-    )
+    verdict = compatibility_report["verdict"] if isinstance(compatibility_report["verdict"], dict) else {}
     if not verdict.get("allowed"):
         reasons = ", ".join(verdict.get("reasons", []) or ["capability_not_allowed"])
         report["blocking_issues"].append(f"compatibility:{reasons}")
@@ -130,13 +122,9 @@ def build_install_preflight(
     domain_map = _domain_map(request["domain"])
     if request["path"] in domain_map:
         current = domain_map.get(request["path"])
-        report["blocking_issues"].append(
-            f"path_already_used:{request['domain']}{request['path']}->{current}"
-        )
+        report["blocking_issues"].append(f"path_already_used:{request['domain']}{request['path']}->{current}")
         suggested_path = f"{request['path'].rstrip('/') or '/app'}-1"
-        report["suggested_changes"].append(
-            {"path": suggested_path, "reason": "avoid_existing_path_collision"}
-        )
+        report["suggested_changes"].append({"path": suggested_path, "reason": "avoid_existing_path_collision"})
 
     backups = _backup_archives()
     if not backups:
@@ -153,9 +141,7 @@ def build_install_preflight(
     if public_permissions:
         report["warnings"].append(f"public_permissions:{','.join(public_permissions)}")
 
-    report["status"] = _status_for(
-        report["blocking_issues"], report["manual_review_required"]
-    )
+    report["status"] = _status_for(report["blocking_issues"], report["manual_review_required"])
     report["allowed"] = report["status"] == "allowed"
     return report
 
@@ -178,11 +164,7 @@ def build_upgrade_preflight(app_id: str = "") -> dict[str, Any]:
 
     compatibility_report = _compatibility_report("upgrade_app")
     report["compatibility"] = compatibility_report["compatibility"]
-    verdict = (
-        compatibility_report["verdict"]
-        if isinstance(compatibility_report["verdict"], dict)
-        else {}
-    )
+    verdict = compatibility_report["verdict"] if isinstance(compatibility_report["verdict"], dict) else {}
     if not verdict.get("allowed"):
         reasons = ", ".join(verdict.get("reasons", []) or ["capability_not_allowed"])
         report["blocking_issues"].append(f"compatibility:{reasons}")
@@ -200,16 +182,12 @@ def build_upgrade_preflight(app_id: str = "") -> dict[str, Any]:
     if unhealthy_services:
         report["warnings"].append(f"unhealthy_services:{','.join(unhealthy_services)}")
 
-    report["status"] = _status_for(
-        report["blocking_issues"], report["manual_review_required"]
-    )
+    report["status"] = _status_for(report["blocking_issues"], report["manual_review_required"])
     report["allowed"] = report["status"] == "allowed"
     return report
 
 
-def build_blueprint_preflight(
-    blueprint_slug: str, domain: str, apps: list[str]
-) -> dict[str, Any]:
+def build_blueprint_preflight(blueprint_slug: str, domain: str, apps: list[str]) -> dict[str, Any]:
     """Validate whether a blueprint deployment is currently safe to attempt."""
 
     report: dict[str, Any] = {
@@ -230,11 +208,7 @@ def build_blueprint_preflight(
 
     compatibility_report = _compatibility_report("deploy_blueprint")
     report["compatibility"] = compatibility_report["compatibility"]
-    verdict = (
-        compatibility_report["verdict"]
-        if isinstance(compatibility_report["verdict"], dict)
-        else {}
-    )
+    verdict = compatibility_report["verdict"] if isinstance(compatibility_report["verdict"], dict) else {}
     if not verdict.get("allowed"):
         reasons = ", ".join(verdict.get("reasons", []) or ["capability_not_allowed"])
         report["blocking_issues"].append(f"compatibility:{reasons}")
@@ -254,8 +228,6 @@ def build_blueprint_preflight(
 
     report["warnings"] = sorted(set(report["warnings"]))
     report["rollback_prereqs"] = sorted(set(report["rollback_prereqs"]))
-    report["status"] = _status_for(
-        report["blocking_issues"], report["manual_review_required"]
-    )
+    report["status"] = _status_for(report["blocking_issues"], report["manual_review_required"])
     report["allowed"] = report["status"] == "allowed"
     return report

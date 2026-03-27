@@ -211,14 +211,10 @@ def _merge_capability_policy(raw: dict[str, Any] | None) -> dict[str, dict[str, 
         if isinstance(override, dict):
             merged.update(override)
         merged["allowed_statuses"] = [
-            str(item).strip()
-            for item in merged.get("allowed_statuses", [])
-            if str(item).strip()
+            str(item).strip() for item in merged.get("allowed_statuses", []) if str(item).strip()
         ]
         merged["manual_review_statuses"] = [
-            str(item).strip()
-            for item in merged.get("manual_review_statuses", [])
-            if str(item).strip()
+            str(item).strip() for item in merged.get("manual_review_statuses", []) if str(item).strip()
         ]
         merged["exact_minor_required"] = bool(merged.get("exact_minor_required", False))
         policies[capability] = merged
@@ -227,14 +223,10 @@ def _merge_capability_policy(raw: dict[str, Any] | None) -> dict[str, dict[str, 
             continue
         policies[capability] = {
             "allowed_statuses": [
-                str(item).strip()
-                for item in override.get("allowed_statuses", [])
-                if str(item).strip()
+                str(item).strip() for item in override.get("allowed_statuses", []) if str(item).strip()
             ],
             "manual_review_statuses": [
-                str(item).strip()
-                for item in override.get("manual_review_statuses", [])
-                if str(item).strip()
+                str(item).strip() for item in override.get("manual_review_statuses", []) if str(item).strip()
             ],
             "exact_minor_required": bool(override.get("exact_minor_required", False)),
         }
@@ -260,10 +252,7 @@ def _capability_verdicts(
             and (not exact_minor_required or not exact_minor or exact_minor_match)
         )
         requires_manual_review = status in manual_review_statuses or (
-            exact_minor_required
-            and bool(exact_minor)
-            and not exact_minor_match
-            and status in allowed_statuses
+            exact_minor_required and bool(exact_minor) and not exact_minor_match and status in allowed_statuses
         )
         reasons: list[str] = []
         if not version:
@@ -296,19 +285,9 @@ def assess_compatibility(
     """Assess whether a YunoHost version is allowed for a Nexora release."""
 
     matrix = matrix or load_compatibility_matrix()
-    releases = (
-        matrix.get("releases", {}) if isinstance(matrix.get("releases"), dict) else {}
-    )
-    release = (
-        releases.get(nexora_version, {})
-        if isinstance(releases.get(nexora_version), dict)
-        else {}
-    )
-    policy = (
-        release.get("pinning_policy", {})
-        if isinstance(release.get("pinning_policy"), dict)
-        else {}
-    )
+    releases = matrix.get("releases", {}) if isinstance(matrix.get("releases"), dict) else {}
+    release = releases.get(nexora_version, {}) if isinstance(releases.get(nexora_version), dict) else {}
+    policy = release.get("pinning_policy", {}) if isinstance(release.get("pinning_policy"), dict) else {}
     exact_minor = str(policy.get("exact_minor", "")).strip()
     supported = list(release.get("supported_yunohost", []) or [])
     tested = list(release.get("tested_yunohost", []) or [])
@@ -316,26 +295,16 @@ def assess_compatibility(
     deprecated = list(release.get("deprecated_yunohost", []) or [])
     blocked = list(release.get("blocked_yunohost", []) or [])
     supported_prefixes = [
-        str(p).strip()
-        for p in release.get("supported_yunohost_prefixes", []) or []
-        if str(p).strip()
+        str(p).strip() for p in release.get("supported_yunohost_prefixes", []) or [] if str(p).strip()
     ]
     experimental_prefixes = [
-        str(p).strip()
-        for p in release.get("experimental_yunohost_prefixes", []) or []
-        if str(p).strip()
+        str(p).strip() for p in release.get("experimental_yunohost_prefixes", []) or [] if str(p).strip()
     ]
     deprecated_prefixes = [
-        str(p).strip()
-        for p in release.get("deprecated_yunohost_prefixes", []) or []
-        if str(p).strip()
+        str(p).strip() for p in release.get("deprecated_yunohost_prefixes", []) or [] if str(p).strip()
     ]
     capability_policy = _merge_capability_policy(release.get("capabilities", {}))
-    support_tiers = (
-        release.get("support_tiers", {})
-        if isinstance(release.get("support_tiers"), dict)
-        else {}
-    )
+    support_tiers = release.get("support_tiers", {}) if isinstance(release.get("support_tiers"), dict) else {}
     version = _normalize_version(yunohost_version)
 
     status = "unknown"
@@ -358,10 +327,7 @@ def assess_compatibility(
         elif any(version.startswith(p) for p in deprecated_prefixes):
             status = "deprecated"
 
-    exact_minor_match = (
-        bool(exact_minor and version.startswith(f"{exact_minor}."))
-        or version == exact_minor
-    )
+    exact_minor_match = bool(exact_minor and version.startswith(f"{exact_minor}.")) or version == exact_minor
     capability_verdicts = _capability_verdicts(
         status,
         version,
@@ -407,9 +373,7 @@ def assess_compatibility(
     elif status == "supported":
         overall_status = "supported"
     elif status == "experimental":
-        overall_status = (
-            "observe_only" if not bootstrap_allowed else "experimental_allowed"
-        )
+        overall_status = "observe_only" if not bootstrap_allowed else "experimental_allowed"
     elif status == "deprecated":
         overall_status = "legacy_observe_only"
     elif status == "blocked":
@@ -422,9 +386,7 @@ def assess_compatibility(
         "yunohost_version": version or None,
         "status": status,
         "support_tier": status,
-        "support_tier_meta": support_tiers.get(status, {})
-        if isinstance(support_tiers.get(status, {}), dict)
-        else {},
+        "support_tier_meta": support_tiers.get(status, {}) if isinstance(support_tiers.get(status, {}), dict) else {},
         "overall_status": overall_status,
         "bootstrap_allowed": bootstrap_allowed,
         "manual_review_required": manual_review_required,
@@ -444,9 +406,7 @@ def assess_compatibility(
     }
 
 
-def validate_upgrade_path(
-    current_version: str | None, target_version: str | None
-) -> dict[str, Any]:
+def validate_upgrade_path(current_version: str | None, target_version: str | None) -> dict[str, Any]:
     """Validate whether a YunoHost upgrade path is considered safe."""
 
     current = _normalize_version(current_version)

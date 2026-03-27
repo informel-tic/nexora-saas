@@ -44,9 +44,7 @@ def _token_digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _append_event(
-    state: dict[str, Any], event: dict[str, Any], tenant_id: str | None = None
-) -> None:
+def _append_event(state: dict[str, Any], event: dict[str, Any], tenant_id: str | None = None) -> None:
     """Append an enrollment/security event to the mutable state."""
 
     event_record = {**event}
@@ -54,9 +52,7 @@ def _append_event(
         event_record["tenant_id"] = tenant_id
 
     state.setdefault("enrollment_events", []).append(event_record)
-    state.setdefault("security_audit", []).append(
-        {"category": "enrollment", **event_record}
-    )
+    state.setdefault("security_audit", []).append({"category": "enrollment", **event_record})
 
 
 # TASK-3-1-3-1: Enrollment API.
@@ -190,9 +186,7 @@ def attest_node(
     compatibility = assess_compatibility(
         agent_version,
         yunohost_version,
-        matrix=load_compatibility_matrix(compatibility_matrix_path)
-        if compatibility_matrix_path
-        else None,
+        matrix=load_compatibility_matrix(compatibility_matrix_path) if compatibility_matrix_path else None,
     )
     if not compatibility.get("bootstrap_allowed"):
         raise ValueError(
@@ -227,9 +221,7 @@ def attest_node(
 
 
 # TASK-3-1-3-3: Remote management activation post-attestation.
-def consume_enrollment_token(
-    state: dict[str, Any], token: str, *, node_id: str
-) -> dict[str, Any]:
+def consume_enrollment_token(state: dict[str, Any], token: str, *, node_id: str) -> dict[str, Any]:
     """Mark an attested token as consumed and ready for registration."""
 
     record = validate_enrollment_token(state, token)

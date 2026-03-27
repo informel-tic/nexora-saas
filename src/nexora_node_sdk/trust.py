@@ -107,9 +107,7 @@ def _is_revoked(node_id: str, certs_dir: str | Path) -> bool:
         return False
     try:
         payload = json.loads(crl_path.read_text(encoding="utf-8"))
-        return any(
-            entry.get("node_id") == node_id for entry in payload.get("revoked", [])
-        )
+        return any(entry.get("node_id") == node_id for entry in payload.get("revoked", []))
     except (json.JSONDecodeError, OSError):
         return True  # Assume revoked if CRL is unreadable
 
@@ -144,28 +142,19 @@ def evaluate_trust(
     now = datetime.now(timezone.utc)
 
     # ── Check 1: revocation ──────────────────────────────────────────
-    if (
-        node_record.get("credential_revoked_at")
-        or node_record.get("status") == "revoked"
-    ):
+    if node_record.get("credential_revoked_at") or node_record.get("status") == "revoked":
         reasons.append("node credentials are revoked")
-        return TrustEvaluation(
-            node_id=node_id, level=TrustLevel.UNTRUSTED, reasons=reasons
-        )
+        return TrustEvaluation(node_id=node_id, level=TrustLevel.UNTRUSTED, reasons=reasons)
 
     if _is_revoked(node_id, certs_dir):
         reasons.append("node is listed in certificate revocation list")
-        return TrustEvaluation(
-            node_id=node_id, level=TrustLevel.UNTRUSTED, reasons=reasons
-        )
+        return TrustEvaluation(node_id=node_id, level=TrustLevel.UNTRUSTED, reasons=reasons)
 
     # ── Check 2: enrollment ──────────────────────────────────────────
     status = str(node_record.get("status", ""))
     if status in {"", "discovered", "bootstrap_pending"}:
         reasons.append(f"node status is '{status or 'unknown'}' — not yet enrolled")
-        return TrustEvaluation(
-            node_id=node_id, level=TrustLevel.UNTRUSTED, reasons=reasons
-        )
+        return TrustEvaluation(node_id=node_id, level=TrustLevel.UNTRUSTED, reasons=reasons)
 
     reasons.append("node is enrolled")
     level = TrustLevel.ENROLLED

@@ -129,9 +129,7 @@ def generate_sector_theme(sector: str, brand_name: str, **kwargs) -> dict[str, A
     return theme
 
 
-def generate_multi_profile_portal(
-    profiles: list[dict[str, Any]], base_theme: dict[str, Any]
-) -> dict[str, Any]:
+def generate_multi_profile_portal(profiles: list[dict[str, Any]], base_theme: dict[str, Any]) -> dict[str, Any]:
     """Generate a multi-profile portal configuration."""
     portal_profiles = []
     for p in profiles:
@@ -148,9 +146,7 @@ def generate_multi_profile_portal(
     return {
         "base_theme": base_theme,
         "profiles": portal_profiles,
-        "default_profile": profiles[0].get("name", "default")
-        if profiles
-        else "default",
+        "default_profile": profiles[0].get("name", "default") if profiles else "default",
         "timestamp": datetime.datetime.now().isoformat(),
     }
 

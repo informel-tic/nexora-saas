@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 FLEET_LIFECYCLE_PARITY = {
     "surface": "fleet-lifecycle",
     "scope": ["fleet", "enrollment", "lifecycle", "compatibility"],

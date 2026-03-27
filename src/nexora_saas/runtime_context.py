@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
+
+from nexora_node_sdk.runtime_context import resolve_repo_root
 
 from .orchestrator import NexoraService
-from nexora_node_sdk.runtime_context import resolve_repo_root
 
 
 def build_service(current_file: str, state_path: str | None = None) -> NexoraService:

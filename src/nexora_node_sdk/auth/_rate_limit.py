@@ -47,14 +47,10 @@ def _save_auth_runtime_payload(payload: dict[str, Any]) -> None:
     path = _auth_runtime_file()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         path.chmod(0o600)
     except OSError:
-        logger.warning(
-            "failed to persist auth runtime payload", extra={"path": str(path)}
-        )
+        logger.warning("failed to persist auth runtime payload", extra={"path": str(path)})
 
 
 def _merge_persisted_failures(client_ip: str) -> None:

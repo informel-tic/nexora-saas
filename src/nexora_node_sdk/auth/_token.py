@@ -122,22 +122,16 @@ def _write_token_meta(path: Path, payload: dict[str, Any]) -> None:
     meta_path = _token_meta_path(path)
     try:
         meta_path.parent.mkdir(parents=True, exist_ok=True)
-        meta_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        meta_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         meta_path.chmod(0o600)
     except OSError:
-        logger.warning(
-            "failed to persist API token metadata", extra={"path": str(meta_path)}
-        )
+        logger.warning("failed to persist API token metadata", extra={"path": str(meta_path)})
 
 
 # ── Token rotation ────────────────────────────────────────────────────
 
 
-def rotate_api_token(
-    *, reason: str = "manual", token_file: str | Path | None = None
-) -> dict[str, Any]:
+def rotate_api_token(*, reason: str = "manual", token_file: str | Path | None = None) -> dict[str, Any]:
     """Rotate the API token and persist rotation metadata."""
 
     global _api_token
@@ -203,9 +197,7 @@ def _maybe_auto_rotate_token() -> None:
             {
                 "rotated_at": now.isoformat(),
                 "reason": "initialize-auto-rotation-metadata",
-                "token_digest": hashlib.sha256(
-                    get_api_token().encode("utf-8")
-                ).hexdigest(),
+                "token_digest": hashlib.sha256(get_api_token().encode("utf-8")).hexdigest(),
             },
         )
         return

@@ -15,7 +15,6 @@ from typing import Any
 from .compatibility import assess_compatibility, load_compatibility_matrix
 from .state import normalize_node_record, transition_node_status
 
-
 AGENT_ACTION_CAPABILITIES = {
     "branding/apply": ["operator", "architect", "admin"],
     "permissions/sync": ["operator", "admin"],
@@ -37,9 +36,7 @@ def list_supported_agent_actions() -> list[str]:
 def summarize_agent_capabilities() -> dict[str, Any]:
     """Summarize roles and supported node-agent actions."""
 
-    roles = sorted(
-        {role for role_list in AGENT_ACTION_CAPABILITIES.values() for role in role_list}
-    )
+    roles = sorted({role for role_list in AGENT_ACTION_CAPABILITIES.values() for role in role_list})
     return {"roles": roles, "actions": list_supported_agent_actions()}
 
 
@@ -52,11 +49,7 @@ def _ynh(cmd: list[str], timeout: int = 120) -> dict[str, Any]:
             timeout=timeout,
             env={"PATH": "/usr/bin:/usr/sbin:/bin:/sbin", "HOME": "/root"},
         )
-        result = (
-            json.loads(proc.stdout)
-            if proc.returncode == 0 and proc.stdout.strip()
-            else {}
-        )
+        result = json.loads(proc.stdout) if proc.returncode == 0 and proc.stdout.strip() else {}
         return {
             "success": proc.returncode == 0,
             "data": result,
@@ -78,9 +71,7 @@ def restart_service(service: str) -> dict[str, Any]:
     }
 
 
-def create_backup(
-    name: str = "", description: str = "", apps: str = ""
-) -> dict[str, Any]:
+def create_backup(name: str = "", description: str = "", apps: str = "") -> dict[str, Any]:
     """Create a YunoHost backup."""
     cmd = ["backup", "create"]
     if name:
@@ -112,9 +103,7 @@ def renew_certificate(domain: str) -> dict[str, Any]:
     }
 
 
-def apply_branding(
-    brand_name: str, accent: str, state_path: str = "/opt/nexora/var/state.json"
-) -> dict[str, Any]:
+def apply_branding(brand_name: str, accent: str, state_path: str = "/opt/nexora/var/state.json") -> dict[str, Any]:
     """Apply branding to Nexora state."""
     try:
         path = Path(state_path)
@@ -124,9 +113,7 @@ def apply_branding(
             "accent": accent,
             "portal_title": brand_name,
             "tagline": f"Portail {brand_name}",
-            "sections": data.get("branding", {}).get(
-                "sections", ["apps", "security", "monitoring", "pra", "fleet"]
-            ),
+            "sections": data.get("branding", {}).get("sections", ["apps", "security", "monitoring", "pra", "fleet"]),
         }
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
         return {
@@ -167,17 +154,13 @@ def register_fleet_node(
         data.setdefault("nodes", [])
         if node_id not in data["fleet"]["managed_nodes"]:
             data["fleet"]["managed_nodes"].append(node_id)
-        compatibility = assess_compatibility(
-            "2.0.0", ynh_version, matrix=load_compatibility_matrix()
-        )
+        compatibility = assess_compatibility("2.0.0", ynh_version, matrix=load_compatibility_matrix())
         record = normalize_node_record(
             {
                 "node_id": node_id,
                 "hostname": host,
                 "agent_port": port,
-                "registered_at": datetime.datetime.now(
-                    datetime.timezone.utc
-                ).isoformat(),
+                "registered_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "last_seen": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 "last_inventory_at": None,
                 "enrollment_mode": enrollment_mode,
@@ -213,9 +196,7 @@ def register_fleet_node(
         }
 
 
-def sync_branding_to_node(
-    node_host: str, node_port: int, branding: dict, api_token: str
-) -> dict[str, Any]:
+def sync_branding_to_node(node_host: str, node_port: int, branding: dict, api_token: str) -> dict[str, Any]:
     """Push branding to a remote node agent."""
     import httpx
 
@@ -244,9 +225,7 @@ def sync_branding_to_node(
         }
 
 
-def execute_backup_rotation(
-    keep_count: int = 7, state_path: str = "/opt/nexora/var/state.json"
-) -> dict[str, Any]:
+def execute_backup_rotation(keep_count: int = 7, state_path: str = "/opt/nexora/var/state.json") -> dict[str, Any]:
     """Rotate backups: keep the N most recent, delete older ones."""
     result = _ynh(["backup", "list"])
     if not result["success"]:

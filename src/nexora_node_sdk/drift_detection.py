@@ -9,66 +9,71 @@ from __future__ import annotations
 import datetime
 from typing import Any
 
-
 # ── Section-level diff helpers ────────────────────────────────────────
 
 
-def _diff_lists(
-    label: str, baseline: list[Any], current: list[Any]
-) -> list[dict[str, Any]]:
+def _diff_lists(label: str, baseline: list[Any], current: list[Any]) -> list[dict[str, Any]]:
     """Diff two lists and return added/removed items."""
     bl_set = set(str(i) for i in baseline)
     cur_set = set(str(i) for i in current)
     drifts: list[dict[str, Any]] = []
     for item in cur_set - bl_set:
-        drifts.append({
-            "section": label,
-            "type": "added",
-            "item": item,
-            "severity": "info",
-        })
+        drifts.append(
+            {
+                "section": label,
+                "type": "added",
+                "item": item,
+                "severity": "info",
+            }
+        )
     for item in bl_set - cur_set:
-        drifts.append({
-            "section": label,
-            "type": "removed",
-            "item": item,
-            "severity": "warning",
-        })
+        drifts.append(
+            {
+                "section": label,
+                "type": "removed",
+                "item": item,
+                "severity": "warning",
+            }
+        )
     return drifts
 
 
-def _diff_dicts(
-    label: str, baseline: dict[str, Any], current: dict[str, Any]
-) -> list[dict[str, Any]]:
+def _diff_dicts(label: str, baseline: dict[str, Any], current: dict[str, Any]) -> list[dict[str, Any]]:
     """Diff two dicts and return added/removed/changed keys."""
     drifts: list[dict[str, Any]] = []
     all_keys = set(baseline.keys()) | set(current.keys())
     for key in sorted(all_keys):
         if key not in baseline:
-            drifts.append({
-                "section": label,
-                "type": "added",
-                "key": key,
-                "current_value": _summarize(current[key]),
-                "severity": "info",
-            })
+            drifts.append(
+                {
+                    "section": label,
+                    "type": "added",
+                    "key": key,
+                    "current_value": _summarize(current[key]),
+                    "severity": "info",
+                }
+            )
         elif key not in current:
-            drifts.append({
-                "section": label,
-                "type": "removed",
-                "key": key,
-                "baseline_value": _summarize(baseline[key]),
-                "severity": "warning",
-            })
+            drifts.append(
+                {
+                    "section": label,
+                    "type": "removed",
+                    "key": key,
+                    "baseline_value": _summarize(baseline[key]),
+                    "severity": "warning",
+                }
+            )
         elif baseline[key] != current[key]:
-            drifts.append({
-                "section": label,
-                "type": "changed",
-                "key": key,
-                "baseline_value": _summarize(baseline[key]),
-                "current_value": _summarize(current[key]),
-                "severity": "warning",
-            })
+            drifts.append(
+                {
+                    "section": label,
+                    "type": "changed",
+                    "key": key,
+                    "baseline_value": _summarize(baseline[key]),
+                    "current_value": _summarize(current[key]),
+                    "severity": "warning",
+                }
+            )
     return drifts
 
 
@@ -89,10 +94,7 @@ def _extract_app_ids(inventory: dict[str, Any]) -> list[str]:
         app_list = apps.get("apps", [])
     else:
         app_list = []
-    return sorted(
-        a.get("id", a.get("name", str(a))) if isinstance(a, dict) else str(a)
-        for a in app_list
-    )
+    return sorted(a.get("id", a.get("name", str(a))) if isinstance(a, dict) else str(a) for a in app_list)
 
 
 def _extract_domains(inventory: dict[str, Any]) -> list[str]:
@@ -107,8 +109,7 @@ def _extract_services_status(inventory: dict[str, Any]) -> dict[str, str]:
     if not isinstance(services, dict):
         return {}
     return {
-        svc: info.get("status", "unknown") if isinstance(info, dict) else "unknown"
-        for svc, info in services.items()
+        svc: info.get("status", "unknown") if isinstance(info, dict) else "unknown" for svc, info in services.items()
     }
 
 
@@ -226,11 +227,13 @@ def compute_drift_trend(
     for snapshot in recent:
         baseline = snapshot.get("inventory", {})
         result = detect_drift(baseline, current_inventory)
-        data_points.append({
-            "timestamp": snapshot.get("timestamp"),
-            "drift_count": result["drift_count"],
-            "status": result["status"],
-        })
+        data_points.append(
+            {
+                "timestamp": snapshot.get("timestamp"),
+                "drift_count": result["drift_count"],
+                "status": result["status"],
+            }
+        )
 
     counts = [dp["drift_count"] for dp in data_points]
     if len(counts) >= 2:
@@ -268,7 +271,9 @@ def _remediation_suggestions(drifts: list[dict[str, Any]]) -> list[str]:
         seen.add(key)
 
         if section == "apps" and dtype == "removed":
-            suggestions.append("Applications supprimées détectées — vérifier si c'est intentionnel ou restaurer depuis backup.")
+            suggestions.append(
+                "Applications supprimées détectées — vérifier si c'est intentionnel ou restaurer depuis backup."
+            )
         elif section == "apps" and dtype == "added":
             suggestions.append("Nouvelles applications détectées — mettre à jour le baseline avec inventory/refresh.")
         elif section == "services" and dtype == "changed":
@@ -281,6 +286,8 @@ def _remediation_suggestions(drifts: list[dict[str, Any]]) -> list[str]:
             suggestions.append("Nouveaux domaines — configurer les certificats SSL et mettre à jour le baseline.")
 
     if not suggestions and drifts:
-        suggestions.append("Exécuter inventory/refresh pour mettre à jour le baseline après validation des changements.")
+        suggestions.append(
+            "Exécuter inventory/refresh pour mettre à jour le baseline après validation des changements."
+        )
 
     return suggestions

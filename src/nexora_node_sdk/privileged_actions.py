@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 _PRIVILEGED_ACTIONS = {
     "hooks/install": {
         "executor": "control-plane",
@@ -27,9 +26,7 @@ _PRIVILEGED_ACTIONS = {
 }
 
 
-def build_privileged_execution_plan(
-    action: str, params: dict[str, Any] | None = None
-) -> dict[str, Any]:
+def build_privileged_execution_plan(action: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
     """Return the canonical privileged execution plan for a blocked node action."""
 
     payload = dict(_PRIVILEGED_ACTIONS.get(action, {}))

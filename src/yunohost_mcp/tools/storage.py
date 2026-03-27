@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -37,14 +38,10 @@ def register_storage_tools(mcp: FastMCP, settings=None):
         """
         from nexora_core.storage import generate_storage_policy
 
-        return json.dumps(
-            generate_storage_policy(profile), indent=2, ensure_ascii=False
-        )
+        return json.dumps(generate_storage_policy(profile), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_storage_s3_backup_config(
-        bucket: str, endpoint: str = "", access_key: str = ""
-    ) -> str:
+    async def ynh_storage_s3_backup_config(bucket: str, endpoint: str = "", access_key: str = "") -> str:
         """Génère une configuration de backup S3 (rclone + script).
         Args:
             bucket: Nom du bucket S3
@@ -60,9 +57,7 @@ def register_storage_tools(mcp: FastMCP, settings=None):
         )
 
     @mcp.tool()
-    async def ynh_storage_nfs_config(
-        server: str, share: str, mount_point: str = "/mnt/nexora-nfs"
-    ) -> str:
+    async def ynh_storage_nfs_config(server: str, share: str, mount_point: str = "/mnt/nexora-nfs") -> str:
         """Génère une configuration de montage NFS partagé.
         Args:
             server: Adresse du serveur NFS

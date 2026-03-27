@@ -62,16 +62,26 @@ def is_enrolled() -> bool:
 
 
 def compute_command_hmac(
-    secret: str, *, action: str, timestamp: str, payload_digest: str = "",
+    secret: str,
+    *,
+    action: str,
+    timestamp: str,
+    payload_digest: str = "",
 ) -> str:
     message = f"{action}:{timestamp}:{payload_digest}"
     return hmac.new(
-        secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256,
+        secret.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256,
     ).hexdigest()
 
 
 def verify_saas_command(
-    *, action: str, timestamp: str, signature: str, payload: dict[str, Any] | None = None,
+    *,
+    action: str,
+    timestamp: str,
+    signature: str,
+    payload: dict[str, Any] | None = None,
 ) -> tuple[bool, str]:
     secret = load_saas_secret()
     if not secret:
@@ -88,7 +98,10 @@ def verify_saas_command(
         payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         payload_digest = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
     expected = compute_command_hmac(
-        secret, action=action, timestamp=timestamp, payload_digest=payload_digest,
+        secret,
+        action=action,
+        timestamp=timestamp,
+        payload_digest=payload_digest,
     )
     if not hmac.compare_digest(expected, signature):
         _log_tamper_event("invalid_hmac", {"action": action, "timestamp": timestamp})
@@ -98,7 +111,9 @@ def verify_saas_command(
 
 def sign_manifest(manifest_content: str, secret: str) -> str:
     return hmac.new(
-        secret.encode("utf-8"), manifest_content.encode("utf-8"), hashlib.sha256,
+        secret.encode("utf-8"),
+        manifest_content.encode("utf-8"),
+        hashlib.sha256,
     ).hexdigest()
 
 
@@ -151,7 +166,8 @@ def is_lease_valid(valid_until: str | None) -> bool:
 
 
 def renew_all_leases(
-    manifest: dict[str, Any], lease_seconds: int = DEFAULT_LEASE_SECONDS,
+    manifest: dict[str, Any],
+    lease_seconds: int = DEFAULT_LEASE_SECONDS,
 ) -> dict[str, Any]:
     new_expiry = compute_lease_expiry(lease_seconds)
     for comp in manifest.get("components", []):

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.runner import run_ynh_command, run_shell_command
+
+from yunohost_mcp.utils.runner import run_shell_command, run_ynh_command
 from yunohost_mcp.utils.safety import validate_output_path, validate_positive_int
 
 
@@ -48,9 +50,7 @@ def register_documentation_tools(mcp: FastMCP, settings=None):
         data = _data(result)
         lines = ["# Inventaire des apps", ""]
         for app in data.get("apps", []) if isinstance(data, dict) else []:
-            lines.append(
-                f"- **{app.get('name', app.get('id', 'app'))}** — `{app.get('version', 'n/a')}`"
-            )
+            lines.append(f"- **{app.get('name', app.get('id', 'app'))}** — `{app.get('version', 'n/a')}`")
         return "\n".join(lines)
 
     @mcp.tool()
@@ -142,9 +142,7 @@ def register_documentation_tools(mcp: FastMCP, settings=None):
         return f"# Changelog approximatif\n\n```text\n{logs}\n```"
 
     @mcp.tool()
-    async def ynh_doc_export_markdown(
-        output_path: str, section: str = "overview"
-    ) -> str:
+    async def ynh_doc_export_markdown(output_path: str, section: str = "overview") -> str:
         """Exporte la documentation en Markdown.
         Args:
             output_path: Chemin de sortie (redirigé vers /tmp/nexora-export/ si hors zone)
@@ -180,7 +178,5 @@ def register_documentation_tools(mcp: FastMCP, settings=None):
             "users": _data(await run_ynh_command("user", "list")),
             "services": _data(await run_ynh_command("service", "status")),
         }
-        safe_path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        safe_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         return f"✅ Documentation JSON exportée vers {safe_path}"

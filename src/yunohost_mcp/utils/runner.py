@@ -37,11 +37,7 @@ def _get_audit_logger() -> logging.Logger:
 
 def _audit(action: str, detail: str, level: str = "safe") -> None:
     try:
-        _get_audit_logger().info(
-            json.dumps(
-                {"action": action, "detail": detail, "level": level}, ensure_ascii=False
-            )
-        )
+        _get_audit_logger().info(json.dumps({"action": action, "detail": detail, "level": level}, ensure_ascii=False))
     except Exception as exc:
         logger.warning("Audit event write failed for action '%s': %s", action, exc)
 
@@ -83,20 +79,14 @@ def _warning_for(level: str, what: str, destructive_allowed: bool) -> str:
 # -- YunoHost command runner -------------------------------------------
 
 
-async def run_ynh_command(
-    *args: str, json_output: bool = True, timeout: int = 300
-) -> YnhResult:
+async def run_ynh_command(*args: str, json_output: bool = True, timeout: int = 300) -> YnhResult:
     settings = load_settings()
     level = classify_tokens(tuple(args))
     warning = _warning_for(level, " ".join(args), settings.allow_destructive_tools)
     _audit("ynh_command", " ".join(args), level)
-    if level == "blocked" or (
-        level == "dangerous" and not settings.allow_destructive_tools
-    ):
+    if level == "blocked" or (level == "dangerous" and not settings.allow_destructive_tools):
         return YnhResult(False, error=warning, safety_warning=warning)
-    candidate = (
-        "/usr/bin/yunohost" if os.path.exists("/usr/bin/yunohost") else "yunohost"
-    )
+    candidate = "/usr/bin/yunohost" if os.path.exists("/usr/bin/yunohost") else "yunohost"
     cmd = [candidate, *args]
     if json_output:
         cmd.extend(["--output-as", "json"])
@@ -109,13 +99,9 @@ async def run_ynh_command(
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
     except asyncio.TimeoutError:
-        return YnhResult(
-            False, error=f"Timeout après {timeout}s", safety_warning=warning
-        )
+        return YnhResult(False, error=f"Timeout après {timeout}s", safety_warning=warning)
     except FileNotFoundError:
-        return YnhResult(
-            False, error="Commande yunohost introuvable", safety_warning=warning
-        )
+        return YnhResult(False, error="Commande yunohost introuvable", safety_warning=warning)
     except Exception as exc:
         return YnhResult(False, error=str(exc), safety_warning=warning)
     out = stdout.decode("utf-8", errors="replace").strip()
@@ -154,9 +140,7 @@ async def run_shell_command_safe(args: list[str], timeout: int = 120) -> str:
     level = classify_tokens(tuple(args))
     warning = _warning_for(level, " ".join(args), settings.allow_destructive_tools)
     _audit("shell_command", " ".join(args), level)
-    if level == "blocked" or (
-        level == "dangerous" and not settings.allow_destructive_tools
-    ):
+    if level == "blocked" or (level == "dangerous" and not settings.allow_destructive_tools):
         return warning
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -183,9 +167,7 @@ async def run_shell_command(command: str, timeout: int = 120) -> str:
     level = classify_tokens(tuple(command.split()))
     warning = _warning_for(level, command, settings.allow_destructive_tools)
     _audit("shell_command_raw", command, level)
-    if level == "blocked" or (
-        level == "dangerous" and not settings.allow_destructive_tools
-    ):
+    if level == "blocked" or (level == "dangerous" and not settings.allow_destructive_tools):
         return warning
     try:
         proc = await asyncio.create_subprocess_exec(

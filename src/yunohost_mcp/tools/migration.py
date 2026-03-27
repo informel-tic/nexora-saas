@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -17,9 +18,7 @@ def register_migration_tools(mcp: FastMCP, settings=None):
         """
         from nexora_core.migration import docker_to_ynh_checklist
 
-        return json.dumps(
-            docker_to_ynh_checklist(image, app_name), indent=2, ensure_ascii=False
-        )
+        return json.dumps(docker_to_ynh_checklist(image, app_name), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_migrate_ynh_to_docker(app_id: str) -> str:

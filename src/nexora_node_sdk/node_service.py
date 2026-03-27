@@ -7,14 +7,15 @@ enrollment issuance, quotas, etc.).
 
 from __future__ import annotations
 
+import logging
 import socket
 import time
-import logging
 from copy import deepcopy
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from . import yh_adapter
 from .blueprints import load_blueprints
 from .compatibility import (
     assess_compatibility,
@@ -31,8 +32,6 @@ from .models import NodeSummary
 from .operator_actions import summarize_agent_capabilities
 from .persistence import build_state_repository
 from .scoring import compute_health_score, compute_pra_score, compute_security_score
-from .state import normalize_node_record
-from . import yh_adapter
 from .version import NEXORA_VERSION
 
 logger = logging.getLogger(__name__)
@@ -97,9 +96,7 @@ class NodeService:
 
     def __init__(self, repo_root: str | Path, state_path: str | Path | None = None):
         self.repo_root = Path(repo_root)
-        self.state = build_state_repository(
-            state_path or self.repo_root / "var" / "state.json"
-        )
+        self.state = build_state_repository(state_path or self.repo_root / "var" / "state.json")
         self._cache = _InventoryCache(ttl=30.0)
 
     def list_blueprints(self):
@@ -166,11 +163,7 @@ class NodeService:
     def _local_versions(self) -> tuple[str, str | None, str | None]:
         nexora_version = NEXORA_VERSION
         version_data = self._fetch_section("version")
-        ynh_version = (
-            version_data.get("yunohost", {}).get("version")
-            if isinstance(version_data, dict)
-            else None
-        )
+        ynh_version = version_data.get("yunohost", {}).get("version") if isinstance(version_data, dict) else None
         debian_version = None
         os_release = Path("/etc/os-release")
         if os_release.exists():
@@ -185,15 +178,11 @@ class NodeService:
     def compatibility_report(self) -> dict[str, Any]:
         nexora_version, ynh_version, _ = self._local_versions()
         matrix_path = resolve_compatibility_matrix_path(self.repo_root)
-        matrix = load_compatibility_matrix(
-            matrix_path if matrix_path.exists() else None
-        )
+        matrix = load_compatibility_matrix(matrix_path if matrix_path.exists() else None)
         assessment = assess_compatibility(nexora_version, ynh_version, matrix=matrix)
         return {"matrix": matrix, "assessment": assessment}
 
-    def _ensure_identity_state(
-        self, state: dict[str, Any], *, enrolled_by: str | None = None
-    ) -> dict[str, Any]:
+    def _ensure_identity_state(self, state: dict[str, Any], *, enrolled_by: str | None = None) -> dict[str, Any]:
         state.setdefault("identity", deepcopy(NEXORA_IDENTITY))
         state.setdefault(
             "branding",
@@ -214,9 +203,7 @@ class NodeService:
         identity["node_id"] = node_id
         identity["fleet_id"] = state["fleet"]["fleet_id"]
         identity["credential_type"] = "token+key"
-        identity["enrolled_by"] = (
-            enrolled_by or identity.get("enrolled_by") or "local-bootstrap"
-        )
+        identity["enrolled_by"] = enrolled_by or identity.get("enrolled_by") or "local-bootstrap"
         identity["enrollment_modes"] = {
             "push": "Bootstrap initié depuis le control-plane vers le nœud cible.",
             "pull": "Bootstrap initié sur le nœud, puis enregistrement auprès du control-plane.",
@@ -238,20 +225,10 @@ class NodeService:
 
         nexora_version, ynh_version, debian_version = self._local_versions()
         apps = apps_data.get("apps", []) if isinstance(apps_data, dict) else []
-        domains = (
-            domains_data.get("domains", []) if isinstance(domains_data, dict) else []
-        )
-        certs = (
-            certs_data.get("certificates", {}) if isinstance(certs_data, dict) else {}
-        )
-        backups = (
-            backups_data.get("archives", []) if isinstance(backups_data, dict) else []
-        )
-        permissions = (
-            permissions_data.get("permissions", {})
-            if isinstance(permissions_data, dict)
-            else {}
-        )
+        domains = domains_data.get("domains", []) if isinstance(domains_data, dict) else []
+        certs = certs_data.get("certificates", {}) if isinstance(certs_data, dict) else {}
+        backups = backups_data.get("archives", []) if isinstance(backups_data, dict) else []
+        permissions = permissions_data.get("permissions", {}) if isinstance(permissions_data, dict) else {}
         _public_apps = [
             name
             for name, perm in permissions.items()
@@ -270,9 +247,7 @@ class NodeService:
         compatibility = assess_compatibility(
             nexora_version,
             ynh_version,
-            matrix=load_compatibility_matrix(
-                matrix_path if matrix_path.exists() else None
-            ),
+            matrix=load_compatibility_matrix(matrix_path if matrix_path.exists() else None),
         )
         if compatibility.get("overall_status"):
             notes.append(f"compatibility-status:{compatibility['overall_status']}")
@@ -283,15 +258,12 @@ class NodeService:
 
         for detail in sec_report.get("details", []):
             if detail.get("severity") == "critical":
-                notes.append(
-                    f"security-critical:{detail.get('type')}:{detail.get('name', detail.get('domain', ''))}"
-                )
+                notes.append(f"security-critical:{detail.get('type')}:{detail.get('name', detail.get('domain', ''))}")
 
         certs_ok = 0
         for _, data in certs.items():
             if isinstance(data, dict) and (
-                str(data.get("style", "")).lower() in {"success", "ok"}
-                or int(data.get("validity", 0) or 0) > 0
+                str(data.get("style", "")).lower() in {"success", "ok"} or int(data.get("validity", 0) or 0) > 0
             ):
                 certs_ok += 1
 

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
+
 from yunohost_mcp.utils.runner import run_ynh_command
 
 
@@ -27,9 +29,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
         return json.dumps(generate_sla_policy(tier), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_sla_report(
-        tier: str = "standard", downtime_minutes: int = 0, period_days: int = 30
-    ) -> str:
+    async def ynh_sla_report(tier: str = "standard", downtime_minutes: int = 0, period_days: int = 30) -> str:
         """Génère un rapport SLA avec calcul d'uptime.
         Args:
             tier: Niveau SLA cible
@@ -81,9 +81,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
         """
         from nexora_core.sla import record_downtime
 
-        return json.dumps(
-            record_downtime(int(minutes), reason), indent=2, ensure_ascii=False
-        )
+        return json.dumps(record_downtime(int(minutes), reason), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_sla_history() -> str:
@@ -93,9 +91,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
         return json.dumps(get_sla_history(), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_sla_report_from_history(
-        tier: str = "standard", period_days: int = 30
-    ) -> str:
+    async def ynh_sla_report_from_history(tier: str = "standard", period_days: int = 30) -> str:
         """Génère un rapport SLA à partir des données historiques persistées.
         Args:
             tier: Niveau SLA cible

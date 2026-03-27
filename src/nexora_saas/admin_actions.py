@@ -14,6 +14,7 @@ from typing import Any
 
 from nexora_node_sdk.blueprints import resolve_blueprint_plan
 from nexora_node_sdk.models import Blueprint
+
 from .preflight import build_install_preflight, build_upgrade_preflight
 
 
@@ -56,21 +57,14 @@ def _audit_log(action: str, details: dict[str, Any]):
         with log_path.open("a") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except Exception as exc:
-        print(
-            f"[nexora.admin_actions] audit log fallback: unable to write admin audit event: {exc}"
-        )
+        print(f"[nexora.admin_actions] audit log fallback: unable to write admin audit event: {exc}")
 
 
-def install_app(
-    app_id: str, domain: str, path: str = "/", label: str = "", args: str = ""
-) -> dict[str, Any]:
+def install_app(app_id: str, domain: str, path: str = "/", label: str = "", args: str = "") -> dict[str, Any]:
     """Install a YunoHost application."""
     preflight = build_install_preflight(app_id, domain, path, args)
     if not preflight.get("allowed"):
-        error = "; ".join(
-            preflight.get("blocking_issues", [])
-            or [preflight.get("status", "preflight_failed")]
-        )
+        error = "; ".join(preflight.get("blocking_issues", []) or [preflight.get("status", "preflight_failed")])
         _audit_log(
             "install_app_rejected",
             {
@@ -90,18 +84,13 @@ def install_app(
             "data": {},
             "error": error,
             "warnings": preflight.get("warnings", []),
-            "profile": preflight.get("profile")
-            or {"app_id": app_id, "automation": "manual_review_required"},
+            "profile": preflight.get("profile") or {"app_id": app_id, "automation": "manual_review_required"},
             "preflight": preflight,
             "rollback": None,
             "timestamp": datetime.datetime.now().isoformat(),
         }
 
-    request = (
-        preflight.get("normalized_request", {})
-        if isinstance(preflight.get("normalized_request"), dict)
-        else {}
-    )
+    request = preflight.get("normalized_request", {}) if isinstance(preflight.get("normalized_request"), dict) else {}
     install_args = f"domain={preflight['domain']}&path={preflight['path']}"
     if request.get("args_string"):
         install_args += f"&{request['args_string']}"
@@ -155,10 +144,7 @@ def upgrade_app(app_id: str = "") -> dict[str, Any]:
     """Upgrade one or all YunoHost applications."""
     preflight = build_upgrade_preflight(app_id)
     if not preflight.get("allowed"):
-        error = "; ".join(
-            preflight.get("blocking_issues", [])
-            or [preflight.get("status", "preflight_failed")]
-        )
+        error = "; ".join(preflight.get("blocking_issues", []) or [preflight.get("status", "preflight_failed")])
         _audit_log(
             "upgrade_app_rejected",
             {"app": app_id or "all", "success": False, "error": error},
@@ -211,9 +197,7 @@ def restore_backup(name: str, apps: str = "", system: str = "") -> dict[str, Any
     }
 
 
-def create_user(
-    username: str, fullname: str, domain: str, password: str
-) -> dict[str, Any]:
+def create_user(username: str, fullname: str, domain: str, password: str) -> dict[str, Any]:
     """Create a YunoHost user."""
     result = _ynh(
         [
@@ -353,9 +337,7 @@ def system_upgrade(apps: bool = False, system: bool = False) -> dict[str, Any]:
             "error": "Specify apps=True and/or system=True",
         }
     result = _ynh(cmd, timeout=1800)
-    _audit_log(
-        "system_upgrade", {"apps": apps, "system": system, "success": result["success"]}
-    )
+    _audit_log("system_upgrade", {"apps": apps, "system": system, "success": result["success"]})
     return {
         "action": "system_upgrade",
         "apps": apps,
@@ -384,9 +366,7 @@ def deploy_blueprint(
     )
     plan = resolve_blueprint_plan(blueprint, domain)
     if not plan.get("allowed"):
-        error = "; ".join(
-            plan.get("blocking_issues", []) or [plan.get("status", "plan_failed")]
-        )
+        error = "; ".join(plan.get("blocking_issues", []) or [plan.get("status", "plan_failed")])
         _audit_log(
             "deploy_blueprint_rejected",
             {

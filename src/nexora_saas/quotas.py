@@ -1,6 +1,7 @@
 """WS9-T04: Quotas and entitlements enforcement for Nexora SaaS."""
 
 from __future__ import annotations
+
 from nexora_node_sdk.models import TenantTier
 
 # Default quotas per tier
@@ -39,9 +40,7 @@ def get_quota_limit(tier: TenantTier | str, resource: str) -> int:
     return limit if isinstance(limit, int) else 0
 
 
-def is_quota_exceeded(
-    tier: TenantTier | str, resource: str, current_value: int
-) -> bool:
+def is_quota_exceeded(tier: TenantTier | str, resource: str, current_value: int) -> bool:
     """Check if a resource quota has been exceeded."""
     limit = get_quota_limit(tier, resource)
     return current_value >= limit

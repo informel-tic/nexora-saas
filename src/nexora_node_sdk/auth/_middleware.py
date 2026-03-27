@@ -11,16 +11,16 @@ import secrets
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response, JSONResponse
+from starlette.responses import JSONResponse, Response
 
-from ._token import get_api_token
-from ._scopes import (
-    resolve_actor_role_for_token,
-    _load_token_tenant_scopes,
-    _enforce_token_tenant_scope,
-    build_tenant_scope_claim,
-)
 from ._rate_limit import _check_rate_limit, _record_auth_failure
+from ._scopes import (
+    _enforce_token_tenant_scope,
+    _load_token_tenant_scopes,
+    build_tenant_scope_claim,
+    resolve_actor_role_for_token,
+)
+from ._token import get_api_token
 
 # ── Auth middleware ────────────────────────────────────────────────────
 
@@ -53,9 +53,7 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
 
         # Rate-limit check.
         if _check_rate_limit(client_ip):
-            return JSONResponse(
-                status_code=429, content={"detail": "Too many authentication attempts."}
-            )
+            return JSONResponse(status_code=429, content={"detail": "Too many authentication attempts."})
 
         provided_token: str | None = None
         # Check Bearer token
@@ -67,11 +65,7 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
 
         # Also accept X-Nexora-Token header
         token_header = request.headers.get("X-Nexora-Token", "").strip()
-        if (
-            provided_token is None
-            and token_header
-            and secrets.compare_digest(token_header, get_api_token())
-        ):
+        if provided_token is None and token_header and secrets.compare_digest(token_header, get_api_token()):
             provided_token = token_header
 
         if provided_token is not None:
@@ -79,41 +73,23 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
             request.state.nexora_actor_role = trusted_actor_role
             requested_tenant = request.headers.get("X-Nexora-Tenant-Id")
             configured_scopes = _load_token_tenant_scopes()
-            if (
-                configured_scopes
-                and provided_token in configured_scopes
-                and not requested_tenant
-            ):
+            if configured_scopes and provided_token in configured_scopes and not requested_tenant:
                 return JSONResponse(
                     status_code=403,
-                    content={
-                        "detail": "Scoped token access requires X-Nexora-Tenant-Id header."
-                    },
+                    content={"detail": "Scoped token access requires X-Nexora-Tenant-Id header."},
                 )
             if not _enforce_token_tenant_scope(provided_token, requested_tenant):
                 return JSONResponse(
                     status_code=403,
-                    content={
-                        "detail": (
-                            f"Token is not authorized for tenant scope '{requested_tenant}'."
-                        )
-                    },
+                    content={"detail": (f"Token is not authorized for tenant scope '{requested_tenant}'.")},
                 )
             if requested_tenant and configured_scopes:
-                provided_claim = request.headers.get(
-                    "X-Nexora-Tenant-Claim", ""
-                ).strip()
-                expected_claim = build_tenant_scope_claim(
-                    provided_token, requested_tenant
-                )
-                if not provided_claim or not hmac.compare_digest(
-                    provided_claim, expected_claim
-                ):
+                provided_claim = request.headers.get("X-Nexora-Tenant-Claim", "").strip()
+                expected_claim = build_tenant_scope_claim(provided_token, requested_tenant)
+                if not provided_claim or not hmac.compare_digest(provided_claim, expected_claim):
                     return JSONResponse(
                         status_code=403,
-                        content={
-                            "detail": "Missing or invalid X-Nexora-Tenant-Claim for scoped tenant access."
-                        },
+                        content={"detail": "Missing or invalid X-Nexora-Tenant-Claim for scoped tenant access."},
                     )
             return await call_next(request)
 
@@ -139,9 +115,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Permissions-Policy"] = (
-            "camera=(), microphone=(), geolocation=()"
-        )
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
             "script-src 'self'; "
@@ -177,9 +151,7 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
         if not request.headers.get("X-Nexora-Action"):
             return JSONResponse(
                 status_code=403,
-                content={
-                    "detail": "Missing X-Nexora-Action header on mutating request."
-                },
+                content={"detail": "Missing X-Nexora-Action header on mutating request."},
             )
 
         # Verify Origin or Referer (at least one must be present)
@@ -194,18 +166,14 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
             )
 
         if origin:
-            origin_host = (
-                origin.replace("https://", "").replace("http://", "").split("/")[0]
-            )
+            origin_host = origin.replace("https://", "").replace("http://", "").split("/")[0]
             if origin_host != host:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Cross-origin request rejected."},
                 )
         if referer:
-            referer_host = (
-                referer.replace("https://", "").replace("http://", "").split("/")[0]
-            )
+            referer_host = referer.replace("https://", "").replace("http://", "").split("/")[0]
             if referer_host != host:
                 return JSONResponse(
                     status_code=403,

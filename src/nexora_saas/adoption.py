@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import Any
 
+from typing import Any
 
 _CERT_OK_STYLES = {"success", "ok", "valid", "great"}
 _BLOCKING_COLLISION_TYPES = {
@@ -19,20 +19,14 @@ def _normalized_path(path: str | None) -> str | None:
 
 
 def _domain_map(inventory: dict[str, Any], domain: str | None) -> dict[str, Any]:
-    app_map = (
-        inventory.get("app_map", {})
-        if isinstance(inventory.get("app_map"), dict)
-        else {}
-    )
+    app_map = inventory.get("app_map", {}) if isinstance(inventory.get("app_map"), dict) else {}
     if not domain or not isinstance(app_map, dict):
         return {}
     dm = app_map.get(domain, {})
     return dm if isinstance(dm, dict) else {}
 
 
-def suggest_path(
-    inventory: dict[str, Any], requested_domain: str | None, requested_path: str | None
-) -> str | None:
+def suggest_path(inventory: dict[str, Any], requested_domain: str | None, requested_path: str | None) -> str | None:
     normalized_path = _normalized_path(requested_path)
     if not requested_domain or not normalized_path:
         return requested_path
@@ -53,36 +47,18 @@ def build_adoption_report(
     requested_domain: str | None = None,
     requested_path: str | None = None,
 ) -> dict[str, Any]:
-    apps = (
-        inventory.get("apps", {}).get("apps", [])
-        if isinstance(inventory.get("apps"), dict)
-        else []
-    )
-    domains = (
-        inventory.get("domains", {}).get("domains", [])
-        if isinstance(inventory.get("domains"), dict)
-        else []
-    )
+    apps = inventory.get("apps", {}).get("apps", []) if isinstance(inventory.get("apps"), dict) else []
+    domains = inventory.get("domains", {}).get("domains", []) if isinstance(inventory.get("domains"), dict) else []
     certificates = (
-        inventory.get("certs", {}).get("certificates", {})
-        if isinstance(inventory.get("certs"), dict)
-        else {}
+        inventory.get("certs", {}).get("certificates", {}) if isinstance(inventory.get("certs"), dict) else {}
     )
     permissions = (
         inventory.get("permissions", {}).get("permissions", {})
         if isinstance(inventory.get("permissions"), dict)
         else {}
     )
-    services = (
-        inventory.get("services", {}).get("services", {})
-        if isinstance(inventory.get("services"), dict)
-        else {}
-    )
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    services = inventory.get("services", {}).get("services", {}) if isinstance(inventory.get("services"), dict) else {}
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     normalized_path = _normalized_path(requested_path)
     collisions: list[dict[str, Any]] = []
     warnings: list[dict[str, Any]] = []
@@ -111,9 +87,7 @@ def build_adoption_report(
                 continue
             if existing_prefix == requested_prefix:
                 continue
-            if existing_prefix.startswith(
-                f"{requested_prefix}/"
-            ) or requested_prefix.startswith(f"{existing_prefix}/"):
+            if existing_prefix.startswith(f"{requested_prefix}/") or requested_prefix.startswith(f"{existing_prefix}/"):
                 collisions.append(
                     {
                         "type": "path-prefix-conflict",
@@ -131,15 +105,9 @@ def build_adoption_report(
             collisions.append({"type": "nginx-unhealthy", "status": nginx_status})
 
     if requested_domain:
-        cert_data = (
-            certificates.get(requested_domain)
-            if isinstance(certificates, dict)
-            else None
-        )
+        cert_data = certificates.get(requested_domain) if isinstance(certificates, dict) else None
         if cert_data is None:
-            warnings.append(
-                {"type": "missing-domain-certificate", "domain": requested_domain}
-            )
+            warnings.append({"type": "missing-domain-certificate", "domain": requested_domain})
         elif isinstance(cert_data, dict):
             cert_style = str(cert_data.get("style", "")).lower()
             if cert_style and cert_style not in _CERT_OK_STYLES:
@@ -165,9 +133,7 @@ def build_adoption_report(
 
     if len(apps) == 0:
         mode = "fresh"
-    elif any(
-        c["type"] in {"path-already-used", "path-prefix-conflict"} for c in collisions
-    ):
+    elif any(c["type"] in {"path-already-used", "path-prefix-conflict"} for c in collisions):
         mode = "adopt"
     else:
         mode = "augment"
@@ -178,13 +144,9 @@ def build_adoption_report(
         "Import the current state before enabling fleet-wide synchronization.",
     ]
     if not backups:
-        notes.append(
-            "No YunoHost backup detected: create a backup before installation."
-        )
+        notes.append("No YunoHost backup detected: create a backup before installation.")
     if public_apps:
-        notes.append(
-            "Some apps are exposed to visitors: review the security posture before augmenting."
-        )
+        notes.append("Some apps are exposed to visitors: review the security posture before augmenting.")
     if unhealthy_services:
         notes.append("Some services are not fully healthy: fix them before augmenting.")
     if warnings:
@@ -192,9 +154,7 @@ def build_adoption_report(
             "Additional infra warnings detected (certificate/path hygiene); review the adoption report details."
         )
 
-    blocking_collisions = [
-        c for c in collisions if c.get("type") in _BLOCKING_COLLISION_TYPES
-    ]
+    blocking_collisions = [c for c in collisions if c.get("type") in _BLOCKING_COLLISION_TYPES]
 
     return {
         "recommended_mode": mode,

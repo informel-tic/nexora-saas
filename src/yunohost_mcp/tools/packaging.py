@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
+
 from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.safety import validate_output_path, validate_name
+
+from yunohost_mcp.utils.safety import validate_name, validate_output_path
 
 
 def _write(path: Path, content: str):
@@ -23,9 +25,7 @@ def register_packaging_tools(mcp: FastMCP, settings=None):
             output_dir: Répertoire de sortie (redirigé si hors zone autorisée)
         """
         validate_name(package_name, "package name")
-        safe_dir = validate_output_path(
-            output_dir + f"/{package_name}_ynh/manifest.toml"
-        ).parent
+        safe_dir = validate_output_path(output_dir + f"/{package_name}_ynh/manifest.toml").parent
         base = safe_dir
         for rel in ["conf", "scripts", "doc"]:
             (base / rel).mkdir(parents=True, exist_ok=True)
@@ -78,9 +78,7 @@ def register_packaging_tools(mcp: FastMCP, settings=None):
         ]
         missing = [str(p.relative_to(base)) for p in required if not p.exists()]
         return (
-            "✅ Structure standard présente"
-            if not missing
-            else "❌ Structure incomplète:\n- " + "\n- ".join(missing)
+            "✅ Structure standard présente" if not missing else "❌ Structure incomplète:\n- " + "\n- ".join(missing)
         )
 
     @mcp.tool()
@@ -117,9 +115,7 @@ def register_packaging_tools(mcp: FastMCP, settings=None):
     async def ynh_pkg_lint(package_dir: str) -> str:
         result = {
             "scripts": json.loads(await ynh_pkg_validate_scripts(package_dir)),
-            "manifest": await ynh_pkg_validate_manifest(
-                str(Path(package_dir) / "manifest.toml")
-            )
+            "manifest": await ynh_pkg_validate_manifest(str(Path(package_dir) / "manifest.toml"))
             if (Path(package_dir) / "manifest.toml").exists()
             else "missing",
         }
@@ -139,11 +135,7 @@ def register_packaging_tools(mcp: FastMCP, settings=None):
                 ]:
                     if pattern in text:
                         risky.append({"file": str(path), "pattern": pattern})
-        return (
-            "✅ Aucun pattern risqué détecté"
-            if not risky
-            else json.dumps(risky, indent=2, ensure_ascii=False)
-        )
+        return "✅ Aucun pattern risqué détecté" if not risky else json.dumps(risky, indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_pkg_release_checklist() -> str:

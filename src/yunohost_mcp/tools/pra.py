@@ -1,10 +1,12 @@
 """Outils MCP pour le Plan de Reprise d'Activité (PRA) YunoHost."""
 
-import json
 import datetime
+import json
+
 from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.runner import run_ynh_command, run_shell_command, format_result
-from yunohost_mcp.utils.safety import validate_output_path, validate_name
+
+from yunohost_mcp.utils.runner import format_result, run_shell_command, run_ynh_command
+from yunohost_mcp.utils.safety import validate_name, validate_output_path
 
 
 def register_pra_tools(mcp: FastMCP, settings=None):
@@ -74,9 +76,7 @@ def register_pra_tools(mcp: FastMCP, settings=None):
         result = await run_ynh_command("user", "list")
         if result.success and isinstance(result.data, dict):
             lines.append("# --- UTILISATEURS ---")
-            lines.append(
-                "# ATTENTION: Remplacez __PASSWORD_xxx__ par de vrais mots de passe sécurisés"
-            )
+            lines.append("# ATTENTION: Remplacez __PASSWORD_xxx__ par de vrais mots de passe sécurisés")
             for username, info in result.data.get("users", {}).items():
                 fullname = info.get("fullname", username)
                 mail = info.get("mail", "")
@@ -102,9 +102,7 @@ def register_pra_tools(mcp: FastMCP, settings=None):
                     dom, pth = parts[0], "/" + parts[1] if len(parts) > 1 else "/"
                 else:
                     dom, pth = "DOMAINE_A_DEFINIR", "/"
-                lines.append(
-                    f'yunohost app install {aid} --args "domain={dom}&path={pth}" --label "{label}" || true'
-                )
+                lines.append(f'yunohost app install {aid} --args "domain={dom}&path={pth}" --label "{label}" || true')
             lines.append("")
 
         lines.extend(
@@ -138,9 +136,7 @@ def register_pra_tools(mcp: FastMCP, settings=None):
             apps = [a.get("id") for a in app_r.data.get("apps", [])]
             report.append(f"📦 Applications: {', '.join(apps)}")
 
-        report.append(
-            f"\n💽 Espace disque:\n{await run_shell_command('df -h / /home')}"
-        )
+        report.append(f"\n💽 Espace disque:\n{await run_shell_command('df -h / /home')}")
 
         svc_r = await run_ynh_command("service", "status")
         if svc_r.success and isinstance(svc_r.data, dict):

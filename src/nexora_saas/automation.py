@@ -6,7 +6,6 @@ import datetime
 from pathlib import Path
 from typing import Any
 
-
 # Pre-built automation templates
 AUTOMATION_TEMPLATES = {
     "daily_backup": {
@@ -88,19 +87,14 @@ def generate_automation_plan(profile: str = "standard") -> dict[str, Any]:
         "professional": list(AUTOMATION_TEMPLATES.keys()),
     }
     selected = profiles.get(profile, profiles["standard"])
-    jobs = [
-        {"id": k, **AUTOMATION_TEMPLATES[k]}
-        for k in selected
-        if k in AUTOMATION_TEMPLATES
-    ]
+    jobs = [{"id": k, **AUTOMATION_TEMPLATES[k]} for k in selected if k in AUTOMATION_TEMPLATES]
 
     return {
         "profile": profile,
         "jobs": jobs,
         "job_count": len(jobs),
         "crontab_preview": "\n".join(
-            f"# {j['name']}\n{j['schedule']} /opt/nexora/venv/bin/nexora-job {j['id']}"
-            for j in jobs
+            f"# {j['name']}\n{j['schedule']} /opt/nexora/venv/bin/nexora-job {j['id']}" for j in jobs
         ),
         "timestamp": datetime.datetime.now().isoformat(),
     }

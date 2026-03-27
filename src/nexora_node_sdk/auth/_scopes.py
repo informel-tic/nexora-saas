@@ -13,7 +13,7 @@ import logging
 import secrets
 from pathlib import Path
 
-from ._token import _token_scope_path_candidates, _token_role_path_candidates
+from ._token import _token_role_path_candidates, _token_scope_path_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -49,9 +49,7 @@ def _load_token_tenant_scopes() -> dict[str, set[str]]:
                 tenants = record.get("tenants", [])
                 if not token or not isinstance(tenants, list):
                     continue
-                normalized = {
-                    str(item).strip() for item in tenants if str(item).strip()
-                }
+                normalized = {str(item).strip() for item in tenants if str(item).strip()}
                 if normalized:
                     mapping[token] = normalized
             return mapping
@@ -62,9 +60,7 @@ def _load_token_tenant_scopes() -> dict[str, set[str]]:
                     continue
                 if not isinstance(tenants, list):
                     continue
-                normalized = {
-                    str(item).strip() for item in tenants if str(item).strip()
-                }
+                normalized = {str(item).strip() for item in tenants if str(item).strip()}
                 if normalized:
                     mapping[token.strip()] = normalized
             return mapping

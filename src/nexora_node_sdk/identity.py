@@ -71,13 +71,9 @@ def _run_openssl(*args: str) -> None:
 
     if not shutil.which("openssl"):
         raise RuntimeError("openssl binary is required to generate Nexora certificates")
-    completed = subprocess.run(
-        ["openssl", *args], capture_output=True, text=True, check=False
-    )
+    completed = subprocess.run(["openssl", *args], capture_output=True, text=True, check=False)
     if completed.returncode != 0:
-        raise RuntimeError(
-            f"OpenSSL command failed: {' '.join(args)} :: {completed.stderr.strip()}"
-        )
+        raise RuntimeError(f"OpenSSL command failed: {' '.join(args)} :: {completed.stderr.strip()}")
 
 
 def _allow_insecure_identity_fallback() -> bool:
@@ -90,9 +86,7 @@ def _allow_insecure_identity_fallback() -> bool:
     return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
-def _fallback_credentials(
-    node_id: str, fleet_id: str, certs_path: Path, *, reason: str
-) -> dict[str, Any]:
+def _fallback_credentials(node_id: str, fleet_id: str, certs_path: Path, *, reason: str) -> dict[str, Any]:
     """Generate deterministic placeholder credentials when OpenSSL is unavailable."""
 
     issued_at = _now()
@@ -125,9 +119,7 @@ def _fallback_credentials(
 
 
 # TASK-3-1-1-3: Node identity contract (real PKI, rotation/revocation).
-def generate_node_credentials(
-    node_id: str, fleet_id: str, certs_dir: str | Path
-) -> dict[str, Any]:
+def generate_node_credentials(node_id: str, fleet_id: str, certs_dir: str | Path) -> dict[str, Any]:
     """Generate a CA-signed node certificate bundle and token metadata."""
 
     issued_at = _now()
@@ -195,10 +187,7 @@ def generate_node_credentials(
         key_path.chmod(0o600)
         cert_path.chmod(0o644)
     except RuntimeError as exc:
-        if (
-            "openssl binary is required" in str(exc)
-            and _allow_insecure_identity_fallback()
-        ):
+        if "openssl binary is required" in str(exc) and _allow_insecure_identity_fallback():
             return _fallback_credentials(node_id, fleet_id, certs_path, reason=str(exc))
         raise
     return {
@@ -249,11 +238,7 @@ def rotate_node_credentials(
     # Revoke old certificate in local CRL if it exists
     if old_cert.exists():
         crl_path = certs_path / "fleet-crl.json"
-        crl = (
-            _json.loads(crl_path.read_text(encoding="utf-8"))
-            if crl_path.exists()
-            else {"revoked": []}
-        )
+        crl = _json.loads(crl_path.read_text(encoding="utf-8")) if crl_path.exists() else {"revoked": []}
         crl.setdefault("revoked", []).append(
             {
                 "node_id": node_id,
@@ -261,9 +246,7 @@ def rotate_node_credentials(
                 "revoked_at": _iso(_now()),
             }
         )
-        crl_path.write_text(
-            _json.dumps(crl, indent=2, ensure_ascii=False), encoding="utf-8"
-        )
+        crl_path.write_text(_json.dumps(crl, indent=2, ensure_ascii=False), encoding="utf-8")
         # Remove old files so generate_node_credentials creates fresh ones
         old_cert.unlink(missing_ok=True)
         old_key.unlink(missing_ok=True)
@@ -305,9 +288,7 @@ def credential_status(
     if crl_path.exists():
         try:
             crl = _json.loads(crl_path.read_text(encoding="utf-8"))
-            result["is_revoked"] = any(
-                entry.get("node_id") == node_id for entry in crl.get("revoked", [])
-            )
+            result["is_revoked"] = any(entry.get("node_id") == node_id for entry in crl.get("revoked", []))
         except (OSError, _json.JSONDecodeError):
             pass
 
@@ -327,9 +308,7 @@ def credential_status(
         )
         # Output like: notAfter=Mar 23 12:00:00 2027 GMT
         date_str = proc.stdout.strip().split("=", 1)[-1]
-        expires = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z").replace(
-            tzinfo=timezone.utc
-        )
+        expires = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
         days_remaining = (expires - now).days
         result["days_remaining"] = days_remaining
         result["is_expired"] = days_remaining < 0

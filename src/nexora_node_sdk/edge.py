@@ -116,9 +116,7 @@ def generate_haproxy_config(
     }
 
 
-def generate_dns_failover(
-    primary: dict[str, Any], secondary: dict[str, Any], domain: str
-) -> dict[str, Any]:
+def generate_dns_failover(primary: dict[str, Any], secondary: dict[str, Any], domain: str) -> dict[str, Any]:
     """Generate DNS failover configuration."""
     return {
         "domain": domain,
@@ -151,9 +149,7 @@ def generate_dns_failover(
     }
 
 
-def generate_maintenance_config(
-    domain: str, message: str = "Maintenance en cours"
-) -> dict[str, Any]:
+def generate_maintenance_config(domain: str, message: str = "Maintenance en cours") -> dict[str, Any]:
     """Generate a maintenance mode config snippet."""
     nginx_snippet = f"""server {{
     listen 443 ssl;
@@ -173,18 +169,12 @@ def generate_maintenance_config(
     }
 
 
-def generate_network_map(
-    nodes: list[dict[str, Any]], edges: list[dict[str, Any]] | None = None
-) -> dict[str, Any]:
+def generate_network_map(nodes: list[dict[str, Any]], edges: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     """Generate a logical network map of the fleet."""
     node_list = []
     for n in nodes:
         inv = n.get("inventory", {})
-        domains = (
-            inv.get("domains", {}).get("domains", [])
-            if isinstance(inv.get("domains"), dict)
-            else []
-        )
+        domains = inv.get("domains", {}).get("domains", []) if isinstance(inv.get("domains"), dict) else []
         node_list.append(
             {
                 "node_id": n.get("node_id", "unknown"),

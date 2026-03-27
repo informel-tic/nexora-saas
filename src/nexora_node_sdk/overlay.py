@@ -57,9 +57,7 @@ def load_manifest() -> dict[str, Any]:
 def save_manifest(manifest: dict[str, Any]) -> None:
     OVERLAY_MANIFEST_PATH.parent.mkdir(parents=True, exist_ok=True)
     manifest["updated_at"] = _utc_now()
-    OVERLAY_MANIFEST_PATH.write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    OVERLAY_MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def _add_component(
@@ -81,9 +79,7 @@ def _add_component(
 def _remove_component(manifest: dict[str, Any], *, kind: str, name: str) -> bool:
     before = len(manifest.get("components", []))
     manifest["components"] = [
-        c
-        for c in manifest.get("components", [])
-        if not (c["kind"] == kind and c["name"] == name)
+        c for c in manifest.get("components", []) if not (c["kind"] == kind and c["name"] == name)
     ]
     return len(manifest["components"]) < before
 
@@ -116,9 +112,15 @@ def install_docker_engine() -> dict[str, Any]:
     _run_cmd(["usermod", "-aG", "docker", "nexora"])
     manifest = load_manifest()
     manifest["docker_installed_by_nexora"] = True
-    _add_component(manifest, kind="runtime", name="docker-engine", detail={
-        "method": "get.docker.com", "installed_at": _utc_now(),
-    })
+    _add_component(
+        manifest,
+        kind="runtime",
+        name="docker-engine",
+        detail={
+            "method": "get.docker.com",
+            "installed_at": _utc_now(),
+        },
+    )
     save_manifest(manifest)
     return {"changed": True, "message": "Docker CE installed and started"}
 
@@ -130,8 +132,18 @@ def uninstall_docker_engine() -> dict[str, Any]:
     stop_all_overlay_containers()
     _run_cmd(["systemctl", "stop", "docker"])
     _run_cmd(["systemctl", "disable", "docker"])
-    _run_cmd(["apt-get", "remove", "-y", "docker-ce", "docker-ce-cli", "containerd.io",
-              "docker-buildx-plugin", "docker-compose-plugin"])
+    _run_cmd(
+        [
+            "apt-get",
+            "remove",
+            "-y",
+            "docker-ce",
+            "docker-ce-cli",
+            "containerd.io",
+            "docker-buildx-plugin",
+            "docker-compose-plugin",
+        ]
+    )
     _run_cmd(["apt-get", "autoremove", "-y"])
     manifest["docker_installed_by_nexora"] = False
     _remove_component(manifest, kind="runtime", name="docker-engine")
@@ -149,22 +161,35 @@ def deploy_overlay_service(
     compose_path = DOCKER_COMPOSE_DIR / f"{name}.yml"
     compose_path.write_text(compose_content, encoding="utf-8")
     result = _run_cmd(
-        ["docker", "compose", "-f", str(compose_path), "up", "-d"], timeout=300,
+        ["docker", "compose", "-f", str(compose_path), "up", "-d"],
+        timeout=300,
     )
     manifest = load_manifest()
-    _add_component(manifest, kind="docker-service", name=name, detail={
-        "compose_path": str(compose_path), "nginx_snippet": bool(nginx_snippet),
-    })
+    _add_component(
+        manifest,
+        kind="docker-service",
+        name=name,
+        detail={
+            "compose_path": str(compose_path),
+            "nginx_snippet": bool(nginx_snippet),
+        },
+    )
     if nginx_snippet:
         NGINX_SNIPPETS_DIR.mkdir(parents=True, exist_ok=True)
         snippet_path = NGINX_SNIPPETS_DIR / f"{name}.conf"
         snippet_path.write_text(nginx_snippet, encoding="utf-8")
-        _add_component(manifest, kind="nginx-snippet", name=name, detail={
-            "path": str(snippet_path),
-        })
+        _add_component(
+            manifest,
+            kind="nginx-snippet",
+            name=name,
+            detail={
+                "path": str(snippet_path),
+            },
+        )
     save_manifest(manifest)
     return {
-        "service": name, "deployed": result["ok"],
+        "service": name,
+        "deployed": result["ok"],
         "compose_path": str(compose_path),
         "error": result["err"] if not result["ok"] else None,
     }
@@ -210,9 +235,16 @@ def install_overlay_cron(name: str, schedule: str, command: str) -> dict[str, An
     if not system_link.exists():
         system_link.symlink_to(cron_path)
     manifest = load_manifest()
-    _add_component(manifest, kind="cron", name=name, detail={
-        "schedule": schedule, "command": command, "path": str(cron_path),
-    })
+    _add_component(
+        manifest,
+        kind="cron",
+        name=name,
+        detail={
+            "schedule": schedule,
+            "command": command,
+            "path": str(cron_path),
+        },
+    )
     save_manifest(manifest)
     return {"name": name, "installed": True, "path": str(system_link)}
 
@@ -271,9 +303,15 @@ def install_overlay_nginx_snippet(name: str, content: str, domain: str) -> dict[
     _run_cmd(["nginx", "-t"])
     _run_cmd(["systemctl", "reload", "nginx"])
     manifest = load_manifest()
-    _add_component(manifest, kind="nginx-snippet", name=name, detail={
-        "path": str(system_path), "domain": domain,
-    })
+    _add_component(
+        manifest,
+        kind="nginx-snippet",
+        name=name,
+        detail={
+            "path": str(system_path),
+            "domain": domain,
+        },
+    )
     save_manifest(manifest)
     return {"name": name, "installed": True, "path": str(system_path)}
 
@@ -300,8 +338,11 @@ def full_overlay_rollback() -> dict[str, Any]:
     """Remove ALL Nexora overlay components, restoring pure YunoHost state."""
     manifest = load_manifest()
     results: dict[str, list[str]] = {
-        "docker_services": [], "nginx_snippets": [],
-        "crons": [], "systemd_units": [], "docker_engine": [],
+        "docker_services": [],
+        "nginx_snippets": [],
+        "crons": [],
+        "systemd_units": [],
+        "docker_engine": [],
     }
     for comp in list(manifest.get("components", [])):
         if comp["kind"] == "docker-service":
@@ -322,7 +363,8 @@ def full_overlay_rollback() -> dict[str, Any]:
     if OVERLAY_DIR.exists():
         shutil.rmtree(OVERLAY_DIR, ignore_errors=True)
     return {
-        "rollback_complete": True, "timestamp": _utc_now(),
+        "rollback_complete": True,
+        "timestamp": _utc_now(),
         "removed": results,
         "message": "All Nexora overlay components removed. YunoHost is restored to its original state.",
     }

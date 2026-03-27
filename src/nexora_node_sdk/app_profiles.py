@@ -60,9 +60,7 @@ DEFAULT_APP_PROFILES: dict[str, dict[str, Any]] = {
         "install_mode": "subdomain_only",
         "safe_defaults": {"path": "/"},
         "allowed_extra_args": [],
-        "notes": [
-            "Requires the root path on a dedicated subdomain for predictable routing."
-        ],
+        "notes": ["Requires the root path on a dedicated subdomain for predictable routing."],
     },
     "mattermost": {
         "display_name": "Mattermost",
@@ -103,9 +101,7 @@ def resolve_app_profile(app_id: str) -> dict[str, Any]:
 
 
 def _normalize_path(path: str | None, profile: dict[str, Any]) -> str:
-    candidate = (path or "").strip() or str(
-        profile.get("safe_defaults", {}).get("path", "/")
-    )
+    candidate = (path or "").strip() or str(profile.get("safe_defaults", {}).get("path", "/"))
     if not candidate.startswith("/"):
         raise AppProfileError(f"Install path must start with '/': {candidate}")
     return candidate.rstrip("/") or "/"
@@ -118,15 +114,11 @@ def _parse_args(args: str) -> dict[str, str]:
             raise AppProfileError("Install args contain an empty key")
         parsed[key] = value
     if args.strip() and not parsed and "=" not in args:
-        raise AppProfileError(
-            "Install args must use query-string format like key=value&key2=value2"
-        )
+        raise AppProfileError("Install args must use query-string format like key=value&key2=value2")
     return parsed
 
 
-def validate_install_request(
-    app_id: str, domain: str, path: str = "/", args: str = ""
-) -> dict[str, Any]:
+def validate_install_request(app_id: str, domain: str, path: str = "/", args: str = "") -> dict[str, Any]:
     """Validate and normalize an automated install request against the app profile."""
 
     profile = resolve_app_profile(app_id)
@@ -136,23 +128,15 @@ def validate_install_request(
 
     normalized_path = _normalize_path(path, profile)
     normalized_args = _parse_args(args)
-    allowed_extra_args = {
-        str(item).strip()
-        for item in profile.get("allowed_extra_args", [])
-        if str(item).strip()
-    }
+    allowed_extra_args = {str(item).strip() for item in profile.get("allowed_extra_args", []) if str(item).strip()}
     unexpected_args = sorted(set(normalized_args) - allowed_extra_args)
     if unexpected_args:
-        raise AppProfileError(
-            f"App '{app_id}' does not allow automated extra args: {', '.join(unexpected_args)}"
-        )
+        raise AppProfileError(f"App '{app_id}' does not allow automated extra args: {', '.join(unexpected_args)}")
 
     warnings: list[str] = []
     install_mode = str(profile.get("install_mode", "domain_path"))
     if install_mode == "subdomain_only" and normalized_path != "/":
-        raise AppProfileError(
-            f"App '{app_id}' requires a dedicated subdomain and the root path '/'"
-        )
+        raise AppProfileError(f"App '{app_id}' requires a dedicated subdomain and the root path '/'")
     if install_mode == "subdomain_preferred" and normalized_path != "/":
         warnings.append("profile_prefers_root_path_on_dedicated_subdomain")
 
@@ -162,8 +146,6 @@ def validate_install_request(
         "domain": normalized_domain,
         "path": normalized_path,
         "args": normalized_args,
-        "args_string": "&".join(
-            f"{key}={value}" for key, value in normalized_args.items()
-        ),
+        "args_string": "&".join(f"{key}={value}" for key, value in normalized_args.items()),
         "warnings": warnings,
     }

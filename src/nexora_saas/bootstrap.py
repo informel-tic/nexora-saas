@@ -14,9 +14,10 @@ from nexora_node_sdk.compatibility import (
     load_compatibility_matrix,
     resolve_compatibility_matrix_path,
 )
-from .orchestrator import NexoraService
 from nexora_node_sdk.state import normalize_node_record, transition_node_status
 from nexora_node_sdk.version import NEXORA_VERSION
+
+from .orchestrator import NexoraService
 
 SUPPORTED_PROFILES = {"control-plane", "node-agent-only", "control-plane+node-agent"}
 SUPPORTED_ENROLLMENT_MODES = {"push", "pull"}
@@ -120,12 +121,8 @@ class BootstrapOrchestrator:
         if invalid:
             return invalid
         matrix_path = resolve_compatibility_matrix_path(self.service.repo_root)
-        matrix = load_compatibility_matrix(
-            matrix_path if matrix_path.exists() else None
-        )
-        compatibility = assess_compatibility(
-            NEXORA_VERSION, yunohost_version, matrix=matrix
-        )
+        matrix = load_compatibility_matrix(matrix_path if matrix_path.exists() else None)
+        compatibility = assess_compatibility(NEXORA_VERSION, yunohost_version, matrix=matrix)
         if not compatibility.get("bootstrap_allowed"):
             return _error_contract(
                 "bootstrap_blocked_by_compatibility",
@@ -204,9 +201,7 @@ class BootstrapOrchestrator:
         transitions = ["agent_installed", "attested", "registered"]
         for target in transitions:
             node = transition_node_status(node, target)
-        state["nodes"] = [
-            n for n in state.get("nodes", []) if n.get("node_id") != node["node_id"]
-        ] + [node]
+        state["nodes"] = [n for n in state.get("nodes", []) if n.get("node_id") != node["node_id"]] + [node]
         state.setdefault("fleet", {}).setdefault("managed_nodes", [])
         if node["node_id"] not in state["fleet"]["managed_nodes"]:
             state["fleet"]["managed_nodes"].append(node["node_id"])
@@ -241,17 +236,13 @@ class BootstrapOrchestrator:
             },
         )
 
-    def adoption_report(
-        self, *, domain: str | None = None, path_url: str | None = None
-    ) -> dict[str, Any]:
+    def adoption_report(self, *, domain: str | None = None, path_url: str | None = None) -> dict[str, Any]:
         return _success_contract(
             "adoption-report",
             {"report": self.service.adoption_report(domain, path_url)},
         )
 
-    def apply_adoption(
-        self, *, domain: str | None = None, path_url: str | None = None
-    ) -> dict[str, Any]:
+    def apply_adoption(self, *, domain: str | None = None, path_url: str | None = None) -> dict[str, Any]:
         imported = self.service.import_existing_state(domain, path_url)
         return _success_contract(
             "apply-adoption",
@@ -268,9 +259,7 @@ class BootstrapOrchestrator:
             },
         )
 
-    def apply_augment(
-        self, *, domain: str | None = None, path_url: str | None = None
-    ) -> dict[str, Any]:
+    def apply_augment(self, *, domain: str | None = None, path_url: str | None = None) -> dict[str, Any]:
         imported = self.service.import_existing_state(domain, path_url)
         return _success_contract(
             "apply-augment",
@@ -287,9 +276,7 @@ class BootstrapOrchestrator:
             },
         )
 
-    def assess_package_lifecycle(
-        self, *, yunohost_version: str, operation: str
-    ) -> dict[str, Any]:
+    def assess_package_lifecycle(self, *, yunohost_version: str, operation: str) -> dict[str, Any]:
         capability = PACKAGE_LIFECYCLE_CAPABILITIES.get(operation)
         if capability is None:
             return _error_contract(
@@ -299,15 +286,9 @@ class BootstrapOrchestrator:
                 rollback_hint="Use one of install, upgrade or restore.",
             )
         matrix_path = resolve_compatibility_matrix_path(self.service.repo_root)
-        matrix = load_compatibility_matrix(
-            matrix_path if matrix_path.exists() else None
-        )
-        compatibility = assess_compatibility(
-            NEXORA_VERSION, yunohost_version, matrix=matrix
-        )
-        capability_verdict = compatibility.get("capability_verdicts", {}).get(
-            capability, {}
-        )
+        matrix = load_compatibility_matrix(matrix_path if matrix_path.exists() else None)
+        compatibility = assess_compatibility(NEXORA_VERSION, yunohost_version, matrix=matrix)
+        capability_verdict = compatibility.get("capability_verdicts", {}).get(capability, {})
         package_allowed = bool(capability_verdict.get("allowed"))
         if not package_allowed:
             return _error_contract(
@@ -374,9 +355,7 @@ def main(argv: list[str] | None = None) -> int:
     package_lifecycle = subparsers.add_parser("assess-package-lifecycle")
     add_common_arguments(package_lifecycle)
     package_lifecycle.add_argument("--yunohost-version", required=True)
-    package_lifecycle.add_argument(
-        "--operation", required=True, choices=sorted(PACKAGE_LIFECYCLE_CAPABILITIES)
-    )
+    package_lifecycle.add_argument("--operation", required=True, choices=sorted(PACKAGE_LIFECYCLE_CAPABILITIES))
 
     args = parser.parse_args(argv)
     orchestrator = BootstrapOrchestrator(_build_service(args))
@@ -402,22 +381,16 @@ def main(argv: list[str] | None = None) -> int:
             enrolled_by=args.enrolled_by,
         )
     elif args.command == "adoption-report":
-        payload = orchestrator.adoption_report(
-            domain=args.domain or None, path_url=args.path_url or None
-        )
+        payload = orchestrator.adoption_report(domain=args.domain or None, path_url=args.path_url or None)
     elif args.command == "apply-adoption":
-        payload = orchestrator.apply_adoption(
-            domain=args.domain or None, path_url=args.path_url or None
-        )
+        payload = orchestrator.apply_adoption(domain=args.domain or None, path_url=args.path_url or None)
     elif args.command == "assess-package-lifecycle":
         payload = orchestrator.assess_package_lifecycle(
             yunohost_version=args.yunohost_version,
             operation=args.operation,
         )
     else:
-        payload = orchestrator.apply_augment(
-            domain=args.domain or None, path_url=args.path_url or None
-        )
+        payload = orchestrator.apply_augment(domain=args.domain or None, path_url=args.path_url or None)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     return 0
 

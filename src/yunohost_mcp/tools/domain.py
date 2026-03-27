@@ -1,7 +1,8 @@
 """Outils MCP pour la gestion des domaines YunoHost."""
 
 from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.runner import run_ynh_command, format_result
+
+from yunohost_mcp.utils.runner import format_result, run_ynh_command
 
 
 def register_domain_tools(mcp: FastMCP, settings=None):

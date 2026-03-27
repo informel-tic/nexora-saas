@@ -1,7 +1,8 @@
 """Outils MCP pour la gestion des utilisateurs et groupes YunoHost."""
 
 from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.runner import run_ynh_command, format_result
+
+from yunohost_mcp.utils.runner import format_result, run_ynh_command
 
 
 def register_user_tools(mcp: FastMCP, settings=None):
@@ -22,9 +23,7 @@ def register_user_tools(mcp: FastMCP, settings=None):
         return format_result(result)
 
     @mcp.tool()
-    async def ynh_user_create(
-        username: str, fullname: str, domain: str, password: str
-    ) -> str:
+    async def ynh_user_create(username: str, fullname: str, domain: str, password: str) -> str:
         """Crée un nouvel utilisateur YunoHost.
         Args:
             username: Nom d'utilisateur (login)
@@ -59,9 +58,7 @@ def register_user_tools(mcp: FastMCP, settings=None):
         return format_result(result)
 
     @mcp.tool()
-    async def ynh_user_update(
-        username: str, fullname: str = "", password: str = ""
-    ) -> str:
+    async def ynh_user_update(username: str, fullname: str = "", password: str = "") -> str:
         """Modifie un utilisateur existant.
         Args:
             username: Nom d'utilisateur

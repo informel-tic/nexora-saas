@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -23,9 +24,7 @@ def register_automation_tools(mcp: FastMCP, settings=None):
         """
         from nexora_core.automation import generate_automation_plan
 
-        return json.dumps(
-            generate_automation_plan(profile), indent=2, ensure_ascii=False
-        )
+        return json.dumps(generate_automation_plan(profile), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_auto_generate_crontab(profile: str = "standard") -> str:

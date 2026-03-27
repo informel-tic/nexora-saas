@@ -10,9 +10,7 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def build_backup_scope(
-    scope: str, *, include_apps: list[str] | None = None
-) -> dict[str, Any]:
+def build_backup_scope(scope: str, *, include_apps: list[str] | None = None) -> dict[str, Any]:
     """Build a backup scope definition."""
 
     return {
@@ -22,9 +20,7 @@ def build_backup_scope(
     }
 
 
-def build_restore_plan(
-    snapshot_id: str, *, target_node: str, offsite_source: str | None = None
-) -> dict[str, Any]:
+def build_restore_plan(snapshot_id: str, *, target_node: str, offsite_source: str | None = None) -> dict[str, Any]:
     """Build a restore plan for a snapshot."""
 
     return {

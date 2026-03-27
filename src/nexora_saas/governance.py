@@ -6,10 +6,10 @@ import datetime
 from typing import Any
 
 from .scoring import (
-    compute_security_score,
-    compute_pra_score,
-    compute_health_score,
     compute_compliance_score,
+    compute_health_score,
+    compute_pra_score,
+    compute_security_score,
 )
 
 
@@ -24,25 +24,11 @@ def executive_report(
     security = compute_security_score(inventory)
     pra = compute_pra_score(inventory)
     health = compute_health_score(inventory)
-    compliance = compute_compliance_score(
-        inventory, has_pra=has_pra, has_monitoring=has_monitoring
-    )
+    compliance = compute_compliance_score(inventory, has_pra=has_pra, has_monitoring=has_monitoring)
 
-    apps = (
-        inventory.get("apps", {}).get("apps", [])
-        if isinstance(inventory.get("apps"), dict)
-        else []
-    )
-    domains = (
-        inventory.get("domains", {}).get("domains", [])
-        if isinstance(inventory.get("domains"), dict)
-        else []
-    )
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    apps = inventory.get("apps", {}).get("apps", []) if isinstance(inventory.get("apps"), dict) else []
+    domains = inventory.get("domains", {}).get("domains", []) if isinstance(inventory.get("domains"), dict) else []
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
 
     priorities: list[str] = []
     if security["score"] < 50:
@@ -73,10 +59,7 @@ def executive_report(
                 "level": compliance["maturity_level"],
             },
         },
-        "overall_score": int(
-            (security["score"] + pra["score"] + health["score"] + compliance["score"])
-            / 4
-        ),
+        "overall_score": int((security["score"] + pra["score"] + health["score"] + compliance["score"]) / 4),
         "priorities": priorities,
         "timestamp": datetime.datetime.now().isoformat(),
     }
@@ -86,11 +69,7 @@ def risk_register(inventory: dict[str, Any]) -> dict[str, Any]:
     """Generate a risk register from inventory analysis."""
     risks: list[dict[str, Any]] = []
 
-    backups = (
-        inventory.get("backups", {}).get("archives", [])
-        if isinstance(inventory.get("backups"), dict)
-        else []
-    )
+    backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     if not backups:
         risks.append(
             {
@@ -107,11 +86,7 @@ def risk_register(inventory: dict[str, Any]) -> dict[str, Any]:
         if isinstance(inventory.get("permissions"), dict)
         else {}
     )
-    public_count = sum(
-        1
-        for _, p in permissions.items()
-        if isinstance(p, dict) and "visitors" in p.get("allowed", [])
-    )
+    public_count = sum(1 for _, p in permissions.items() if isinstance(p, dict) and "visitors" in p.get("allowed", []))
     if public_count > 3:
         risks.append(
             {
@@ -123,16 +98,8 @@ def risk_register(inventory: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    services = (
-        inventory.get("services", {})
-        if isinstance(inventory.get("services"), dict)
-        else {}
-    )
-    down = [
-        s
-        for s, v in services.items()
-        if isinstance(v, dict) and v.get("status") != "running"
-    ]
+    services = inventory.get("services", {}) if isinstance(inventory.get("services"), dict) else {}
+    down = [s for s, v in services.items() if isinstance(v, dict) and v.get("status") != "running"]
     if down:
         risks.append(
             {
@@ -144,17 +111,9 @@ def risk_register(inventory: dict[str, Any]) -> dict[str, Any]:
             }
         )
 
-    certs = (
-        inventory.get("certs", {}).get("certificates", {})
-        if isinstance(inventory.get("certs"), dict)
-        else {}
-    )
+    certs = inventory.get("certs", {}).get("certificates", {}) if isinstance(inventory.get("certs"), dict) else {}
     for domain, data in certs.items():
-        if (
-            isinstance(data, dict)
-            and isinstance(data.get("validity"), (int, float))
-            and data["validity"] <= 7
-        ):
+        if isinstance(data, dict) and isinstance(data.get("validity"), (int, float)) and data["validity"] <= 7:
             risks.append(
                 {
                     "id": f"R004_{domain}",
@@ -165,11 +124,7 @@ def risk_register(inventory: dict[str, Any]) -> dict[str, Any]:
                 }
             )
 
-    risks.sort(
-        key=lambda r: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(
-            r["severity"], 4
-        )
-    )
+    risks.sort(key=lambda r: {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(r["severity"], 4))
 
     return {
         "risks": risks,

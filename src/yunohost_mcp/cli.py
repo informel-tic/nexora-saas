@@ -16,9 +16,7 @@ def main() -> int:
         choices=["streamable-http", "stdio", "sse"],
         default="streamable-http",
     )
-    compat = sub.add_parser(
-        "compatibility", help="Print Nexora ↔ YunoHost compatibility matrix"
-    )
+    compat = sub.add_parser("compatibility", help="Print Nexora ↔ YunoHost compatibility matrix")
     compat.add_argument("--matrix", default="")
     args = parser.parse_args()
     if args.command == "compatibility":
@@ -28,15 +26,11 @@ def main() -> int:
         )
 
         matrix_path = (
-            Path(args.matrix)
-            if args.matrix
-            else resolve_compatibility_matrix_path(Path(__file__).resolve().parents[2])
+            Path(args.matrix) if args.matrix else resolve_compatibility_matrix_path(Path(__file__).resolve().parents[2])
         )
         print(
             json.dumps(
-                load_compatibility_matrix(
-                    matrix_path if matrix_path.exists() else None
-                ),
+                load_compatibility_matrix(matrix_path if matrix_path.exists() else None),
                 indent=2,
                 ensure_ascii=False,
             )

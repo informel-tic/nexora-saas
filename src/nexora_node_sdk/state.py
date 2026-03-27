@@ -65,10 +65,7 @@ def transition_node_status(node: dict[str, Any], target_status: str) -> dict[str
     current_status = str(node.get("status") or "discovered")
     if target_status not in NODE_STATUSES:
         raise ValueError(f"Unsupported node status: {target_status}")
-    if (
-        current_status != target_status
-        and target_status not in _ALLOWED_NODE_TRANSITIONS.get(current_status, set())
-    ):
+    if current_status != target_status and target_status not in _ALLOWED_NODE_TRANSITIONS.get(current_status, set()):
         raise ValueError(f"Transition not allowed: {current_status} -> {target_status}")
 
     updated = dict(node)
@@ -132,19 +129,11 @@ class StateStore:
         data.setdefault("fleet", {}).setdefault("mode", "single-node")
         data["fleet"].setdefault("managed_nodes", [])
         data["fleet"].setdefault("fleet_id", None)
-        data["nodes"] = [
-            normalize_node_record(node)
-            for node in data.get("nodes", [])
-            if isinstance(node, dict)
-        ]
+        data["nodes"] = [normalize_node_record(node) for node in data.get("nodes", []) if isinstance(node, dict)]
         return data
 
     def save(self, data: Dict[str, Any]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = dict(data)
-        payload["nodes"] = [
-            normalize_node_record(node)
-            for node in payload.get("nodes", [])
-            if isinstance(node, dict)
-        ]
+        payload["nodes"] = [normalize_node_record(node) for node in payload.get("nodes", []) if isinstance(node, dict)]
         self.path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))

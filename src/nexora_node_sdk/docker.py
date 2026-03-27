@@ -10,8 +10,8 @@ from __future__ import annotations
 import datetime
 import json
 import subprocess
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 
 def _run(cmd: list[str], timeout: int = 30) -> dict[str, Any]:
@@ -90,9 +90,7 @@ def container_logs(name: str, lines: int = 50) -> str:
     return r["stdout"] or r["stderr"]
 
 
-def generate_compose_file(
-    services: list[dict[str, Any]], project_name: str = "nexora"
-) -> str:
+def generate_compose_file(services: list[dict[str, Any]], project_name: str = "nexora") -> str:
     """Generate a docker-compose.yml from a service list."""
     compose = {
         "version": "3.8",
@@ -128,9 +126,7 @@ def generate_compose_file(
     return yaml.dump(compose, default_flow_style=False, sort_keys=False)
 
 
-def generate_nginx_proxy_for_container(
-    container_name: str, domain: str, internal_port: int, *, path: str = "/"
-) -> str:
+def generate_nginx_proxy_for_container(container_name: str, domain: str, internal_port: int, *, path: str = "/") -> str:
     """Generate nginx reverse proxy config for a Docker container."""
     return f"""# Nexora Docker proxy: {container_name} -> {domain}{path}
 location {path} {{
@@ -377,9 +373,7 @@ def docker_compose_down(compose_path: str) -> dict[str, Any]:
     }
 
 
-def write_compose_file(
-    content: str, path: str = "/opt/nexora/docker/docker-compose.yml"
-) -> dict[str, Any]:
+def write_compose_file(content: str, path: str = "/opt/nexora/docker/docker-compose.yml") -> dict[str, Any]:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content)

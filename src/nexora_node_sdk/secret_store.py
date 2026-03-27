@@ -90,9 +90,7 @@ def read_secret(state_dir: str | Path, *, owner_type: str, owner_id: str) -> str
     return path.read_text().strip()
 
 
-def revoke_secret(
-    state_dir: str | Path, *, owner_type: str, owner_id: str
-) -> dict[str, Any]:
+def revoke_secret(state_dir: str | Path, *, owner_type: str, owner_id: str) -> dict[str, Any]:
     """Revoke a secret by marking its metadata and wiping the token file."""
     path = _secret_path(state_dir, owner_type, owner_id)
     meta_path = path.parent / "meta.json"
@@ -113,9 +111,7 @@ def revoke_secret(
     return {"owner_type": owner_type, "owner_id": owner_id, "revoked_at": now}
 
 
-def list_secrets(
-    state_dir: str | Path, *, owner_type: str | None = None
-) -> list[dict[str, Any]]:
+def list_secrets(state_dir: str | Path, *, owner_type: str | None = None) -> list[dict[str, Any]]:
     """List secret metadata (never raw tokens) for auditing."""
     base = Path(state_dir) / "secrets"
     if not base.exists():

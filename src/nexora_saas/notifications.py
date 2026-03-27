@@ -75,14 +75,10 @@ def format_alert(template_id: str, **kwargs) -> dict[str, Any] | None:
     }
 
 
-def generate_webhook_payload(
-    alert: dict[str, Any], format: str = "slack"
-) -> dict[str, Any]:
+def generate_webhook_payload(alert: dict[str, Any], format: str = "slack") -> dict[str, Any]:
     """Format an alert for a specific webhook target."""
     if format == "slack":
-        emoji = {"critical": "🔴", "high": "🟠", "warning": "🟡", "info": "🔵"}.get(
-            alert.get("level", "info"), "ℹ️"
-        )
+        emoji = {"critical": "🔴", "high": "🟠", "warning": "🟡", "info": "🔵"}.get(alert.get("level", "info"), "ℹ️")
         return {
             "text": f"{emoji} *{alert['title']}*\n{alert['body']}",
             "username": "Nexora",
@@ -114,11 +110,7 @@ def generate_notification_config(channels: list[str] | None = None) -> dict[str,
         routing[level] = channels if level in ("critical", "high") else channels[:1]
 
     return {
-        "channels": {
-            ch: NOTIFICATION_CHANNELS[ch]
-            for ch in channels
-            if ch in NOTIFICATION_CHANNELS
-        },
+        "channels": {ch: NOTIFICATION_CHANNELS[ch] for ch in channels if ch in NOTIFICATION_CHANNELS},
         "routing": routing,
         "throttle_minutes": 15,
         "digest_mode": False,
@@ -134,9 +126,7 @@ def list_alert_templates() -> list[dict[str, Any]]:
 # ── Actual sending ────────────────────────────────────────────────────
 
 
-def send_webhook(
-    url: str, payload: dict[str, Any], *, timeout: int = 10
-) -> dict[str, Any]:
+def send_webhook(url: str, payload: dict[str, Any], *, timeout: int = 10) -> dict[str, Any]:
     """Actually send a webhook HTTP POST."""
     import httpx
 
@@ -210,9 +200,7 @@ def send_alert(
         }
 
 
-def should_throttle_alert(
-    history: list[dict[str, Any]], template_id: str, *, throttle_minutes: int = 15
-) -> bool:
+def should_throttle_alert(history: list[dict[str, Any]], template_id: str, *, throttle_minutes: int = 15) -> bool:
     """Return whether an alert should be throttled based on recent history."""
 
     cutoff = datetime.datetime.now() - datetime.timedelta(minutes=throttle_minutes)
@@ -229,9 +217,7 @@ def should_throttle_alert(
     return False
 
 
-def record_alert_history(
-    history: list[dict[str, Any]], alert: dict[str, Any]
-) -> dict[str, Any]:
+def record_alert_history(history: list[dict[str, Any]], alert: dict[str, Any]) -> dict[str, Any]:
     """Append an alert to local history."""
 
     history.append(alert)

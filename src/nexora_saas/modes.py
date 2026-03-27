@@ -162,9 +162,7 @@ class ModeManager:
             "history": self._mode_history[-10:],
         }
 
-    def switch_mode(
-        self, target_mode: str, *, reason: str = "", operator: str = "system"
-    ) -> dict[str, Any]:
+    def switch_mode(self, target_mode: str, *, reason: str = "", operator: str = "system") -> dict[str, Any]:
         """Switch to a different mode. Returns the transition result."""
         if target_mode not in MODES:
             return {
@@ -354,9 +352,7 @@ def get_required_mode_for_tool(tool_name: str) -> str:
 
 
 def validate_authorization_matrix(
-    tools_dir: str | Path = Path(__file__).resolve().parents[1]
-    / "yunohost_mcp"
-    / "tools",
+    tools_dir: str | Path = Path(__file__).resolve().parents[1] / "yunohost_mcp" / "tools",
 ) -> dict[str, Any]:
     """Verify that all MCP tools map to an official authorization level."""
 
@@ -368,15 +364,11 @@ def validate_authorization_matrix(
             stripped = line.strip()
             if stripped.startswith("async def ynh_"):
                 tool_names.append(stripped.split()[2].split("(")[0])
-    missing = [
-        tool for tool in tool_names if classify_tool_name(tool) not in TOOL_MODE_MATRIX
-    ]
+    missing = [tool for tool in tool_names if classify_tool_name(tool) not in TOOL_MODE_MATRIX]
     return {"classified_tools": len(tool_names), "missing_tools": missing}
 
 
-def _confirmation_fingerprint(
-    action: str, target: str, params: dict[str, Any], operator: str
-) -> str:
+def _confirmation_fingerprint(action: str, target: str, params: dict[str, Any], operator: str) -> str:
     payload = json.dumps(
         {"action": action, "target": target, "params": params, "operator": operator},
         sort_keys=True,
@@ -385,9 +377,7 @@ def _confirmation_fingerprint(
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def create_bound_confirmation(
-    action: str, target: str, params: dict[str, Any], *, operator: str = "system"
-) -> str:
+def create_bound_confirmation(action: str, target: str, params: dict[str, Any], *, operator: str = "system") -> str:
     """Create a confirmation token bound to action, target, params and operator."""
 
     token = secrets.token_urlsafe(16)
@@ -423,13 +413,9 @@ def validate_bound_confirmation(
     return True
 
 
-def request_confirmation(
-    action: str, details: dict[str, Any], *, operator: str = "system"
-) -> dict[str, Any]:
+def request_confirmation(action: str, details: dict[str, Any], *, operator: str = "system") -> dict[str, Any]:
     """Request confirmation for a dangerous action. Returns a confirmation token."""
-    token = create_bound_confirmation(
-        action, str(details.get("target") or "unknown"), details, operator=operator
-    )
+    token = create_bound_confirmation(action, str(details.get("target") or "unknown"), details, operator=operator)
     return {
         "confirmation_required": True,
         "confirmation_token": token,

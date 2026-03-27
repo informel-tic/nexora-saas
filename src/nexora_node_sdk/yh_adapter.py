@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import json
 import logging
 import subprocess
@@ -11,9 +12,7 @@ def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     except FileNotFoundError as exc:
-        return subprocess.CompletedProcess(
-            cmd, returncode=127, stdout="", stderr=str(exc)
-        )
+        return subprocess.CompletedProcess(cmd, returncode=127, stdout="", stderr=str(exc))
 
 
 def _run_json(cmd: list[str]) -> Dict[str, Any]:

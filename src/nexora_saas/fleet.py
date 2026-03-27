@@ -6,7 +6,7 @@ import datetime
 import time
 from typing import Any
 
-from .scoring import compute_security_score, compute_pra_score, compute_health_score
+from .scoring import compute_health_score, compute_pra_score, compute_security_score
 
 
 def build_fleet_inventory(nodes: list[dict[str, Any]]) -> dict[str, Any]:
@@ -18,20 +18,10 @@ def build_fleet_inventory(nodes: list[dict[str, Any]]) -> dict[str, Any]:
     for node in nodes:
         node_id = node.get("node_id", "unknown")
         inv = node.get("inventory", {})
-        apps = (
-            inv.get("apps", {}).get("apps", [])
-            if isinstance(inv.get("apps"), dict)
-            else []
-        )
-        domains = (
-            inv.get("domains", {}).get("domains", [])
-            if isinstance(inv.get("domains"), dict)
-            else []
-        )
+        apps = inv.get("apps", {}).get("apps", []) if isinstance(inv.get("apps"), dict) else []
+        domains = inv.get("domains", {}).get("domains", []) if isinstance(inv.get("domains"), dict) else []
         all_apps.extend(
-            [a.get("id", "") for a in apps]
-            if isinstance(apps, list) and apps and isinstance(apps[0], dict)
-            else apps
+            [a.get("id", "") for a in apps] if isinstance(apps, list) and apps and isinstance(apps[0], dict) else apps
         )
         all_domains.extend(domains)
         node_summaries.append(
@@ -74,15 +64,9 @@ def detect_drift(reference: dict[str, Any], target: dict[str, Any]) -> dict[str,
         drifts.append({"category": "apps", "type": "extra_on_target", "item": app})
 
     ref_domains = set(
-        reference.get("domains", {}).get("domains", [])
-        if isinstance(reference.get("domains"), dict)
-        else []
+        reference.get("domains", {}).get("domains", []) if isinstance(reference.get("domains"), dict) else []
     )
-    tgt_domains = set(
-        target.get("domains", {}).get("domains", [])
-        if isinstance(target.get("domains"), dict)
-        else []
-    )
+    tgt_domains = set(target.get("domains", {}).get("domains", []) if isinstance(target.get("domains"), dict) else [])
     for d in ref_domains - tgt_domains:
         drifts.append({"category": "domains", "type": "missing_on_target", "item": d})
     for d in tgt_domains - ref_domains:
@@ -94,20 +78,14 @@ def detect_drift(reference: dict[str, Any], target: dict[str, Any]) -> dict[str,
         else {}
     )
     tgt_perms = (
-        target.get("permissions", {}).get("permissions", {})
-        if isinstance(target.get("permissions"), dict)
-        else {}
+        target.get("permissions", {}).get("permissions", {}) if isinstance(target.get("permissions"), dict) else {}
     )
     for perm in set(list(ref_perms) + list(tgt_perms)):
         ref_allowed = sorted(
-            ref_perms.get(perm, {}).get("allowed", [])
-            if isinstance(ref_perms.get(perm), dict)
-            else []
+            ref_perms.get(perm, {}).get("allowed", []) if isinstance(ref_perms.get(perm), dict) else []
         )
         tgt_allowed = sorted(
-            tgt_perms.get(perm, {}).get("allowed", [])
-            if isinstance(tgt_perms.get(perm), dict)
-            else []
+            tgt_perms.get(perm, {}).get("allowed", []) if isinstance(tgt_perms.get(perm), dict) else []
         )
         if ref_allowed != tgt_allowed:
             drifts.append(
@@ -120,15 +98,7 @@ def detect_drift(reference: dict[str, Any], target: dict[str, Any]) -> dict[str,
                 }
             )
 
-    severity = (
-        "critical"
-        if len(drifts) > 10
-        else "warning"
-        if len(drifts) > 3
-        else "info"
-        if drifts
-        else "clean"
-    )
+    severity = "critical" if len(drifts) > 10 else "warning" if len(drifts) > 3 else "info" if drifts else "clean"
 
     return {
         "drift_count": len(drifts),
@@ -138,9 +108,7 @@ def detect_drift(reference: dict[str, Any], target: dict[str, Any]) -> dict[str,
     }
 
 
-def generate_fleet_topology(
-    nodes: list[dict[str, Any]], roles: dict[str, str] | None = None
-) -> dict[str, Any]:
+def generate_fleet_topology(nodes: list[dict[str, Any]], roles: dict[str, str] | None = None) -> dict[str, Any]:
     """Generate a fleet topology map with node roles."""
     roles = roles or {}
     topology: list[dict[str, Any]] = []
@@ -148,19 +116,9 @@ def generate_fleet_topology(
     for node in nodes:
         node_id = node.get("node_id", "unknown")
         inv = node.get("inventory", {})
-        apps = (
-            inv.get("apps", {}).get("apps", [])
-            if isinstance(inv.get("apps"), dict)
-            else []
-        )
-        domains = (
-            inv.get("domains", {}).get("domains", [])
-            if isinstance(inv.get("domains"), dict)
-            else []
-        )
-        services = (
-            inv.get("services", {}) if isinstance(inv.get("services"), dict) else {}
-        )
+        apps = inv.get("apps", {}).get("apps", []) if isinstance(inv.get("apps"), dict) else []
+        domains = inv.get("domains", {}).get("domains", []) if isinstance(inv.get("domains"), dict) else []
+        services = inv.get("services", {}) if isinstance(inv.get("services"), dict) else {}
 
         has_mail = any(s in services for s in ("postfix", "dovecot", "rspamd"))
         has_db = any(s in services for s in ("mysql", "mariadb", "postgresql"))
@@ -198,20 +156,10 @@ def compare_nodes(node_a: dict[str, Any], node_b: dict[str, Any]) -> dict[str, A
     """Compare two nodes side by side."""
 
     def _extract(inv):
-        apps = (
-            inv.get("apps", {}).get("apps", [])
-            if isinstance(inv.get("apps"), dict)
-            else []
-        )
-        domains = (
-            inv.get("domains", {}).get("domains", [])
-            if isinstance(inv.get("domains"), dict)
-            else []
-        )
+        apps = inv.get("apps", {}).get("apps", []) if isinstance(inv.get("apps"), dict) else []
+        domains = inv.get("domains", {}).get("domains", []) if isinstance(inv.get("domains"), dict) else []
         return {
-            "apps": sorted(
-                [a.get("id", str(a)) if isinstance(a, dict) else str(a) for a in apps]
-            ),
+            "apps": sorted([a.get("id", str(a)) if isinstance(a, dict) else str(a) for a in apps]),
             "domains": sorted(domains),
             "health": compute_health_score(inv),
             "security": compute_security_score(inv),
@@ -235,9 +183,7 @@ def compare_nodes(node_a: dict[str, Any], node_b: dict[str, Any]) -> dict[str, A
 # ── Remote node communication ─────────────────────────────────────────
 
 
-def build_remote_agent_url(
-    host: str, port: int = 38121, path: str = "/inventory", *, scheme: str = "https"
-) -> str:
+def build_remote_agent_url(host: str, port: int = 38121, path: str = "/inventory", *, scheme: str = "https") -> str:
     """Build a remote node-agent URL using HTTPS by default."""
 
     normalized = path if path.startswith("/") else f"/{path}"
@@ -260,9 +206,7 @@ def _request_with_retries(
     last_error: Exception | None = None
     for attempt in range(retries):
         try:
-            return client.request(
-                method, url, headers=headers, timeout=timeout, verify=verify, cert=cert
-            )
+            return client.request(method, url, headers=headers, timeout=timeout, verify=verify, cert=cert)
         except Exception as exc:  # pragma: no cover
             last_error = exc
             if attempt == retries - 1:

@@ -12,7 +12,6 @@ from typing import Any
 from nexora_node_sdk.identity import generate_node_credentials
 from nexora_node_sdk.state import normalize_node_record, transition_node_status
 
-
 _DESTRUCTIVE_ACTIONS = {"revoke", "retire", "delete"}
 
 
@@ -37,9 +36,7 @@ def _utc_now_iso() -> str:
 
 
 # TASK-3-1-4-2: Operational safety rules.
-def validate_lifecycle_action(
-    node: dict[str, Any], action: str, *, confirmation: bool = False
-) -> list[str]:
+def validate_lifecycle_action(node: dict[str, Any], action: str, *, confirmation: bool = False) -> list[str]:
     """Validate lifecycle actions and return human-readable warnings."""
 
     warnings: list[str] = []
@@ -50,22 +47,14 @@ def validate_lifecycle_action(
     if (
         action == "delete"
         and status in {"healthy", "degraded"}
-        and (
-            {"control-plane", "mail", "database"} & roles or "control-plane" in profile
-        )
+        and ({"control-plane", "mail", "database"} & roles or "control-plane" in profile)
     ):
-        raise ValueError(
-            "Cannot delete a healthy critical node without prior retirement"
-        )
+        raise ValueError("Cannot delete a healthy critical node without prior retirement")
     if action == "drain" and not confirmation and node.get("apps_count", 0) > 0:
         raise ValueError("Drain requires confirmation when workloads are present")
     if action in _DESTRUCTIVE_ACTIONS and not confirmation:
         warnings.append("Confirmation recommended for destructive lifecycle action")
-    if (
-        action == "re_enroll"
-        and not node.get("credential_revoked_at")
-        and status not in {"revoked", "retired"}
-    ):
+    if action == "re_enroll" and not node.get("credential_revoked_at") and status not in {"revoked", "retired"}:
         warnings.append("Re-enrollment usually follows a revocation or retirement")
     return warnings
 
@@ -96,9 +85,7 @@ def apply_lifecycle_action(
         raise ValueError(f"Unsupported lifecycle action: {action}")
 
     nodes = state.setdefault("nodes", [])
-    index = next(
-        (i for i, item in enumerate(nodes) if item.get("node_id") == node_id), None
-    )
+    index = next((i for i, item in enumerate(nodes) if item.get("node_id") == node_id), None)
     if index is None:
         raise ValueError(f"Unknown node: {node_id}")
 
@@ -133,9 +120,7 @@ def apply_lifecycle_action(
         node["credential_revoked_at"] = None
         node["cert_path"] = creds["cert_path"]
         node["key_path"] = creds["key_path"]
-        rollback_hint = (
-            "revoke rotated credentials and re-issue prior certificate bundle"
-        )
+        rollback_hint = "revoke rotated credentials and re-issue prior certificate bundle"
     elif action == "re_enroll":
         node["status"] = "bootstrap_pending"
         node["allowed_transitions"] = ["agent_installed", "retired", "revoked"]
@@ -143,9 +128,7 @@ def apply_lifecycle_action(
     elif action == "delete":
         nodes.pop(index)
         state.setdefault("fleet", {}).setdefault("managed_nodes", [])
-        state["fleet"]["managed_nodes"] = [
-            managed for managed in state["fleet"]["managed_nodes"] if managed != node_id
-        ]
+        state["fleet"]["managed_nodes"] = [managed for managed in state["fleet"]["managed_nodes"] if managed != node_id]
         state.setdefault("lifecycle_events", []).append(
             {
                 "timestamp": _utc_now_iso(),

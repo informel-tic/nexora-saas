@@ -99,9 +99,7 @@ CMD ["python3", "-m", "app"]
     }
 
 
-def generate_migration_plan(
-    source_type: str, target_type: str, apps: list[str]
-) -> dict[str, Any]:
+def generate_migration_plan(source_type: str, target_type: str, apps: list[str]) -> dict[str, Any]:
     """Generate a migration plan between deployment types."""
     valid_types = {"yunohost", "docker", "bare_metal", "external"}
     if source_type not in valid_types or target_type not in valid_types:
@@ -116,9 +114,7 @@ def generate_migration_plan(
         {"phase": "prepare", "action": f"Prepare {target_type} environment"},
     ]
     for app in apps:
-        steps.append(
-            {"phase": "migrate", "action": f"Migrate {app}: code + data + config"}
-        )
+        steps.append({"phase": "migrate", "action": f"Migrate {app}: code + data + config"})
     steps.extend(
         [
             {"phase": "verify", "action": "Test all migrated apps"},

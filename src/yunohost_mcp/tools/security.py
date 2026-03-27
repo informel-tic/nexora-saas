@@ -1,13 +1,14 @@
 """Outils MCP pour l'audit de sécurité et le hardening YunoHost."""
 
 from mcp.server.fastmcp import FastMCP
+
 from yunohost_mcp.utils.runner import (
-    run_ynh_command,
+    format_result,
     run_shell_command,
     run_shell_command_safe,
-    format_result,
+    run_ynh_command,
 )
-from yunohost_mcp.utils.safety import validate_ip, validate_alphanum
+from yunohost_mcp.utils.safety import validate_alphanum, validate_ip
 
 
 def register_security_tools(mcp: FastMCP, settings=None):
@@ -31,12 +32,8 @@ def register_security_tools(mcp: FastMCP, settings=None):
         report.append("")
 
         report.append("--- Configuration SSH ---")
-        ssh_root = await run_shell_command(
-            "grep -i '^PermitRootLogin' /etc/ssh/sshd_config || echo 'Non défini'"
-        )
-        ssh_port = await run_shell_command(
-            "grep -i '^Port ' /etc/ssh/sshd_config || echo 'Port 22 (défaut)'"
-        )
+        ssh_root = await run_shell_command("grep -i '^PermitRootLogin' /etc/ssh/sshd_config || echo 'Non défini'")
+        ssh_port = await run_shell_command("grep -i '^Port ' /etc/ssh/sshd_config || echo 'Port 22 (défaut)'")
         ssh_passwd = await run_shell_command(
             "grep -i '^PasswordAuthentication' /etc/ssh/sshd_config || echo 'Non défini'"
         )
@@ -50,32 +47,22 @@ def register_security_tools(mcp: FastMCP, settings=None):
         report.append("")
 
         report.append("--- Fail2Ban ---")
-        f2b_status = await run_shell_command(
-            "fail2ban-client status 2>/dev/null || echo 'Fail2Ban non disponible'"
-        )
+        f2b_status = await run_shell_command("fail2ban-client status 2>/dev/null || echo 'Fail2Ban non disponible'")
         report.append(f2b_status)
-        f2b_banned = await run_shell_command(
-            "fail2ban-client status sshd 2>/dev/null | grep 'Banned' || echo ''"
-        )
+        f2b_banned = await run_shell_command("fail2ban-client status sshd 2>/dev/null | grep 'Banned' || echo ''")
         if f2b_banned:
             report.append(f"  SSH: {f2b_banned}")
         report.append("")
 
         report.append("--- Mises à jour ---")
-        updates = await run_shell_command(
-            "apt list --upgradable 2>/dev/null | grep -c upgradable || echo '0'"
-        )
+        updates = await run_shell_command("apt list --upgradable 2>/dev/null | grep -c upgradable || echo '0'")
         report.append(f"  Paquets à mettre à jour: {updates}")
         if updates.strip() not in ("0", ""):
             try:
                 if int(updates.strip()) > 10:
-                    issues.append(
-                        f"{updates.strip()} paquets système en attente de mise à jour"
-                    )
+                    issues.append(f"{updates.strip()} paquets système en attente de mise à jour")
             except ValueError:
-                warnings.append(
-                    f"Impossible d'interpréter le nombre de mises à jour: {updates.strip()}"
-                )
+                warnings.append(f"Impossible d'interpréter le nombre de mises à jour: {updates.strip()}")
         report.append("")
 
         report.append("--- Permissions des applications ---")
@@ -85,9 +72,7 @@ def register_security_tools(mcp: FastMCP, settings=None):
                 if isinstance(perm_info, dict):
                     allowed = perm_info.get("allowed", [])
                     if "visitors" in allowed and "admin" not in perm_name:
-                        warnings.append(
-                            f"App '{perm_name}' accessible aux visiteurs anonymes"
-                        )
+                        warnings.append(f"App '{perm_name}' accessible aux visiteurs anonymes")
         report.append(format_result(perms) if perms.success else "Non disponible")
         report.append("")
 
@@ -125,9 +110,7 @@ def register_security_tools(mcp: FastMCP, settings=None):
             jail = jail.strip()
             if jail:
                 validate_alphanum(jail, "jail name")
-                detail = await run_shell_command_safe(
-                    ["fail2ban-client", "status", jail]
-                )
+                detail = await run_shell_command_safe(["fail2ban-client", "status", jail])
                 report.append(f"--- Jail: {jail} ---")
                 report.append(detail)
                 report.append("")
@@ -142,9 +125,7 @@ def register_security_tools(mcp: FastMCP, settings=None):
         """
         validate_ip(ip)
         validate_alphanum(jail, "jail name")
-        result = await run_shell_command_safe(
-            ["fail2ban-client", "set", jail, "banip", ip]
-        )
+        result = await run_shell_command_safe(["fail2ban-client", "set", jail, "banip", ip])
         return f"Ban IP {ip} sur jail {jail}: {result}"
 
     @mcp.tool()
@@ -156,9 +137,7 @@ def register_security_tools(mcp: FastMCP, settings=None):
         """
         validate_ip(ip)
         validate_alphanum(jail, "jail name")
-        result = await run_shell_command_safe(
-            ["fail2ban-client", "set", jail, "unbanip", ip]
-        )
+        result = await run_shell_command_safe(["fail2ban-client", "set", jail, "unbanip", ip])
         return f"Unban IP {ip} sur jail {jail}: {result}"
 
     @mcp.tool()
@@ -174,9 +153,7 @@ def register_security_tools(mcp: FastMCP, settings=None):
         report.append(last)
         report.append("")
         report.append("--- Tentatives échouées ---")
-        failed = await run_shell_command(
-            "lastb -n 20 --time-format iso 2>/dev/null || echo 'Non disponible'"
-        )
+        failed = await run_shell_command("lastb -n 20 --time-format iso 2>/dev/null || echo 'Non disponible'")
         report.append(failed)
         return "\n".join(report)
 
@@ -195,17 +172,10 @@ def register_security_tools(mcp: FastMCP, settings=None):
                 allowed = perm_info.get("allowed", [])
                 url = perm_info.get("url", "")
                 if "visitors" in allowed:
-                    public_ok = any(
-                        x in perm_name
-                        for x in ["my_webapp", "site", "blog", "wiki.main"]
-                    )
+                    public_ok = any(x in perm_name for x in ["my_webapp", "site", "blog", "wiki.main"])
                     if not public_ok:
-                        issues.append(
-                            f"⚠️  {perm_name} est accessible aux visiteurs anonymes (URL: {url})"
-                        )
-                        report.append(
-                            f"  ⚠️  {perm_name}: PUBLIC ({', '.join(allowed)})"
-                        )
+                        issues.append(f"⚠️  {perm_name} est accessible aux visiteurs anonymes (URL: {url})")
+                        report.append(f"  ⚠️  {perm_name}: PUBLIC ({', '.join(allowed)})")
                     else:
                         report.append(f"  ✅ {perm_name}: public (normal)")
                 else:
@@ -224,9 +194,7 @@ def register_security_tools(mcp: FastMCP, settings=None):
         """Vérifie les mises à jour de sécurité disponibles (système + apps)."""
         report = ["=== Mises à jour de sécurité ===", ""]
         report.append("--- Paquets système ---")
-        apt_out = await run_shell_command(
-            "apt list --upgradable 2>/dev/null | head -20"
-        )
+        apt_out = await run_shell_command("apt list --upgradable 2>/dev/null | head -20")
         report.append(apt_out if apt_out else "Aucune mise à jour disponible")
         report.append("")
         report.append("--- Applications YunoHost ---")

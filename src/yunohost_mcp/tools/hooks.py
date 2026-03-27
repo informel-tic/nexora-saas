@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -43,9 +44,7 @@ def register_hooks_tools(mcp: FastMCP, settings=None):
         from nexora_core.hooks import generate_hook_script
 
         action_list = [a.strip() for a in actions.split(";") if a.strip()]
-        return json.dumps(
-            generate_hook_script(event, action_list), indent=2, ensure_ascii=False
-        )
+        return json.dumps(generate_hook_script(event, action_list), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_hooks_install_preset(preset: str = "standard") -> str:
@@ -67,6 +66,4 @@ def register_hooks_tools(mcp: FastMCP, settings=None):
         from nexora_core.hooks import install_hook
 
         action_list = [a.strip() for a in actions.split(";") if a.strip()]
-        return json.dumps(
-            install_hook(event, action_list), indent=2, ensure_ascii=False
-        )
+        return json.dumps(install_hook(event, action_list), indent=2, ensure_ascii=False)
