@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from nexora_node_sdk.app_profiles import AppProfileError, validate_install_request
-from nexora_node_sdk.compatibility import assess_compatibility, load_compatibility_matrix
-from nexora_node_sdk import yh_adapter
+from .app_profiles import AppProfileError, validate_install_request
+from .compatibility import assess_compatibility, load_compatibility_matrix
+from . import yh_adapter
 
 
 def _local_yunohost_version() -> str | None:

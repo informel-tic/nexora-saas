@@ -16,6 +16,20 @@ from nexora_node_sdk.state import normalize_node_record, transition_node_status
 _DESTRUCTIVE_ACTIONS = {"revoke", "retire", "delete"}
 
 
+def summarize_fleet_lifecycle(nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summarize fleet lifecycle state from node records."""
+    by_status: dict[str, int] = {}
+    for n in nodes:
+        s = str(n.get("status") or "unknown")
+        by_status[s] = by_status.get(s, 0) + 1
+    return {
+        "total_nodes": len(nodes),
+        "by_status": by_status,
+        "nodes": nodes,
+        "timestamp": _utc_now_iso(),
+    }
+
+
 def _utc_now_iso() -> str:
     """Return the current UTC timestamp as ISO8601."""
 
