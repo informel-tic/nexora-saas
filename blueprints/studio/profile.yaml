@@ -1,0 +1,39 @@
+slug: studio
+name: Studio créatif
+activity: studio
+description: Stack pour agence de design ou studio créatif avec collaboration, partage de fichiers lourds et portail client.
+profiles:
+- pro-pack
+- creative
+recommended_apps:
+- nextcloud
+- hedgedoc
+- vaultwarden
+- peertube
+- wikijs
+subdomains:
+- cloud
+- docs
+- video
+- wiki
+- portal
+security_baseline:
+  force_https: true
+  mfa_recommended: true
+monitoring_baseline:
+- resources
+- services
+- ssl
+- storage
+pra_baseline:
+- daily-backup
+- snapshot
+- rebuild-script
+portal:
+  brand_name: Studio Hub
+  accent: '#8b5cf6'
+  sections:
+  - apps
+  - projects
+  - clients
+  - resources

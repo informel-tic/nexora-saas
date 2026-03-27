@@ -1,0 +1,42 @@
+slug: agency
+name: Digital Agency
+activity: agency
+description: Agency stack with collaboration, file sharing, vault, mail and branded
+  portal.
+profiles:
+- single-node-easy-install
+- pro-pack
+recommended_apps:
+- nextcloud
+- roundcube
+- vaultwarden
+- fail2ban-web
+- rspamdui
+subdomains:
+- cloud
+- mail
+- portal
+- mcp
+security_baseline:
+  force_https: true
+  ssh_port: 22222
+  admins_only_console: true
+monitoring_baseline:
+- resources
+- services
+- ssl
+- mail-queue
+- ports
+pra_baseline:
+- daily-backup
+- snapshot
+- rebuild-script
+- restore-runbook
+portal:
+  brand_name: Agency Platform
+  accent: '#14b8a6'
+  sections:
+  - workspace
+  - clients
+  - security
+  - pra

@@ -1,0 +1,46 @@
+slug: si-interne
+name: SI interne PME
+activity: si-interne
+description: Système d'information interne complet pour PME avec mail, fichiers, visio, messagerie et coffre-fort.
+profiles:
+- single-node-easy-install
+- pro-pack
+recommended_apps:
+- nextcloud
+- roundcube
+- vaultwarden
+- jitsi
+- mattermost
+- hedgedoc
+subdomains:
+- cloud
+- mail
+- meet
+- chat
+- docs
+- portal
+security_baseline:
+  force_https: true
+  webadmin_allowlist: true
+  mfa_recommended: true
+monitoring_baseline:
+- resources
+- services
+- ssl
+- mail
+- db
+pra_baseline:
+- daily-backup
+- inventory
+- snapshot
+- rebuild-script
+- dns-check
+portal:
+  brand_name: Intranet
+  accent: '#2563eb'
+  sections:
+  - apps
+  - people
+  - communication
+  - security
+  - backups

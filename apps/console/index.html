@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg"/>
+  <title>Nexora Console</title>
+  <link rel="stylesheet" href="./styles.css"/>
+</head>
+<body>
+  <a class="nx-skip-link" href="#main-content" tabindex="0">Aller au contenu principal</a>
+
+  <header>
+    <div class="brand">
+      <img src="./assets/nexora-mark.svg" alt="Nexora" class="logo"/>
+      <div><h1>Nexora Console</h1><p>Orchestration souveraine pour infrastructures YunoHost</p></div>
+    </div>
+    <div class="header-right">
+      <span class="nx-badge nx-badge-info" id="profile-badge" role="status" aria-label="Mode actuel">observer</span>
+      <span class="nx-badge nx-badge-success" id="health-badge" role="status" aria-label="Statut de sant&eacute;">…</span>
+    </div>
+  </header>
+
+  <nav id="main-nav" class="nx-nav" role="navigation" aria-label="Navigation principale">
+    <a href="#dashboard" data-section="dashboard" class="active" role="link" tabindex="0">Dashboard</a>
+    <a href="#scores" data-section="scores" role="link" tabindex="0">Scores</a>
+    <a href="#apps" data-section="apps" role="link" tabindex="0">Applications</a>
+    <a href="#services" data-section="services" role="link" tabindex="0">Services</a>
+    <a href="#domains" data-section="domains" role="link" tabindex="0">Domaines</a>
+    <a href="#security" data-section="security" role="link" tabindex="0">S&eacute;curit&eacute;</a>
+    <a href="#pra" data-section="pra" role="link" tabindex="0">PRA</a>
+    <a href="#fleet" data-section="fleet" role="link" tabindex="0">Fleet</a>
+    <a href="#blueprints" data-section="blueprints" role="link" tabindex="0">Blueprints</a>
+    <a href="#automation" data-section="automation" role="link" tabindex="0">Automation</a>
+    <a href="#adoption" data-section="adoption" role="link" tabindex="0">Adoption</a>
+    <a href="#modes" data-section="modes" role="link" tabindex="0">Modes</a>
+    <a href="#docker" data-section="docker" role="link" tabindex="0">Docker</a>
+    <a href="#storage" data-section="storage" role="link" tabindex="0">Stockage</a>
+    <a href="#notifications" data-section="notifications" role="link" tabindex="0">Notifications</a>
+    <a href="#hooks" data-section="hooks" role="link" tabindex="0">Hooks</a>
+    <a href="#governance" data-section="governance" role="link" tabindex="0">Gouvernance</a>
+    <a href="#sla-tracking" data-section="sla-tracking" role="link" tabindex="0">SLA</a>
+  </nav>
+
+  <main id="main-content" role="main" aria-live="polite">
+    <!-- Sections are rendered dynamically by the NexoraConsole controller -->
+  </main>
+
+  <!-- Modal container -->
+  <div id="nx-modal-root"></div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

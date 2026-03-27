@@ -1,0 +1,36 @@
+slug: collective
+name: Collective / Cooperative
+activity: collective
+description: Shared services blueprint for a cooperative or collective with strong
+  identity customization.
+profiles:
+- single-node-easy-install
+- pro-pack
+recommended_apps:
+- nextcloud
+- roundcube
+- vaultwarden
+- my_webapp
+subdomains:
+- portal
+- cloud
+- mail
+- share
+security_baseline:
+  force_https: true
+monitoring_baseline:
+- resources
+- ssl
+- services
+pra_baseline:
+- daily-backup
+- snapshot
+- branding-export
+portal:
+  brand_name: Collective Space
+  accent: '#10b981'
+  sections:
+  - commons
+  - members
+  - governance
+  - security

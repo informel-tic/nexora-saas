@@ -1,0 +1,35 @@
+slug: pme
+name: SMB Office
+activity: pme
+description: Internal office stack for a small business with mail, cloud and password
+  management.
+profiles:
+- single-node-easy-install
+- pro-pack
+recommended_apps:
+- nextcloud
+- roundcube
+- vaultwarden
+subdomains:
+- cloud
+- mail
+- portal
+security_baseline:
+  force_https: true
+  webadmin_allowlist: true
+monitoring_baseline:
+- resources
+- services
+- ssl
+pra_baseline:
+- daily-backup
+- inventory
+- dns-check
+portal:
+  brand_name: Office Hub
+  accent: '#2563eb'
+  sections:
+  - apps
+  - people
+  - security
+  - backups

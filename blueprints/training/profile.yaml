@@ -1,0 +1,32 @@
+slug: training
+name: Training Center
+activity: training
+description: Learning platform blueprint with file sharing, mail and branded member
+  portal.
+profiles:
+- single-node-easy-install
+- pro-pack
+recommended_apps:
+- nextcloud
+- roundcube
+- my_webapp
+subdomains:
+- portal
+- cloud
+- mail
+security_baseline:
+  force_https: true
+monitoring_baseline:
+- resources
+- ssl
+- mail-queue
+pra_baseline:
+- daily-backup
+- portal-export
+portal:
+  brand_name: Training Hub
+  accent: '#f59e0b'
+  sections:
+  - courses
+  - members
+  - resources

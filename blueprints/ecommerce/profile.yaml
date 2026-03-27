@@ -1,0 +1,37 @@
+slug: ecommerce
+name: E-commerce artisanal
+activity: ecommerce
+description: Infrastructure pour boutique en ligne avec gestion de commandes, mails transactionnels et sécurité renforcée.
+profiles:
+- single-node-easy-install
+- pro-pack
+recommended_apps:
+- wordpress
+- vaultwarden
+- roundcube
+- rspamd
+subdomains:
+- shop
+- mail
+- admin
+security_baseline:
+  force_https: true
+  webadmin_allowlist: true
+  fail2ban_strict: true
+monitoring_baseline:
+- resources
+- services
+- ssl
+- mail
+pra_baseline:
+- daily-backup
+- inventory
+- rebuild-script
+portal:
+  brand_name: Boutique
+  accent: '#dc2626'
+  sections:
+  - apps
+  - orders
+  - security
+  - monitoring

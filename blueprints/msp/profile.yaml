@@ -1,0 +1,41 @@
+slug: msp
+name: Managed Services Provider
+activity: msp
+description: Fleet-oriented topology with central control plane, node agents and backup
+  policies.
+profiles:
+- pro-pack
+- fleet-multi-site
+recommended_apps:
+- nextcloud
+- vaultwarden
+- borg
+- fail2ban-web
+subdomains:
+- console
+- agent
+- backup
+- portal
+security_baseline:
+  force_https: true
+  admins_only_console: true
+  mfa_recommended: true
+monitoring_baseline:
+- fleet
+- resources
+- ssl
+- ports
+- logs
+pra_baseline:
+- multi-site-backup
+- snapshot
+- rebuild-script
+- drift-report
+portal:
+  brand_name: MSP Control
+  accent: '#8b5cf6'
+  sections:
+  - fleet
+  - clients
+  - security
+  - pra

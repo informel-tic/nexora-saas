@@ -1,0 +1,35 @@
+[project]
+name = "nexora-saas"
+version = "2.0.0"
+description = "Nexora Layer C repository: control plane, console, MCP, and SaaS orchestration"
+readme = "README.md"
+license = { text = "AGPL-3.0-or-later" }
+requires-python = ">=3.11"
+authors = [{ name = "informel-tic" }]
+keywords = ["yunohost", "mcp", "control-plane", "fleet", "multitenant", "blueprints", "governance", "automation"]
+dependencies = [
+  "mcp[cli]>=1.26.0",
+  "pydantic>=2.0",
+  "uvicorn>=0.30.0",
+  "fastapi>=0.115.0",
+  "pyyaml>=6.0.0",
+  "jinja2>=3.1.0",
+  "httpx>=0.27.0",
+  'tomli>=2.0.0; python_version < "3.11"',
+]
+
+[project.scripts]
+yunohost-mcp-server = "yunohost_mcp.cli:main"
+nexora-control-plane = "control_plane.backend:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yunohost_mcp", "src/nexora_core", "apps/control_plane"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+python_files = ["test_*.py"]
+testpaths = ["tests"]
