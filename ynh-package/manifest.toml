@@ -1,0 +1,46 @@
+packaging_format = 2
+
+id = "nexora"
+name = "Nexora"
+description.en = "Nexora SaaS Control Plane — sovereign multi-node orchestration on YunoHost"
+description.fr = "Nexora SaaS Control Plane — orchestration multi-nœud souveraine sur YunoHost"
+
+version = "2.0.0~ynh1"
+
+maintainers = ["Nexora Team"]
+
+[upstream]
+license = "proprietary"
+
+[integration]
+yunohost = ">= 12.1"
+architectures = ["amd64", "arm64"]
+multi_instance = false
+ldap = false
+sso = false
+disk = "500M"
+ram.build = "256M"
+ram.runtime = "256M"
+
+[install]
+    [install.domain]
+    type = "domain"
+
+    [install.path]
+    type = "path"
+    default = "/nexora"
+
+[resources]
+    [resources.sources.main]
+    url = "__LOCAL_SOURCE_URL__"
+    sha256 = "__LOCAL_SOURCE_SHA256__"
+    in_subdir = false
+
+    [resources.system_user]
+
+    [resources.install_dir]
+
+    [resources.data_dir]
+
+    [resources.permissions]
+    main.url = "/"

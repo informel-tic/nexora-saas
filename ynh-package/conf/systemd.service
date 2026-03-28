@@ -1,0 +1,26 @@
+[Unit]
+Description=Nexora Control Plane (YunoHost)
+After=network.target
+
+[Service]
+Type=simple
+User=__APP__
+Group=__APP__
+WorkingDirectory=__INSTALL_DIR__
+Environment=NEXORA_CONTROL_PLANE_HOST=127.0.0.1
+Environment=NEXORA_CONTROL_PLANE_PORT=38120
+Environment=NEXORA_STATE_PATH=/opt/nexora/var/state.json
+Environment=NEXORA_API_TOKEN_FILE=/opt/nexora/var/api-token
+Environment=NEXORA_API_TOKEN_ROLE_FILE=/etc/nexora/api-token-roles.json
+Environment=NEXORA_OPERATOR_ONLY_ENFORCE=1
+Environment=NEXORA_DEPLOYMENT_SCOPE=operator
+ExecStart=__INSTALL_DIR__/venv/bin/nexora-control-plane
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/nexora/var /tmp/nexora-export
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
