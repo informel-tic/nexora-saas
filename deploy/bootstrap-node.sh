@@ -377,7 +377,7 @@ if [[ "$PROFILE" != "node-agent-only" && -n "$DOMAIN" ]]; then
       exit 1
     fi
     # Prepare local source archive and inject placeholders in manifest for offline-safe app install.
-    SRC_ARCHIVE="$($ROOT/deploy/prepare-local-package.sh)"
+    SRC_ARCHIVE="$(bash "$ROOT/deploy/prepare-local-package.sh")"
     SRC_DIR="$(dirname "$SRC_ARCHIVE")"
     SRC_FILE="$(basename "$SRC_ARCHIVE")"
     SRC_HTTP_PORT="$(python3 - <<'PY'
