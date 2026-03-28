@@ -91,7 +91,9 @@ const sectionRenderers = {
   notifications: views.loadNotifications,
   hooks: views.loadHooks,
   governance: views.loadGovernanceRisks,
-  'sla-tracking': views.loadSlaTracking
+  'sla-tracking': views.loadSlaTracking,
+  subscription: views.loadSubscription,
+  provisioning: views.loadProvisioning
 };
 
 const ADMIN_ONLY_SECTIONS = new Set([

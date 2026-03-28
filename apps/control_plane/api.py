@@ -86,7 +86,54 @@ def _load_public_landing_html() -> str:
 <body>
 <h1>Nexora SaaS</h1>
 <p>Plateforme SaaS souveraine pour opérer vos noeuds YunoHost.</p>
-<p><a href="console/">Acceder a la console admin</a></p>
+<p><a href="subscribe">Souscrire</a></p>
+</body>
+</html>
+""".strip()
+
+
+def _load_subscription_landing_html() -> str:
+    return """
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"/><title>Nexora — Souscription</title>
+<style>
+body{font-family:system-ui,sans-serif;max-width:800px;margin:2rem auto;padding:0 1rem;color:#1e293b}
+h1{color:#4f46e5}
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;margin:2rem 0}
+.plan{border:2px solid #e2e8f0;border-radius:12px;padding:1.5rem;text-align:center}
+.plan.pro{border-color:#4f46e5}
+.plan h3{margin:0 0 .5rem}
+.plan .price{font-size:2rem;font-weight:700;color:#4f46e5}
+.plan ul{text-align:left;padding-left:1.2rem;font-size:.9rem}
+.btn{display:inline-block;padding:.75rem 1.5rem;background:#4f46e5;color:#fff;border-radius:8px;text-decoration:none;margin-top:1rem}
+.btn:hover{background:#4338ca}
+</style>
+</head>
+<body>
+<h1>Nexora SaaS — Souscription</h1>
+<p>Plateforme souveraine pour orchestrer vos noeuds YunoHost.</p>
+<div class="plans">
+  <div class="plan">
+    <h3>Starter</h3>
+    <div class="price">Gratuit</div>
+    <ul><li>5 noeuds</li><li>Monitoring basique</li><li>Backup local</li></ul>
+    <a href="api/plans" class="btn">Commencer</a>
+  </div>
+  <div class="plan pro">
+    <h3>Pro</h3>
+    <div class="price">49€/mois</div>
+    <ul><li>50 noeuds</li><li>Monitoring avancé</li><li>PRA</li><li>Automatisation</li></ul>
+    <a href="api/plans" class="btn">Souscrire</a>
+  </div>
+  <div class="plan">
+    <h3>Enterprise</h3>
+    <div class="price">199€/mois</div>
+    <ul><li>Illimité</li><li>Support 24/7</li><li>SLA garanti</li><li>Multi-région</li></ul>
+    <a href="api/plans" class="btn">Contacter</a>
+  </div>
+</div>
+<p><a href="/">← Retour à l'accueil</a></p>
 </body>
 </html>
 """.strip()
@@ -254,6 +301,9 @@ def build_application() -> FastAPI:
     register_modes_routes(app)
     register_operations_routes(app)
     register_auth_routes(app)
+    register_subscription_routes(app)
+    register_tenant_management_routes(app)
+    register_provisioning_routes(app)
     register_console_routes(app)
     return app
 
@@ -1073,6 +1123,182 @@ def register_operations_routes(app: FastAPI) -> None:
     app.add_api_route("/api/automation/checklists", automation_checklists, methods=["GET"])
 
 
+def register_subscription_routes(app: FastAPI) -> None:
+    """Subscription management API — organizations, plans, subscriptions."""
+
+    class CreateOrgRequest(BaseModel):
+        name: str = Field(..., min_length=1, max_length=200)
+        contact_email: str = Field(..., min_length=3, max_length=200)
+        billing_address: str = ""
+
+    class CreateSubscriptionRequest(BaseModel):
+        org_id: str = Field(..., min_length=1)
+        plan_tier: str = Field(..., pattern="^(free|pro|enterprise)$")
+        tenant_label: str = ""
+
+    class UpgradeSubscriptionRequest(BaseModel):
+        new_tier: str = Field(..., pattern="^(free|pro|enterprise)$")
+
+    class SuspendSubscriptionRequest(BaseModel):
+        reason: str = ""
+
+    def list_plans_route() -> list[dict[str, object]]:
+        return service.get_plans()
+
+    def create_org(request: CreateOrgRequest) -> dict[str, object]:
+        return service.create_org(
+            name=request.name,
+            contact_email=request.contact_email,
+            billing_address=request.billing_address,
+        )
+
+    def list_orgs() -> list[dict[str, object]]:
+        return service.list_orgs()
+
+    def get_org(org_id: str) -> dict[str, object]:
+        org = service.get_org(org_id)
+        if not org:
+            raise HTTPException(status_code=404, detail=f"Organization '{org_id}' not found")
+        return org
+
+    def create_sub(request: CreateSubscriptionRequest) -> dict[str, object]:
+        return service.subscribe(
+            org_id=request.org_id,
+            plan_tier=request.plan_tier,
+            tenant_label=request.tenant_label,
+        )
+
+    def list_subs(org_id: str | None = Query(None)) -> list[dict[str, object]]:
+        return service.list_subs(org_id=org_id)
+
+    def get_sub(subscription_id: str) -> dict[str, object]:
+        sub = service.get_sub(subscription_id)
+        if not sub:
+            raise HTTPException(status_code=404, detail="Subscription not found")
+        return sub
+
+    def suspend_sub(subscription_id: str, request: SuspendSubscriptionRequest) -> dict[str, object]:
+        return service.suspend_sub(subscription_id, reason=request.reason)
+
+    def cancel_sub(subscription_id: str) -> dict[str, object]:
+        return service.cancel_sub(subscription_id)
+
+    def upgrade_sub(subscription_id: str, request: UpgradeSubscriptionRequest) -> dict[str, object]:
+        return service.upgrade_sub(subscription_id, request.new_tier)
+
+    # Public-facing plan catalog
+    app.add_api_route("/api/plans", list_plans_route, methods=["GET"])
+    app.add_api_route("/api/v1/plans", list_plans_route, methods=["GET"])
+
+    # Organization CRUD
+    app.add_api_route("/api/organizations", create_org, methods=["POST"])
+    app.add_api_route("/api/organizations", list_orgs, methods=["GET"], name="list-orgs")
+    app.add_api_route("/api/organizations/{org_id}", get_org, methods=["GET"])
+
+    # Subscription lifecycle
+    app.add_api_route("/api/subscriptions", create_sub, methods=["POST"])
+    app.add_api_route("/api/subscriptions", list_subs, methods=["GET"], name="list-subs")
+    app.add_api_route("/api/subscriptions/{subscription_id}", get_sub, methods=["GET"])
+    app.add_api_route("/api/subscriptions/{subscription_id}/suspend", suspend_sub, methods=["POST"])
+    app.add_api_route("/api/subscriptions/{subscription_id}/cancel", cancel_sub, methods=["POST"])
+    app.add_api_route("/api/subscriptions/{subscription_id}/upgrade", upgrade_sub, methods=["POST"])
+
+
+def register_tenant_management_routes(app: FastAPI) -> None:
+    """Tenant management API — CRUD, onboarding, purging."""
+
+    class OnboardTenantRequest(BaseModel):
+        tenant_id: str = Field(..., min_length=1)
+        organization_id: str = Field(..., min_length=1)
+        tier: str = "free"
+
+    def list_tenants_route(
+        organization_id: str | None = Query(None),
+    ) -> list[dict[str, object]]:
+        return service.list_tenants(organization_id=organization_id)
+
+    def onboard_tenant_route(request: OnboardTenantRequest) -> dict[str, object]:
+        return service.onboard_tenant(
+            request.tenant_id,
+            request.organization_id,
+            tier=request.tier,
+        )
+
+    def purge_tenant_route(tenant_id: str) -> dict[str, object]:
+        return service.purge_tenant_data(tenant_id)
+
+    def tenant_usage_route(
+        x_nexora_tenant_id: str | None = Header(None),
+    ) -> dict[str, object]:
+        return service.tenant_usage_vs_quota(tenant_id=x_nexora_tenant_id)
+
+    app.add_api_route("/api/tenants", list_tenants_route, methods=["GET"])
+    app.add_api_route("/api/v1/tenants", list_tenants_route, methods=["GET"], name="list-tenants-v1")
+    app.add_api_route("/api/tenants/onboard", onboard_tenant_route, methods=["POST"])
+    app.add_api_route("/api/tenants/{tenant_id}/purge", purge_tenant_route, methods=["POST"])
+    app.add_api_route("/api/tenants/usage-quota", tenant_usage_route, methods=["GET"])
+
+
+def register_provisioning_routes(app: FastAPI) -> None:
+    """Feature provisioning API — SaaS pushes features down to enrolled nodes."""
+
+    class ProvisionNodeRequest(BaseModel):
+        node_id: str = Field(..., min_length=1)
+        node_url: str = Field(..., min_length=1)
+        hmac_secret: str = Field(..., min_length=32)
+        api_token: str = ""
+        tenant_id: str | None = None
+
+    class DeprovisionNodeRequest(BaseModel):
+        node_id: str = Field(..., min_length=1)
+        node_url: str = Field(..., min_length=1)
+        hmac_secret: str = ""
+
+    class HeartbeatNodeRequest(BaseModel):
+        node_id: str = Field(..., min_length=1)
+        node_url: str = Field(..., min_length=1)
+        hmac_secret: str = Field(..., min_length=32)
+        api_token: str = ""
+        lease_seconds: int = 86400
+
+    def provision_node(request: ProvisionNodeRequest) -> dict[str, object]:
+        return service.provision_node(
+            node_id=request.node_id,
+            node_url=request.node_url,
+            hmac_secret=request.hmac_secret,
+            api_token=request.api_token,
+            tenant_id=request.tenant_id,
+        )
+
+    def deprovision_node(request: DeprovisionNodeRequest) -> dict[str, object]:
+        return service.deprovision_node_features(
+            node_id=request.node_id,
+            node_url=request.node_url,
+            hmac_secret=request.hmac_secret,
+        )
+
+    def heartbeat_node(request: HeartbeatNodeRequest) -> dict[str, object]:
+        return service.heartbeat_node(
+            node_id=request.node_id,
+            node_url=request.node_url,
+            hmac_secret=request.hmac_secret,
+            api_token=request.api_token,
+            lease_seconds=request.lease_seconds,
+        )
+
+    def node_provisioning_status(node_id: str) -> dict[str, object]:
+        return service.node_provisioning_status(node_id)
+
+    def node_features(node_id: str) -> dict[str, object]:
+        return service.resolve_node_features(node_id)
+
+    app.add_api_route("/api/provisioning/provision", provision_node, methods=["POST"])
+    app.add_api_route("/api/provisioning/deprovision", deprovision_node, methods=["POST"])
+    app.add_api_route("/api/provisioning/heartbeat", heartbeat_node, methods=["POST"])
+    app.add_api_route("/api/provisioning/nodes/{node_id}/status", node_provisioning_status, methods=["GET"])
+    app.add_api_route("/api/provisioning/nodes/{node_id}/features", node_features, methods=["GET"])
+
+
 def register_console_routes(app: FastAPI) -> None:
     if CONSOLE_DIR.exists():
         app.mount("/console", StaticFiles(directory=CONSOLE_DIR, html=True), name="console")
@@ -1085,7 +1311,8 @@ def register_console_routes(app: FastAPI) -> None:
         return {"status": "ok", "hint": "Console not built yet"}
 
     def subscribe():
-        return HTMLResponse(content=_load_public_landing_html())
+        """Redirect to the subscription onboarding flow."""
+        return HTMLResponse(content=_load_subscription_landing_html())
 
     def admin_redirect():
         return RedirectResponse(url="console/")

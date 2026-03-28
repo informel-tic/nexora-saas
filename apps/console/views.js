@@ -493,3 +493,123 @@ export async function loadSlaTracking(sec) {
 
   sec.innerHTML = html;
 }
+
+
+/* ── Subscription Management ── */
+export async function loadSubscription(sec) {
+  const [plans, orgs, subs] = await Promise.all([
+    api('plans').catch(function() { return []; }),
+    api('organizations').catch(function() { return []; }),
+    api('subscriptions').catch(function() { return []; })
+  ]);
+
+  const planList = Array.isArray(plans) ? plans : [];
+  const orgList = Array.isArray(orgs) ? orgs : [];
+  const subList = Array.isArray(subs) ? subs : [];
+
+  let html = `<div class="nx-card mb"><div class="nx-card-header"><h3>Plans disponibles</h3></div>
+    <div class="nx-grid nx-grid-3 p-md">`;
+
+  planList.forEach(function(p) {
+    const price = p.price_monthly_eur === 0 ? 'Gratuit' : p.price_monthly_eur + '\u20ac/mois';
+    html += `<div class="nx-card" style="text-align:center">
+      <strong>${p.name || p.tier}</strong>
+      <div style="font-size:1.5rem;font-weight:700;color:var(--primary);margin:.5rem 0">${price}</div>
+      <div style="font-size:.85rem;color:var(--muted)">
+        ${p.max_nodes} n\u0153uds \u00b7 ${p.max_apps_per_node} apps/n\u0153ud \u00b7 ${p.max_storage_gb}GB
+      </div>
+      <ul style="text-align:left;font-size:.8rem;margin:.5rem 0;padding-left:1rem">
+        ${(p.features || []).map(function(f) { return '<li>' + f + '</li>'; }).join('')}
+      </ul>
+    </div>`;
+  });
+  html += '</div></div>';
+
+  html += `<div class="nx-card mb"><div class="nx-card-header"><h3>Organisations (${orgList.length})</h3></div>`;
+  if (orgList.length) {
+    html += nxTable(['ID', 'Nom', 'Email', 'Cr\u00e9\u00e9 le'], orgList.map(function(o) {
+      return [o.org_id || '-', o.name || '-', o.contact_email || '-', (o.created_at || '').slice(0, 10)];
+    }));
+  } else {
+    html += nxEmpty('Aucune organisation');
+  }
+  html += `<div class="p-md"><button class="nx-btn" onclick="window.createOrg()">Cr\u00e9er une organisation</button></div></div>`;
+
+  html += `<div class="nx-card"><div class="nx-card-header"><h3>Souscriptions (${subList.length})</h3></div>`;
+  if (subList.length) {
+    html += nxTable(['ID', 'Org', 'Tier', 'Tenant', 'Status', 'Cr\u00e9\u00e9 le'], subList.map(function(s) {
+      const statusBadge = s.status === 'active' ? nxBadge(s.status, 'success') :
+                          s.status === 'suspended' ? nxBadge(s.status, 'warning') :
+                          nxBadge(s.status, 'danger');
+      return [s.subscription_id || '-', s.org_id || '-', s.tier || '-', s.tenant_id || '-', statusBadge, (s.created_at || '').slice(0, 10)];
+    }));
+  } else {
+    html += nxEmpty('Aucune souscription');
+  }
+  html += `<div class="p-md"><button class="nx-btn" onclick="window.createSubscription()">Cr\u00e9er une souscription</button></div></div>`;
+
+  sec.innerHTML = html;
+}
+
+
+/* ── Feature Provisioning ── */
+export async function loadProvisioning(sec) {
+  const fleet = await api('fleet').catch(function() { return { nodes: [] }; });
+  const nodes = fleet.nodes || [];
+
+  let html = `<div class="nx-card mb"><div class="nx-card-header"><h3>Provisioning des fonctionnalit\u00e9s</h3></div>
+    <p class="p-md" style="color:var(--muted)">
+      Le SaaS pousse les fonctionnalit\u00e9s vers les n\u0153uds enroll\u00e9s. Les n\u0153uds sont des interfaces passives.
+    </p>`;
+
+  if (nodes.length) {
+    html += `<div class="nx-grid nx-grid-2 p-md">`;
+    for (const node of nodes) {
+      const nodeId = node.node_id || node.hostname || '-';
+      const status = node.status || 'unknown';
+      const tenant = node.tenant_id || 'aucun';
+      const dot = status === 'healthy' || status === 'registered' ? 'status-running' :
+                  status === 'degraded' ? 'status-warning' : 'status-stopped';
+
+      let provStatus = null;
+      let features = null;
+      try {
+        provStatus = await api('provisioning/nodes/' + encodeURIComponent(nodeId) + '/status');
+        features = await api('provisioning/nodes/' + encodeURIComponent(nodeId) + '/features');
+      } catch(e) { /* silent */ }
+
+      html += `<div class="nx-card">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <span class="status-dot ${dot}"></span>
+          <strong>${nodeId}</strong>
+          <span style="color:var(--muted);font-size:.8rem">(${status})</span>
+        </div>
+        <div style="font-size:.85rem;color:var(--muted)">Tenant: ${tenant}</div>`;
+
+      if (features && features.features) {
+        html += `<div style="margin-top:.5rem"><strong style="font-size:.85rem">Fonctionnalit\u00e9s:</strong>
+          <ul style="font-size:.8rem;padding-left:1rem;margin:.25rem 0">
+            ${features.features.map(function(f) { return '<li>' + f.name + ' <span style="color:var(--muted)">(' + f.kind + ')</span></li>'; }).join('')}
+          </ul></div>`;
+      }
+
+      if (provStatus && provStatus.last_event) {
+        const evt = provStatus.last_event;
+        html += `<div style="font-size:.8rem;color:var(--muted);margin-top:.25rem">
+          Dernier provisioning: ${(evt.provisioned_at || evt.deprovisioned_at || '').slice(0, 16)} \u2014 ${evt.status}
+        </div>`;
+      }
+
+      html += `<div style="margin-top:.5rem;display:flex;gap:.5rem">
+        <button class="nx-btn nx-btn-sm" onclick="window.provisionNode('${nodeId}')">Provisionner</button>
+        <button class="nx-btn nx-btn-sm nx-btn-danger" onclick="window.deprovisionNode('${nodeId}')">D\u00e9provisionner</button>
+      </div></div>`;
+    }
+    html += '</div>';
+  } else {
+    html += nxEmpty('Aucun n\u0153ud dans la flotte. Enrollez d\'abord un n\u0153ud via Fleet.');
+  }
+  html += '</div>';
+
+  sec.innerHTML = html;
+}

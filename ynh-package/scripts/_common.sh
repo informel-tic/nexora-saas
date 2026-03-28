@@ -56,8 +56,8 @@ nexora_setup_operator_role_lock() {
   if [ ! -f "$role_file" ]; then
     printf '{}\n' > "$role_file"
   fi
-  chown root:root "$role_file"
-  chmod 600 "$role_file"
+  chown root:"$app" "$role_file"
+  chmod 640 "$role_file"
 }
 
 nexora_setup_venv() {

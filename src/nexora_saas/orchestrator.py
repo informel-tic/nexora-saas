@@ -25,8 +25,28 @@ from nexora_node_sdk.state import normalize_node_record, transition_node_status
 # SaaS-only modules
 from .adoption import build_adoption_report
 from .enrollment import attest_node, consume_enrollment_token, issue_enrollment_token
+from .feature_provisioning import (
+    build_heartbeat_for_node,
+    deprovision_node,
+    get_node_provisioning_status,
+    provision_node_features,
+    resolve_features_for_tier,
+)
 from .node_lifecycle import apply_lifecycle_action, summarize_fleet_lifecycle
 from .quotas import get_quota_limit, get_tenant_entitlements, is_quota_exceeded
+from .subscription import (
+    cancel_subscription,
+    create_organization,
+    create_subscription,
+    get_organization,
+    get_subscription,
+    get_subscription_by_tenant,
+    list_organizations,
+    list_plans,
+    list_subscriptions,
+    suspend_subscription,
+    upgrade_subscription,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -596,3 +616,140 @@ class NexoraService(NodeService):
         if organization_id:
             tenants = [t for t in tenants if t.get("org_id") == organization_id]
         return tenants
+
+    # ------------------------------------------------------------------
+    # Subscription management
+    # ------------------------------------------------------------------
+
+    def create_org(self, *, name: str, contact_email: str, billing_address: str = "") -> dict[str, Any]:
+        state = self.state.load()
+        result = create_organization(state, name=name, contact_email=contact_email, billing_address=billing_address)
+        if result.get("success"):
+            self.state.save(state)
+        return result
+
+    def list_orgs(self) -> list[dict[str, Any]]:
+        return list_organizations(self.state.load())
+
+    def get_org(self, org_id: str) -> dict[str, Any] | None:
+        return get_organization(self.state.load(), org_id)
+
+    def subscribe(self, *, org_id: str, plan_tier: str, tenant_label: str = "") -> dict[str, Any]:
+        state = self.state.load()
+        result = create_subscription(state, org_id=org_id, plan_tier=plan_tier, tenant_label=tenant_label)
+        if result.get("success"):
+            self.state.save(state)
+        return result
+
+    def list_subs(self, org_id: str | None = None) -> list[dict[str, Any]]:
+        return list_subscriptions(self.state.load(), org_id=org_id)
+
+    def get_sub(self, subscription_id: str) -> dict[str, Any] | None:
+        return get_subscription(self.state.load(), subscription_id)
+
+    def suspend_sub(self, subscription_id: str, reason: str = "") -> dict[str, Any]:
+        state = self.state.load()
+        result = suspend_subscription(state, subscription_id, reason)
+        if result.get("success"):
+            self.state.save(state)
+        return result
+
+    def cancel_sub(self, subscription_id: str) -> dict[str, Any]:
+        state = self.state.load()
+        result = cancel_subscription(state, subscription_id)
+        if result.get("success"):
+            self.state.save(state)
+        return result
+
+    def upgrade_sub(self, subscription_id: str, new_tier: str) -> dict[str, Any]:
+        state = self.state.load()
+        result = upgrade_subscription(state, subscription_id, new_tier)
+        if result.get("success"):
+            self.state.save(state)
+        return result
+
+    def get_plans(self) -> list[dict[str, Any]]:
+        return list_plans()
+
+    # ------------------------------------------------------------------
+    # Feature provisioning — SaaS pushes features down to nodes
+    # ------------------------------------------------------------------
+
+    def provision_node(
+        self,
+        *,
+        node_id: str,
+        node_url: str,
+        hmac_secret: str,
+        api_token: str = "",
+        tenant_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Provision features on an enrolled node based on its tenant's subscription."""
+        state = self.state.load()
+        result = provision_node_features(
+            state,
+            node_id=node_id,
+            node_url=node_url,
+            hmac_secret=hmac_secret,
+            api_token=api_token,
+            tenant_id=tenant_id,
+        )
+        if result.get("success"):
+            self.state.save(state)
+        return result
+
+    def deprovision_node_features(self, *, node_id: str, node_url: str, hmac_secret: str = "") -> dict[str, Any]:
+        """Remove all features from a node (rollback)."""
+        state = self.state.load()
+        result = deprovision_node(state, node_id=node_id, node_url=node_url, hmac_secret=hmac_secret)
+        if result.get("success"):
+            self.state.save(state)
+        return result
+
+    def heartbeat_node(
+        self,
+        *,
+        node_id: str,
+        node_url: str,
+        hmac_secret: str,
+        api_token: str = "",
+        lease_seconds: int = 86400,
+    ) -> dict[str, Any]:
+        """Send heartbeat to an enrolled node to keep feature leases alive."""
+        state = self.state.load()
+        return build_heartbeat_for_node(
+            state,
+            node_id=node_id,
+            node_url=node_url,
+            hmac_secret=hmac_secret,
+            api_token=api_token,
+            lease_seconds=lease_seconds,
+        )
+
+    def node_provisioning_status(self, node_id: str) -> dict[str, Any]:
+        """Get provisioning history for a node."""
+        return get_node_provisioning_status(self.state.load(), node_id)
+
+    def resolve_node_features(self, node_id: str) -> dict[str, Any]:
+        """Resolve the feature set for a node based on its tenant's subscription."""
+        state = self.state.load()
+        node = next((n for n in state.get("nodes", []) if n.get("node_id") == node_id), None)
+        if not node:
+            return {"error": f"Node '{node_id}' not found"}
+        tenant_id = node.get("tenant_id")
+        tier = "free"
+        if tenant_id:
+            sub = get_subscription_by_tenant(state, tenant_id)
+            if sub:
+                tier = sub.get("tier", "free")
+            else:
+                tenant = next((t for t in state.get("tenants", []) if t.get("tenant_id") == tenant_id), None)
+                if tenant:
+                    tier = tenant.get("tier", "free")
+        features = resolve_features_for_tier(tier)
+        return {
+            "node_id": node_id,
+            "tenant_id": tenant_id,
+            "tier": tier,
+            "features": [{"feature_id": f["feature_id"], "name": f["name"], "kind": f["kind"]} for f in features],
+        }

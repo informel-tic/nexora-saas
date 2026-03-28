@@ -28,10 +28,10 @@ class RuntimeBoundaryRefactorTests(unittest.TestCase):
             "agent.py must import app and main from the node_agent api module",
         )
 
-    def test_node_agent_api_registers_action_routes_by_table(self):
+    def test_node_agent_api_registers_overlay_routes(self):
         source = Path("apps/node_agent/api.py").read_text(encoding="utf-8")
-        self.assertIn("action_routes =", source)
-        self.assertIn("_build_action_route", source)
+        self.assertIn("register_overlay_routes", source)
+        self.assertIn("build_application", source)
 
     def test_mcp_fleet_tools_use_adapter_context(self):
         source = Path("src/yunohost_mcp/tools/fleet.py").read_text(encoding="utf-8")
