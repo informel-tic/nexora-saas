@@ -209,3 +209,21 @@ class PackagingTests(unittest.TestCase):
         self.assertIn('"$_venv_python" -m nexora_saas.bootstrap', script)
         self.assertIn('"$_venv_python" -c "import nexora_saas.bootstrap"', script)
 
+    def test_resolve_repo_root_respects_env_override(self):
+        """resolve_repo_root must use NEXORA_REPO_ROOT env var when set."""
+        import os
+        from pathlib import Path as P
+        from nexora_node_sdk.runtime_context import resolve_repo_root
+
+        os.environ["NEXORA_REPO_ROOT"] = "/var/www/nexora/repo"
+        try:
+            result = resolve_repo_root(__file__)
+            self.assertEqual(result, P("/var/www/nexora/repo"))
+        finally:
+            del os.environ["NEXORA_REPO_ROOT"]
+
+    def test_systemd_sets_repo_root_env(self):
+        """Systemd service must set NEXORA_REPO_ROOT for installed-package context."""
+        service = Path("ynh-package/conf/systemd.service").read_text(encoding="utf-8")
+        self.assertIn("Environment=NEXORA_REPO_ROOT=__INSTALL_DIR__/repo", service)
+

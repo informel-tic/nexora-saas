@@ -8,9 +8,17 @@ from pathlib import Path
 from .node_service import NodeService
 
 
-def resolve_repo_root(current_file: str) -> Path:
-    """Resolve the repository root from an adapter module path."""
 
+def resolve_repo_root(current_file: str) -> Path:
+    """Resolve the repository root from an adapter module path.
+
+    In production (pip-installed into a venv), the file hierarchy no longer
+    mirrors the source tree.  Callers set ``NEXORA_REPO_ROOT`` to point at
+    the extracted source directory (e.g. ``/var/www/nexora/repo``).
+    """
+    env = os.environ.get("NEXORA_REPO_ROOT")
+    if env:
+        return Path(env)
     return Path(current_file).resolve().parents[2]
 
 

@@ -14,6 +14,7 @@ Environment=NEXORA_API_TOKEN_FILE=__DATA_DIR__/api-token
 Environment=NEXORA_API_TOKEN_ROLE_FILE=/etc/nexora/api-token-roles.json
 Environment=NEXORA_OPERATOR_ONLY_ENFORCE=1
 Environment=NEXORA_DEPLOYMENT_SCOPE=operator
+Environment=NEXORA_REPO_ROOT=__INSTALL_DIR__/repo
 ExecStart=__INSTALL_DIR__/venv/bin/nexora-control-plane
 Restart=on-failure
 RestartSec=5
