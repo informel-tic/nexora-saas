@@ -2,7 +2,7 @@
 source /usr/share/yunohost/helpers
 source _common.sh
 
-nexora_validate_yunohost_version
+nexora_validate_yunohost_version upgrade
 
 ynh_script_progression --message="Stopping service before upgrade..." --weight=1
 systemctl stop "$app" || true

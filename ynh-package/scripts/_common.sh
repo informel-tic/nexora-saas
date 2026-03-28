@@ -10,18 +10,35 @@ NEXORA_WHEEL_BUNDLE_DIR="${NEXORA_WHEEL_BUNDLE_DIR:-}"
 export PATH="${NEXORA_VENV}/bin:${PATH}"
 
 nexora_validate_yunohost_version() {
-  local ynh_version
-  ynh_version="$(yunohost tools version --output-as json 2>/dev/null \
-    | python3 -c 'import json,sys; print(json.load(sys.stdin).get("yunohost",{}).get("version",""))' 2>/dev/null || true)"
+  local ynh_version operation="${1:-install}"
+
+  # Primary: dpkg-query (no YunoHost CLI lock — safe inside lifecycle scripts)
+  ynh_version="$(dpkg-query -W -f='${Version}' yunohost 2>/dev/null \
+    | grep -oP '\d+\.\d+(\.\d+)?' | head -1 || true)"
+
+  # Fallback 1: yunohost CLI JSON (works outside lifecycle scripts)
+  if [ -z "$ynh_version" ]; then
+    ynh_version="$(yunohost tools version --output-as json 2>/dev/null \
+      | python3 -c 'import json,sys; print(json.load(sys.stdin).get("yunohost",{}).get("version",""))' 2>/dev/null || true)"
+  fi
+
+  # Fallback 2: yunohost --version
   if [ -z "$ynh_version" ]; then
     ynh_version="$(yunohost --version 2>/dev/null | grep -oP '\d+\.\d+(\.\d+)?' | head -1 || true)"
   fi
+
   if [ -z "$ynh_version" ]; then
     ynh_die --message="Cannot detect YunoHost version."
   fi
-  python3 -m nexora_saas.bootstrap assess-package-lifecycle \
-    --operation install \
-    --yunohost-version "$ynh_version" || ynh_die --message="YunoHost version $ynh_version is not compatible."
+
+  # Delegate exact version policy to the bootstrap compatibility service
+  if python3 -c "import nexora_saas.bootstrap" 2>/dev/null; then
+    python3 -m nexora_saas.bootstrap assess-package-lifecycle \
+      --operation "$operation" \
+      --yunohost-version "$ynh_version" || ynh_die --message="YunoHost version $ynh_version is not compatible."
+  else
+    echo "Info: nexora_saas.bootstrap not available; skipping detailed compatibility check for YunoHost $ynh_version."
+  fi
 }
 
 nexora_abort_if_port_busy() {

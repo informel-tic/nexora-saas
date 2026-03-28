@@ -30,6 +30,39 @@ class PackagingTests(unittest.TestCase):
         self.assertNotIn("12.2*", script)
         self.assertNotIn("12.3*", script)
 
+    def test_common_script_uses_dpkg_query_as_primary_version_detection(self):
+        """Inside lifecycle scripts the yunohost CLI is locked; dpkg-query is the safe primary method."""
+
+        script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
+        dpkg_pos = script.index("dpkg-query -W -f='${Version}' yunohost")
+        ynh_cli_pos = script.index("yunohost tools version --output-as json")
+        self.assertLess(dpkg_pos, ynh_cli_pos, "dpkg-query must come before yunohost CLI calls")
+
+    def test_common_script_version_check_accepts_operation_parameter(self):
+        """nexora_validate_yunohost_version must accept an operation parameter for lifecycle dispatch."""
+
+        script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
+        self.assertIn('operation="${1:-install}"', script)
+        self.assertIn('"$operation"', script)
+
+    def test_upgrade_script_passes_upgrade_operation(self):
+        """Upgrade must pass operation=upgrade to compatibility check."""
+
+        script = Path("ynh-package/scripts/upgrade").read_text(encoding="utf-8")
+        self.assertIn("nexora_validate_yunohost_version upgrade", script)
+
+    def test_restore_script_passes_restore_operation(self):
+        """Restore must pass operation=restore to compatibility check."""
+
+        script = Path("ynh-package/scripts/restore").read_text(encoding="utf-8")
+        self.assertIn("nexora_validate_yunohost_version restore", script)
+
+    def test_common_script_gracefully_degrades_without_bootstrap_module(self):
+        """When nexora_saas.bootstrap is not available, version check should not abort."""
+
+        script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
+        self.assertIn('python3 -c "import nexora_saas.bootstrap" 2>/dev/null', script)
+
     def test_upgrade_script_stops_service_before_port_check(self):
         """Upgrade must not fail on its own bound port."""
 
