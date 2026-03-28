@@ -5,13 +5,14 @@ Outils MCP pour la gestion des applications YunoHost.
 import json
 
 from mcp.server.fastmcp import FastMCP
-from nexora_core.app_profiles import (
+
+from nexora_node_sdk.app_profiles import (
     AppProfileError,
     list_app_profiles,
     resolve_app_profile,
 )
-from nexora_core.preflight import build_install_preflight
-from yunohost_mcp.utils.runner import run_ynh_command, format_result
+from nexora_saas.preflight import build_install_preflight
+from yunohost_mcp.utils.runner import format_result, run_ynh_command
 
 
 def register_app_tools(mcp: FastMCP, settings=None):
@@ -34,9 +35,7 @@ def register_app_tools(mcp: FastMCP, settings=None):
             return f"❌ {exc}"
 
     @mcp.tool()
-    async def ynh_app_install_preflight(
-        app: str, domain: str, path: str = "/", args: str = ""
-    ) -> str:
+    async def ynh_app_install_preflight(app: str, domain: str, path: str = "/", args: str = "") -> str:
         """Préflight bloquant avant une installation automatisée d'application.
 
         Args:
@@ -89,9 +88,7 @@ def register_app_tools(mcp: FastMCP, settings=None):
             return json.dumps(preflight, indent=2, ensure_ascii=False)
 
         request = (
-            preflight.get("normalized_request", {})
-            if isinstance(preflight.get("normalized_request"), dict)
-            else {}
+            preflight.get("normalized_request", {}) if isinstance(preflight.get("normalized_request"), dict) else {}
         )
         install_args = f"domain={preflight['domain']}&path={preflight['path']}"
         if request.get("args_string"):
@@ -156,9 +153,7 @@ def register_app_tools(mcp: FastMCP, settings=None):
             key: Clé de configuration
             value: Nouvelle valeur
         """
-        result = await run_ynh_command(
-            "app", "config", "set", app, key, "--value", value
-        )
+        result = await run_ynh_command("app", "config", "set", app, key, "--value", value)
         return format_result(result)
 
     @mcp.tool()

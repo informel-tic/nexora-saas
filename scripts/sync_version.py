@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 def main():
-    version_file = Path("src/nexora_core/version.py")
+    version_file = Path("src/nexora_node_sdk/version.py")
     version_content = version_file.read_text(encoding="utf-8")
     
     match = re.search(r'NEXORA_VERSION\s*=\s*"([^"]+)"', version_content)

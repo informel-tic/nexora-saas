@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -11,28 +12,26 @@ def register_portal_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_portal_list_palettes() -> str:
         """Liste toutes les palettes de thèmes disponibles."""
-        from nexora_core.portal import list_available_palettes
+        from nexora_saas.portal import list_available_palettes
 
         return json.dumps(list_available_palettes(), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_portal_list_sectors() -> str:
         """Liste tous les thèmes sectoriels disponibles (agence, PME, MSP, etc.)."""
-        from nexora_core.portal import list_sector_themes
+        from nexora_saas.portal import list_sector_themes
 
         return json.dumps(list_sector_themes(), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_portal_generate_theme(
-        brand_name: str, palette: str = "corporate", tagline: str = ""
-    ) -> str:
+    async def ynh_portal_generate_theme(brand_name: str, palette: str = "corporate", tagline: str = "") -> str:
         """Génère un thème de portail complet.
         Args:
             brand_name: Nom de la marque
             palette: Palette de couleurs (corporate, creative, nature, warm, dark_pro, neutral)
             tagline: Slogan / sous-titre
         """
-        from nexora_core.portal import generate_theme
+        from nexora_saas.portal import generate_theme
 
         theme = generate_theme(brand_name, palette_name=palette, tagline=tagline)
         return json.dumps(theme, indent=2, ensure_ascii=False)
@@ -44,7 +43,7 @@ def register_portal_tools(mcp: FastMCP, settings=None):
             sector: Secteur (agency, pme, msp, association, training, ecommerce, collective)
             brand_name: Nom de la marque
         """
-        from nexora_core.portal import generate_sector_theme
+        from nexora_saas.portal import generate_sector_theme
 
         theme = generate_sector_theme(sector, brand_name)
         return json.dumps(theme, indent=2, ensure_ascii=False)
@@ -56,7 +55,7 @@ def register_portal_tools(mcp: FastMCP, settings=None):
             brand_name: Nom de la marque
             profiles: Profils JSON (optionnel, défaut: admin + users + visitors)
         """
-        from nexora_core.portal import generate_theme, generate_multi_profile_portal
+        from nexora_saas.portal import generate_multi_profile_portal, generate_theme
 
         base = generate_theme(brand_name)
         if profiles:
@@ -88,22 +87,20 @@ def register_portal_tools(mcp: FastMCP, settings=None):
             foreground: Couleur du texte (hex, ex: #1e293b)
             background: Couleur de fond (hex, ex: #f8fafc)
         """
-        from nexora_core.portal import validate_contrast
+        from nexora_saas.portal import validate_contrast
 
         result = validate_contrast(foreground, background)
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_portal_apply_theme(
-        brand_name: str, palette: str = "corporate"
-    ) -> str:
+    async def ynh_portal_apply_theme(brand_name: str, palette: str = "corporate") -> str:
         """Applique un thème au state Nexora (branding persistant).
         Args:
             brand_name: Nom de la marque
             palette: Palette de couleurs
         """
-        from nexora_core.portal import generate_theme
-        from nexora_core.state import StateStore
+        from nexora_node_sdk.state import StateStore
+        from nexora_saas.portal import generate_theme
 
         theme = generate_theme(brand_name, palette_name=palette)
         store = StateStore("/opt/nexora/var/state.json")

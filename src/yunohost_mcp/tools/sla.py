@@ -14,7 +14,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_sla_list_tiers() -> str:
         """Liste les niveaux de SLA disponibles (basic, standard, professional, enterprise)."""
-        from nexora_core.sla import list_sla_tiers
+        from nexora_saas.sla import list_sla_tiers
 
         return json.dumps(list_sla_tiers(), indent=2, ensure_ascii=False)
 
@@ -24,7 +24,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
         Args:
             tier: Niveau (basic, standard, professional, enterprise)
         """
-        from nexora_core.sla import generate_sla_policy
+        from nexora_saas.sla import generate_sla_policy
 
         return json.dumps(generate_sla_policy(tier), indent=2, ensure_ascii=False)
 
@@ -36,7 +36,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
             downtime_minutes: Minutes de downtime observées
             period_days: Période en jours
         """
-        from nexora_core.sla import generate_sla_report
+        from nexora_saas.sla import generate_sla_report
 
         inv = {}
         for key, cmd in [
@@ -64,7 +64,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
             total_minutes: Minutes totales de la période
             downtime_minutes: Minutes de downtime
         """
-        from nexora_core.sla import compute_uptime
+        from nexora_saas.sla import compute_uptime
 
         return json.dumps(
             compute_uptime(total_minutes, downtime_minutes),
@@ -79,14 +79,14 @@ def register_sla_tools(mcp: FastMCP, settings=None):
             minutes: Durée du downtime en minutes
             reason: Raison
         """
-        from nexora_core.sla import record_downtime
+        from nexora_saas.sla import record_downtime
 
         return json.dumps(record_downtime(int(minutes), reason), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_sla_history() -> str:
         """Affiche l'historique des downtimes enregistrés."""
-        from nexora_core.sla import get_sla_history
+        from nexora_saas.sla import get_sla_history
 
         return json.dumps(get_sla_history(), indent=2, ensure_ascii=False)
 
@@ -97,7 +97,7 @@ def register_sla_tools(mcp: FastMCP, settings=None):
             tier: Niveau SLA cible
             period_days: Période en jours
         """
-        from nexora_core.sla import compute_sla_from_history
+        from nexora_saas.sla import compute_sla_from_history
 
         return json.dumps(
             compute_sla_from_history(int(period_days), tier),

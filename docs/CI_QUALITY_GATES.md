@@ -52,7 +52,6 @@ Commands:
 ```bash
 PYTHONPATH=src python -m pytest tests/test_docs_completeness.py -q
 PYTHONPATH=src python -m pytest tests/test_docs_inventory_contract.py -q
-PYTHONPATH=src python -m pytest tests/test_repo_split_contract.py -q
 PYTHONPATH=src python -m pytest tests/test_docs_obsolescence_contract.py -q
 PYTHONPATH=src python -m pytest tests/test_ci_guardrails.py -q
 python scripts/docs_obsolescence_audit.py --enforce-removal
@@ -103,7 +102,7 @@ Commands:
 - docs-only fast-path steps are present so required checks are not skipped on docs-only PRs,
 - final test job depends on quality gates,
 - docs-quality job checks docs completeness, docs inventory/dependency contract, and CI guardrails.
-- docs-quality job checks repo-split/subscriber-public contracts (no control-plane artifacts shipped in subscriber scope).
+- docs-quality job checks repo-split/operator contracts (no control-plane artifacts shipped in operator scope).
 - docs obsolescence markers are blocked and must be removed before merge.
 - a dedicated `vision-final-ready` job depends on all core CI jobs and enforces persistence/load/coherence checks.
 - operator-only surface matrix is enforced by behavioral API tests (`tests/test_p8_behavioral.py`).
@@ -119,7 +118,6 @@ Run locally from repository root:
 python -m pytest tests/test_ci_guardrails.py -q
 python -m pytest tests/test_docs_completeness.py -q
 python -m pytest tests/test_docs_inventory_contract.py -q
-python -m pytest tests/test_repo_split_contract.py -q
 python -m pytest tests/test_docs_obsolescence_contract.py -q
 python scripts/docs_obsolescence_audit.py --enforce-removal
 python -m pytest -q

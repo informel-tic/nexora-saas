@@ -12,7 +12,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_notify_list_templates() -> str:
         """Liste tous les modèles d'alertes disponibles."""
-        from nexora_core.notifications import list_alert_templates
+        from nexora_saas.notifications import list_alert_templates
 
         return json.dumps(list_alert_templates(), indent=2, ensure_ascii=False)
 
@@ -22,7 +22,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
         Args:
             template_id: ID du template (service_down, disk_critical, cert_expiring, etc.)
         """
-        from nexora_core.notifications import format_alert
+        from nexora_saas.notifications import format_alert
 
         examples = {
             "service_down": {"service": "nginx", "node_id": "srv1", "since": "10 min"},
@@ -53,7 +53,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
             template_id: ID du template d'alerte
             format: Format cible (slack, mattermost, ntfy, generic)
         """
-        from nexora_core.notifications import format_alert, generate_webhook_payload
+        from nexora_saas.notifications import format_alert, generate_webhook_payload
 
         examples = {"service_down": {"service": "nginx", "node_id": "srv1", "since": "10 min"}}
         params = examples.get(template_id, {"node_id": "srv1"})
@@ -69,7 +69,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
         Args:
             channels: Canaux séparés par virgules (webhook, email, ntfy, gotify)
         """
-        from nexora_core.notifications import generate_notification_config
+        from nexora_saas.notifications import generate_notification_config
 
         ch_list = [c.strip() for c in channels.split(",")]
         return json.dumps(generate_notification_config(ch_list), indent=2, ensure_ascii=False)
@@ -81,7 +81,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
             template_id: ID du template d'alerte
             webhook_url: URL du webhook
         """
-        from nexora_core.notifications import send_alert
+        from nexora_saas.notifications import send_alert
 
         examples = {
             "service_down": {
@@ -102,7 +102,7 @@ def register_notification_tools(mcp: FastMCP, settings=None):
             topic: Topic ntfy
             server: Serveur ntfy (défaut: ntfy.sh)
         """
-        from nexora_core.notifications import send_alert
+        from nexora_saas.notifications import send_alert
 
         examples = {
             "service_down": {

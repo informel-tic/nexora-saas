@@ -18,7 +18,7 @@ def register_sync_tools(mcp: FastMCP, settings=None):
         Args:
             scope: Périmètre de sync (all, governance, inventory, branding, pra)
         """
-        from nexora_core.sync import build_sync_plan
+        from nexora_node_sdk.sync import build_sync_plan
 
         nodes = adapter.load_nodes()
         if len(nodes) < 2:
@@ -31,7 +31,7 @@ def register_sync_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_fleet_sync_policy() -> str:
         """Affiche la politique de synchronisation par défaut."""
-        from nexora_core.sync import generate_sync_policy
+        from nexora_node_sdk.sync import generate_sync_policy
 
         policy = generate_sync_policy({})
         return json.dumps(policy, indent=2, ensure_ascii=False)

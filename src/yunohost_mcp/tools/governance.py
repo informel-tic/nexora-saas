@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
+
 from yunohost_mcp.utils.runner import run_ynh_command
 
 
@@ -27,7 +29,7 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_security_score() -> str:
         """Calcule le score de sécurité du serveur (0-100, grade A-F)."""
-        from nexora_core.scoring import compute_security_score
+        from nexora_node_sdk.scoring import compute_security_score
 
         inv = await _local_inventory()
         return json.dumps(compute_security_score(inv), indent=2, ensure_ascii=False)
@@ -35,7 +37,7 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_pra_score() -> str:
         """Calcule le score PRA/continuité du serveur (0-100, grade A-F)."""
-        from nexora_core.scoring import compute_pra_score
+        from nexora_node_sdk.scoring import compute_pra_score
 
         inv = await _local_inventory()
         return json.dumps(compute_pra_score(inv), indent=2, ensure_ascii=False)
@@ -43,7 +45,7 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_health_score() -> str:
         """Calcule le score de santé du serveur (0-100, grade A-D)."""
-        from nexora_core.scoring import compute_health_score
+        from nexora_node_sdk.scoring import compute_health_score
 
         inv = await _local_inventory()
         return json.dumps(compute_health_score(inv), indent=2, ensure_ascii=False)
@@ -51,7 +53,7 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_compliance_score() -> str:
         """Calcule le score de conformité/maturité (0-100, niveau enterprise/professional/standard/basic)."""
-        from nexora_core.scoring import compute_compliance_score
+        from nexora_node_sdk.scoring import compute_compliance_score
 
         inv = await _local_inventory()
         return json.dumps(
@@ -63,7 +65,7 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_executive_report() -> str:
         """Génère un rapport exécutif complet avec tous les scores et priorités."""
-        from nexora_core.governance import executive_report
+        from nexora_node_sdk.governance import executive_report
 
         inv = await _local_inventory()
         return json.dumps(
@@ -75,7 +77,7 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_risk_register() -> str:
         """Génère le registre des risques du serveur, triés par sévérité."""
-        from nexora_core.governance import risk_register
+        from nexora_node_sdk.governance import risk_register
 
         inv = await _local_inventory()
         return json.dumps(risk_register(inv), indent=2, ensure_ascii=False)
@@ -83,8 +85,8 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_change_log() -> str:
         """Génère le journal des changements à partir des snapshots d'inventaire."""
-        from nexora_core.governance import change_log
-        from nexora_core.state import StateStore
+        from nexora_node_sdk.governance import change_log
+        from nexora_node_sdk.state import StateStore
 
         store = StateStore("/opt/nexora/var/state.json")
         state = store.load()
@@ -96,8 +98,8 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_snapshot_diff() -> str:
         """Compare le dernier snapshot d'inventaire avec l'avant-dernier."""
-        from nexora_core.scoring import diff_snapshots
-        from nexora_core.state import StateStore
+        from nexora_node_sdk.scoring import diff_snapshots
+        from nexora_node_sdk.state import StateStore
 
         store = StateStore("/opt/nexora/var/state.json")
         state = store.load()
@@ -111,11 +113,11 @@ def register_governance_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_gov_all_scores() -> str:
         """Affiche tous les scores en une seule vue (sécurité, PRA, santé, conformité)."""
-        from nexora_core.scoring import (
-            compute_security_score,
-            compute_pra_score,
-            compute_health_score,
+        from nexora_node_sdk.scoring import (
             compute_compliance_score,
+            compute_health_score,
+            compute_pra_score,
+            compute_security_score,
         )
 
         inv = await _local_inventory()
@@ -123,9 +125,7 @@ def register_governance_tools(mcp: FastMCP, settings=None):
         pra = compute_pra_score(inv)
         health = compute_health_score(inv)
         comp = compute_compliance_score(inv, has_pra=True, has_monitoring=True)
-        overall = int(
-            (sec["score"] + pra["score"] + health["score"] + comp["score"]) / 4
-        )
+        overall = int((sec["score"] + pra["score"] + health["score"] + comp["score"]) / 4)
         return json.dumps(
             {
                 "security": {"score": sec["score"], "grade": sec["grade"]},

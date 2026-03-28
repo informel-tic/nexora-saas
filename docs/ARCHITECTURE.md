@@ -129,7 +129,6 @@ register_console_routes()         montage static console + redirect
 **Middlewares actifs (ordre d'application)** :
 1. TokenAuthMiddleware — authentification Bearer/X-Nexora-Token
 2. CSRFProtectionMiddleware — validation Origin/Referer sur mutations
-3. deployment_scope_middleware — bloc routes subscriber
 4. operator_only_surface_middleware — contrôle RBAC opérateur
 5. SecurityHeadersMiddleware — injection headers sécurité
 

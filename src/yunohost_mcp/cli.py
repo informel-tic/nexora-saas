@@ -20,7 +20,7 @@ def main() -> int:
     compat.add_argument("--matrix", default="")
     args = parser.parse_args()
     if args.command == "compatibility":
-        from nexora_core.compatibility import (
+        from nexora_node_sdk.compatibility import (
             load_compatibility_matrix,
             resolve_compatibility_matrix_path,
         )

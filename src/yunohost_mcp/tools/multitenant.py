@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
 
 
@@ -24,7 +25,7 @@ def register_multitenant_tools(mcp: FastMCP, settings=None):
             users: Utilisateurs séparés par des virgules
             quota_gb: Quota de stockage en Go
         """
-        from nexora_core.multitenant import generate_tenant_config
+        from nexora_saas.multitenant import generate_tenant_config
 
         app_list = [a.strip() for a in apps.split(",") if a.strip()] if apps else []
         user_list = [u.strip() for u in users.split(",") if u.strip()] if users else []
@@ -38,9 +39,7 @@ def register_multitenant_tools(mcp: FastMCP, settings=None):
         return json.dumps(config, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_tenant_setup_commands(
-        tenant_name: str, domain: str, apps: str = "", users: str = ""
-    ) -> str:
+    async def ynh_tenant_setup_commands(tenant_name: str, domain: str, apps: str = "", users: str = "") -> str:
         """Génère les commandes YunoHost pour créer l'environnement d'un tenant.
         Args:
             tenant_name: Nom du tenant
@@ -48,24 +47,22 @@ def register_multitenant_tools(mcp: FastMCP, settings=None):
             apps: Apps séparées par des virgules
             users: Utilisateurs séparés par des virgules
         """
-        from nexora_core.multitenant import (
+        from nexora_saas.multitenant import (
             generate_tenant_config,
             generate_tenant_setup_commands,
         )
 
         app_list = [a.strip() for a in apps.split(",") if a.strip()] if apps else []
         user_list = [u.strip() for u in users.split(",") if u.strip()] if users else []
-        config = generate_tenant_config(
-            tenant_name, domain=domain, apps=app_list, users=user_list
-        )
+        config = generate_tenant_config(tenant_name, domain=domain, apps=app_list, users=user_list)
         commands = generate_tenant_setup_commands(config)
         return "\n".join(commands)
 
     @mcp.tool()
     async def ynh_tenant_report() -> str:
         """Génère un rapport multi-tenant (vue d'ensemble de tous les clients)."""
-        from nexora_core.multitenant import generate_tenant_report
-        from nexora_core.state import StateStore
+        from nexora_node_sdk.state import StateStore
+        from nexora_saas.multitenant import generate_tenant_report
 
         store = StateStore("/opt/nexora/var/state.json")
         state = store.load()
@@ -90,7 +87,7 @@ def register_multitenant_tools(mcp: FastMCP, settings=None):
             users: Utilisateurs séparés par virgules
             confirm_token: Token de confirmation (premier appel sans = demande confirmation)
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -101,30 +98,24 @@ def register_multitenant_tools(mcp: FastMCP, settings=None):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
         if not confirm_token:
             return json.dumps(
-                request_confirmation(
-                    "deploy_tenant", {"tenant": tenant_name, "domain": domain}
-                ),
+                request_confirmation("deploy_tenant", {"tenant": tenant_name, "domain": domain}),
                 indent=2,
             )
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token de confirmation invalide ou expiré."
 
-        from nexora_core.multitenant import generate_tenant_config
+        from nexora_saas.multitenant import generate_tenant_config
         from yunohost_mcp.utils.runner import run_ynh_command
 
         app_list = [a.strip() for a in apps.split(",") if a.strip()] if apps else []
         user_list = [u.strip() for u in users.split(",") if u.strip()] if users else []
-        config = generate_tenant_config(
-            tenant_name, domain=domain, apps=app_list, users=user_list
-        )
+        config = generate_tenant_config(tenant_name, domain=domain, apps=app_list, users=user_list)
 
         results = []
         # Add domain
         r = await run_ynh_command("domain", "add", domain)
-        results.append(
-            {"action": "add_domain", "success": r.success, "error": r.error or ""}
-        )
+        results.append({"action": "add_domain", "success": r.success, "error": r.error or ""})
         # Cert
         r = await run_ynh_command("domain", "cert", "install", domain, "--no-checks")
         results.append({"action": "install_cert", "success": r.success})
@@ -132,9 +123,7 @@ def register_multitenant_tools(mcp: FastMCP, settings=None):
         group = config.get("ynh_group", "")
         if group:
             r = await run_ynh_command("user", "group", "create", group)
-            results.append(
-                {"action": "create_group", "group": group, "success": r.success}
-            )
+            results.append({"action": "create_group", "group": group, "success": r.success})
         # Users
         for user in user_list:
             r = await run_ynh_command(
@@ -148,20 +137,16 @@ def register_multitenant_tools(mcp: FastMCP, settings=None):
                 "--password",
                 f"__CHANGE_{user}__",
             )
-            results.append(
-                {"action": "create_user", "user": user, "success": r.success}
-            )
+            results.append({"action": "create_user", "user": user, "success": r.success})
             if group:
                 await run_ynh_command("user", "group", "add", group, user)
         # Apps
         for app in app_list:
-            r = await run_ynh_command(
-                "app", "install", app, "--args", f"domain={domain}&path=/", timeout=600
-            )
+            r = await run_ynh_command("app", "install", app, "--args", f"domain={domain}&path=/", timeout=600)
             results.append({"action": "install_app", "app": app, "success": r.success})
 
         # Save tenant to state
-        from nexora_core.state import StateStore
+        from nexora_node_sdk.state import StateStore
 
         store = StateStore("/opt/nexora/var/state.json")
         state = store.load()

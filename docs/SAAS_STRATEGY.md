@@ -7,7 +7,7 @@ This document defines Nexora's sovereign SaaS architecture, including recursive 
 - **Internal infrastructure**: Nexora operates an internal YunoHost fleet.
 - **Dogfooding**: Nexora manages this fleet through Nexora itself.
 - **SaaS runtime**: Control Plane + Console + MCP are deployed on that internal fleet.
-- **Subscriber perimeter**: customers enroll external YunoHost nodes; they do not self-host the full Nexora product.
+- **Client perimeter**: customers enroll external YunoHost nodes; they do not self-host the full Nexora product.
 
 ## 1. Multi-Tenancy Model
 
@@ -52,16 +52,16 @@ Tenants are subject to limits based on their subscription tier.
 
 Current implementation note: node quota (`max_nodes`) is enforced on enrollment. Runtime enforcement for `max_apps_per_node` and `max_storage_gb` is tracked in active Phase 9 tasks.
 
-## 4. Support Model (subscriber-facing)
+## 4. Support Model (client-facing)
 
-| Metric | Subscriber Experience |
+| Metric | Client Experience |
 | :--- | :--- |
 | **Maintenance** | Nexora-managed SaaS control plane |
 | **Data Residency** | Sovereign cloud operated by Nexora |
 | **Updates** | Continuous deployment by operator |
 | **Control** | Managed interface with tenant-scoped permissions |
 
-Operator self-hosting remains internal and is not a subscriber product offering.
+Operator self-hosting remains internal and is not a client product offering.
 
 ## 5. Compliance & Governance (WS9-T06)
 

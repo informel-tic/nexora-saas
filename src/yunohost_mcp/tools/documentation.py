@@ -19,7 +19,7 @@ def register_documentation_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_doc_capability_catalog() -> str:
         """Expose le catalogue canonique des capacités Nexora."""
-        from nexora_core.capabilities import capability_catalog_payload
+        from nexora_node_sdk.capabilities import capability_catalog_payload
 
         return json.dumps(capability_catalog_payload(), indent=2, ensure_ascii=False)
 

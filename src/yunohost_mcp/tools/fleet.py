@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
+
 from yunohost_mcp.adapter import MCPAdapterContext
 
 
@@ -14,20 +16,16 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
     async def ynh_fleet_status() -> str:
         """Affiche le statut global de la flotte Nexora.
         Résume les nœuds enregistrés, leurs scores et leur état."""
-        return json.dumps(
-            adapter.service.fleet_summary().model_dump(), indent=2, ensure_ascii=False
-        )
+        return json.dumps(adapter.service.fleet_summary().model_dump(), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_fleet_drift_report(
-        reference_node: str = "", target_node: str = ""
-    ) -> str:
+    async def ynh_fleet_drift_report(reference_node: str = "", target_node: str = "") -> str:
         """Détecte la dérive de configuration entre deux nœuds.
         Args:
             reference_node: ID du nœud de référence (vide = nœud local)
             target_node: ID du nœud cible à comparer
         """
-        from nexora_core.fleet import detect_drift
+        from nexora_saas.fleet import detect_drift
 
         local_inv = adapter.local_inventory()
         # For now, compare local with itself (multi-node requires agent connectivity)
@@ -37,11 +35,9 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_fleet_topology() -> str:
         """Génère la topologie de la flotte avec les rôles des nœuds."""
-        from nexora_core.fleet import generate_fleet_topology
+        from nexora_saas.fleet import generate_fleet_topology
 
-        nodes = [
-            {"node_id": n.get("node_id"), "inventory": {}} for n in adapter.load_nodes()
-        ]
+        nodes = [{"node_id": n.get("node_id"), "inventory": {}} for n in adapter.load_nodes()]
         if not nodes:
             return "Aucun nœud enregistré."
         topo = generate_fleet_topology(nodes)
@@ -50,16 +46,12 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_fleet_compatibility() -> str:
         """Expose le rapport de compatibilité fleet/control-plane."""
-        return json.dumps(
-            adapter.service.compatibility_report(), indent=2, ensure_ascii=False
-        )
+        return json.dumps(adapter.service.compatibility_report(), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_fleet_lifecycle() -> str:
         """Expose la vue de lifecycle officielle de la flotte."""
-        return json.dumps(
-            adapter.service.fleet_lifecycle(), indent=2, ensure_ascii=False
-        )
+        return json.dumps(adapter.service.fleet_lifecycle(), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_fleet_enrollment_request(
@@ -145,10 +137,8 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
         """Compare les nœuds enregistrés dans la flotte."""
         nodes = adapter.load_nodes()
         if len(nodes) < 2:
-            return "Il faut au moins 2 nœuds pour comparer. Actuellement: " + str(
-                len(nodes)
-            )
-        from nexora_core.fleet import compare_nodes
+            return "Il faut au moins 2 nœuds pour comparer. Actuellement: " + str(len(nodes))
+        from nexora_saas.fleet import compare_nodes
 
         result = compare_nodes(
             {"node_id": nodes[0].get("node_id"), "inventory": {}},
@@ -182,8 +172,8 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
             debian_version: version Debian observée
             target_status: état cible officiel du nœud
         """
+        from nexora_node_sdk.operator_actions import register_fleet_node
         from yunohost_mcp.utils.safety import validate_name
-        from nexora_core.operator_actions import register_fleet_node
 
         validate_name(node_id, "node_id")
         result = register_fleet_node(
@@ -206,16 +196,14 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
         Args:
             node_id: ID du nœud (vide = tous les nœuds enregistrés)
         """
-        from nexora_core.fleet import fetch_fleet_inventories
+        from nexora_saas.fleet import fetch_fleet_inventories
 
         token = adapter.api_token()
         nodes = adapter.load_nodes()
         if node_id:
             nodes = [n for n in nodes if n.get("node_id") == node_id]
         if not nodes:
-            return (
-                "Aucun nœud trouvé. Enregistrez d'abord avec ynh_fleet_register_node."
-            )
+            return "Aucun nœud trouvé. Enregistrez d'abord avec ynh_fleet_register_node."
         results = fetch_fleet_inventories(nodes, token)
         return json.dumps(results, indent=2, ensure_ascii=False)
 
@@ -226,7 +214,7 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
             reference_node: ID du nœud de référence
             target_node: ID du nœud cible
         """
-        from nexora_core.fleet import fetch_remote_inventory, detect_drift
+        from nexora_saas.fleet import detect_drift, fetch_remote_inventory
 
         token = adapter.api_token()
         nodes = adapter.load_node_index()
@@ -234,12 +222,8 @@ def register_fleet_tools(mcp: FastMCP, settings=None):
         tgt = nodes.get(target_node)
         if not ref or not tgt:
             return f"Nœud(s) non trouvé(s). Disponibles: {list(nodes.keys())}"
-        ref_inv = fetch_remote_inventory(
-            ref.get("hostname", ""), ref.get("agent_port", 38121), token
-        )
-        tgt_inv = fetch_remote_inventory(
-            tgt.get("hostname", ""), tgt.get("agent_port", 38121), token
-        )
+        ref_inv = fetch_remote_inventory(ref.get("hostname", ""), ref.get("agent_port", 38121), token)
+        tgt_inv = fetch_remote_inventory(tgt.get("hostname", ""), tgt.get("agent_port", 38121), token)
         if not ref_inv.get("success") or not tgt_inv.get("success"):
             return json.dumps(
                 {

@@ -102,7 +102,6 @@ Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'
 
 ### 5.1 Surfaces opérateur-only
 
-Bloquées en mode `subscriber` (`NEXORA_DEPLOYMENT_SCOPE=subscriber`) :
 
 ```
 /api/persistence, /api/docker/*, /api/failover/strategies
@@ -199,10 +198,10 @@ Si un client possède un accès **root** sur sa machine, il peut toujours lire l
 Pour protéger la valeur métier et éviter le self-hosting sauvage :
 1. **Agent minimal** (`node-agent`) livré côté client.
 2. **Logique critique** (orchestration, règles SaaS) conservée côté control-plane opérateur.
-3. **Séparation des dépôts** : Privé (operator) vs Public (subscriber).
+3. **Séparation des dépôts** : Privé (operator) vs fleet (nexora-node).
 
 ### 13.3 Best practices opérationnelles
-- **Scopes de déploiement** : `NEXORA_DEPLOYMENT_SCOPE=subscriber` sur les agents clients.
+- **Scopes de déploiement** : `NEXORA_DEPLOYMENT_SCOPE=operator` sur les agents clients.
 - **Réduction d'impact** : Secrets courts, rotation régulière, mTLS systématique.
 - **Cadre légal** : Licence et clauses contractuelles anti-réutilisation.
 

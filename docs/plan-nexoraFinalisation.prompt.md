@@ -39,7 +39,7 @@ Objectif recommandé : traiter la finalisation en 2 paliers. Le palier 1 ferme l
    Exécuter et stabiliser les parcours `fresh`, `adopt`, `augment`, enrollment `pull`, upgrade, rollback, restore PRA, incidents sécurité et surveillance. Le but est de transformer les runbooks en procédures réellement vérifiées et non seulement décrites. Cette étape dépend de 3 pour éviter de valider des workflows sur une base multi-tenant incomplète.
 
 8. **Fermeture packaging, distribution et release.**
-   Vérifier la chaîne version unique, artefacts wheel, bundle offline, package YunoHost, scripts de bootstrap, scripts release et frontières operator/subscriber. La sortie attendue est une release opérateur reproductible avec matrice de validation documentée et preuve que les modes `fresh`/`adopt`/`augment` tiennent. Cette étape peut s'exécuter en parallèle de 7.
+   Vérifier la chaîne version unique, artefacts wheel, bundle offline, package YunoHost, scripts de bootstrap, scripts release et frontières operator. La sortie attendue est une release opérateur reproductible avec matrice de validation documentée et preuve que les modes `fresh`/`adopt`/`augment` tiennent. Cette étape peut s'exécuter en parallèle de 7.
 
 9. **Documentation de clôture opérateur.**
    Mettre à jour la documentation de vérité pour qu'elle reflète exactement l'état final obtenu : architecture, API surface, sécurité, déploiement, runbooks, changelog, dette restante, guide console, guide abonné, modèle commercial, docs inventory. Il faut supprimer les ambiguïtés entre "fait", "stabilisé", "baseline" et "vision finale", et rendre visible la frontière entre produit opérateur supporté et SaaS production complet. Cette étape dépend de 6, 7 et 8.
@@ -55,7 +55,6 @@ Objectif recommandé : traiter la finalisation en 2 paliers. Le palier 1 ferme l
     Dérouler les jalons J0/J1/J2/J3 jusqu'à une isolation réelle par tenant au niveau données. Cela implique lecture/écriture fiables sur backend SQL, activation contrôlée, politiques RLS testées, migration depuis JSON, sauvegarde/restauration SQL, et stratégie de rollback. Cette étape dépend du gate palier 1 si l'on veut sécuriser d'abord la base opérateur, mais peut être préparée techniquement dès 3.
 
 12. **Industrialisation SaaS abonné.**
-    Finaliser le mode `subscriber` comme offre exploitable : durcir les frontières de surface, compléter le guide abonné, vérifier les quotas et l'offboarding RGPD, stabiliser les procédures support/escalade, et confirmer que la séparation operator/private vs subscriber/public tient dans les docs, la CI et les artefacts distribués. Cette étape dépend de 11 pour éviter de promettre un SaaS "complet" sans isolation RLS réelle.
 
 13. **Capacité, performance et observabilité de service.**
     Garder les seuils du job `vision-final-ready` au vert, étendre les tests longue durée multi-tenant, vérifier la cohérence de persistance sous charge, consolider les métriques et journaux nécessaires au support de production, et figer les seuils SLO/SLA qui serviront d'engagement interne. Cette étape dépend de 11 et peut se mener en parallèle de 12.
@@ -81,8 +80,6 @@ Objectif recommandé : traiter la finalisation en 2 paliers. Le palier 1 ferme l
 | `docs/API_SURFACE_REFERENCE.md` | Base de travail pour fermer les gaps REST/MCP/Console |
 | `docs/RUNBOOKS.md` | Procédures à transformer en workflows réellement validés |
 | `docs/DEPLOYMENT.md` | Vérité de déploiement operator-side pour fresh/adopt/augment |
-| `docs/SUBSCRIBER_GUIDE.md` | Documentation abonné à compléter et réaligner avec les frontières réelles |
-| `apps/control_plane/api.py` | Middlewares, surfaces operator-only, routes tenant-aware, proxys REST à compléter |
 | `apps/node_agent/api.py` | Surfaces agent et contrats d'enrollment/actions |
 | `src/nexora_core/auth.py` | Auth, scoped secrets, rate limit, replay detection, rotation |
 | `src/nexora_core/orchestrator.py` | Agrégations fleet/dashboard et contrôles tenant |
@@ -105,7 +102,6 @@ Objectif recommandé : traiter la finalisation en 2 paliers. Le palier 1 ferme l
 | `tests/test_persistence_backend.py` | Contrat backend de persistance |
 | `tests/test_multitenant_extended.py` | Isolation multi-tenant approfondie |
 | `tests/test_ws9_multitenancy.py` | Durcissement Phase 9 multi-tenant |
-| `tests/test_p8_behavioral.py` | Matrice operator-only et séparation subscriber |
 | `tests/test_load_test_multitenant.py` | Gate de charge multi-tenant |
 
 ---
@@ -120,10 +116,9 @@ PYTHONPATH=src python -m pytest --collect-only -q
 
 # 2. Cohérence CI/docs
 PYTHONPATH=src python -m pytest tests/test_ci_guardrails.py tests/test_docs_completeness.py \
-  tests/test_docs_inventory_contract.py tests/test_repo_split_contract.py \
   tests/test_docs_obsolescence_contract.py -q
 
-# 3. Dettes actives et séparation operator/subscriber
+# 3. Dettes actives et séparation operator
 PYTHONPATH=src python -m pytest tests/test_debt_guardrails.py tests/test_persistence_backend.py \
   tests/test_multitenant_extended.py tests/test_ws9_multitenancy.py \
   tests/test_p8_behavioral.py tests/test_load_test_multitenant.py -q

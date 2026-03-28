@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
-from mcp.server.fastmcp import FastMCP
-from yunohost_mcp.utils.runner import run_ynh_command, format_result
 
+from mcp.server.fastmcp import FastMCP
+
+from yunohost_mcp.utils.runner import format_result, run_ynh_command
 
 # Resource estimates per common app
 _APP_RESOURCES = {
@@ -56,8 +57,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_blueprint_list() -> str:
         """Liste tous les blueprints métier disponibles."""
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -70,8 +72,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         Args:
             slug: Identifiant du blueprint (pme, msp, agency, collective, training)
         """
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -88,8 +91,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
             slug: Identifiant du blueprint
             domain: Domaine principal
         """
-        from nexora_core.blueprints import load_blueprints, resolve_blueprint_plan
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints, resolve_blueprint_plan
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -97,9 +101,7 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         bp = next((b for b in bps if b.slug == slug), None)
         if not bp:
             return f"❌ Blueprint '{slug}' non trouvé. Disponibles: {[b.slug for b in bps]}"
-        return json.dumps(
-            resolve_blueprint_plan(bp, domain), indent=2, ensure_ascii=False
-        )
+        return json.dumps(resolve_blueprint_plan(bp, domain), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_blueprint_validate_prereqs(slug: str) -> str:
@@ -107,8 +109,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         Args:
             slug: Identifiant du blueprint
         """
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -126,14 +129,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         disk = await run_shell_command("df -m / | tail -1 | awk '{print $4}'")
         try:
             free_mb = int(disk.strip())
-            needed = sum(
-                _APP_RESOURCES.get(a, {}).get("disk_mb", 500)
-                for a in bp.recommended_apps
-            )
+            needed = sum(_APP_RESOURCES.get(a, {}).get("disk_mb", 500) for a in bp.recommended_apps)
             if free_mb < needed:
-                issues.append(
-                    f"Espace disque insuffisant: {free_mb}MB libre, {needed}MB nécessaire"
-                )
+                issues.append(f"Espace disque insuffisant: {free_mb}MB libre, {needed}MB nécessaire")
         except ValueError:
             warnings.append("Impossible de vérifier l'espace disque")
 
@@ -168,8 +166,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         Args:
             slug: Identifiant du blueprint
         """
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -182,9 +181,7 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         total_disk = 0
         app_details = []
         for app_id in bp.recommended_apps:
-            res = _APP_RESOURCES.get(
-                app_id, {"ram_mb": 256, "disk_mb": 500, "description": "App YunoHost"}
-            )
+            res = _APP_RESOURCES.get(app_id, {"ram_mb": 256, "disk_mb": 500, "description": "App YunoHost"})
             total_ram += res["ram_mb"]
             total_disk += res["disk_mb"]
             app_details.append({"app": app_id, **res})
@@ -209,8 +206,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
             slug: Identifiant du blueprint
             domain: Domaine principal
         """
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -219,7 +217,7 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         if not bp:
             return f"❌ Blueprint '{slug}' non trouvé."
 
-        from nexora_core.blueprints import resolve_blueprint_plan
+        from nexora_node_sdk.blueprints import resolve_blueprint_plan
 
         plan = resolve_blueprint_plan(bp, domain)
         topology = {
@@ -238,8 +236,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         Args:
             slug: Identifiant du blueprint
         """
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -272,8 +271,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         Args:
             slug: Identifiant du blueprint
         """
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -311,8 +311,9 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
             slug: Identifiant du blueprint
             domain: Domaine principal
         """
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora") / "blueprints")
         if not bps:
@@ -321,7 +322,7 @@ def register_blueprint_tools(mcp: FastMCP, settings=None):
         if not bp:
             return f"❌ Blueprint '{slug}' non trouvé."
 
-        from nexora_core.blueprints import resolve_blueprint_plan
+        from nexora_node_sdk.blueprints import resolve_blueprint_plan
 
         plan = resolve_blueprint_plan(bp, domain)
         if not plan.get("allowed"):

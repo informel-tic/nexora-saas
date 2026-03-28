@@ -12,7 +12,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_failover_list_strategies() -> str:
         """Liste les stratégies de health check disponibles."""
-        from nexora_core.failover import list_health_check_strategies
+        from nexora_node_sdk.failover import list_health_check_strategies
 
         return json.dumps(list_health_check_strategies(), indent=2, ensure_ascii=False)
 
@@ -25,7 +25,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
             primary_host: Host:port du serveur principal
             secondary_host: Host:port du serveur secondaire
         """
-        from nexora_core.failover import generate_failover_pair
+        from nexora_node_sdk.failover import generate_failover_pair
 
         result = generate_failover_pair(
             app_id,
@@ -44,14 +44,14 @@ def register_failover_tools(mcp: FastMCP, settings=None):
             primary_host: Backend principal (host:port)
             secondary_host: Backend secondaire (host:port)
         """
-        from nexora_core.failover import generate_failover_nginx_config
+        from nexora_node_sdk.failover import generate_failover_nginx_config
 
         return generate_failover_nginx_config(app_id, primary_host, secondary_host, domain)
 
     @mcp.tool()
     async def ynh_failover_plan() -> str:
         """Génère un plan de failover pour les apps critiques du serveur."""
-        from nexora_core.failover import generate_failover_plan
+        from nexora_node_sdk.failover import generate_failover_plan
         from yunohost_mcp.utils.runner import run_ynh_command
 
         result = await run_ynh_command("app", "list")
@@ -65,7 +65,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
                         "critical": True,
                     }
                 )
-        from nexora_core.state import StateStore
+        from nexora_node_sdk.state import StateStore
 
         store = StateStore("/opt/nexora/var/state.json")
         state = store.load()
@@ -92,7 +92,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
             primary_host: IP du serveur principal
             secondary_host: IP du serveur secondaire
         """
-        from nexora_core.failover import generate_keepalived_config
+        from nexora_node_sdk.failover import generate_keepalived_config
 
         return generate_keepalived_config(vip, primary_host, secondary_host)
 
@@ -105,7 +105,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
             primary_host: Backend principal (host:port)
             secondary_host: Backend secondaire (host:port)
         """
-        from nexora_core.failover import apply_failover_nginx
+        from nexora_node_sdk.failover import apply_failover_nginx
 
         return json.dumps(
             apply_failover_nginx(app_id, primary_host, secondary_host, domain),
@@ -120,7 +120,7 @@ def register_failover_tools(mcp: FastMCP, settings=None):
             domain: Domaine
             message: Message affiché
         """
-        from nexora_core.failover import apply_maintenance_mode
+        from nexora_node_sdk.failover import apply_maintenance_mode
 
         return json.dumps(apply_maintenance_mode(domain, message), indent=2, ensure_ascii=False)
 
@@ -130,6 +130,6 @@ def register_failover_tools(mcp: FastMCP, settings=None):
         Args:
             domain: Domaine
         """
-        from nexora_core.failover import remove_maintenance_mode
+        from nexora_node_sdk.failover import remove_maintenance_mode
 
         return json.dumps(remove_maintenance_mode(domain), indent=2, ensure_ascii=False)

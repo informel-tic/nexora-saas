@@ -609,7 +609,6 @@ Voici l’ordre recommandé **dès maintenant** pour les prochains cycles :
 21. [ ] **NEXT-21** — persister le rate-limiting (`_AUTH_FAILURES`) et la replay-detection (`_consumed_tokens`) en base (S3, S4 audit sécurité).
 22. [ ] **NEXT-22** — éclater `auth.py` (748 LOC) en sous-modules dédiés : `auth/token.py`, `auth/middleware.py`, `auth/secret_store.py`, `auth/rate_limit.py`.
 23. [ ] **NEXT-23** — ajouter jobs linting (`ruff`, `mypy`) et scan de sécurité (`bandit`, `pip-audit`) dans CI.
-24. [ ] **NEXT-24** — publier `docs/SUBSCRIBER_GUIDE.md` (bloqueur SaaS D5).
 25. [ ] **NEXT-25** — implémentation RLS réelle pour isolation multi-tenant (A1 — multitenant.py stub 68 LOC).
 
 ### Artefacts déjà produits pour le backlog immédiat

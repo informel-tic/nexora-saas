@@ -187,7 +187,7 @@ MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=exampl
 ## Agent-only enrollment on an existing node
 
 ```bash
-MODE=augment PROFILE=node-agent-only ENROLLMENT_MODE=pull TARGET_HOST=node-01.internal ./deploy/bootstrap-full-platform.sh
+MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull TARGET_HOST=node-01.internal ./deploy/bootstrap-full-platform.sh
 ```
 
 If the requested path is already used, Nexora aborts and prints a suggested free path.
@@ -219,7 +219,7 @@ Si un dossier de bundle existe mais ne contient pas `nexora_platform-*.whl`, le 
 Cas visé : VM YunoHost (track 11/12/13) accessible uniquement depuis votre réseau d’exploitation, sans exposition publique entrante.
 
 1. Sur une machine de build (connectée), générer un kit uploadable.
-   Par défaut, le kit est **subscriber** (node-agent-only, sans control-plane livré):
+   Par défaut, le kit est **operator** (control-plane+node-agent):
    ```bash
    ./scripts/build_vm_offline_kit.sh
    ```
@@ -241,13 +241,13 @@ Cas visé : VM YunoHost (track 11/12/13) accessible uniquement depuis votre rés
    cd nexora-vm-offline-kit-<timestamp>
    ```
 
-4. Exécuter l’installation en forçant le bundle local (kit subscriber par défaut):
+4. Exécuter l’installation en forçant le bundle local (kit operator):
    ```bash
    NEXORA_WHEEL_BUNDLE_DIR=./dist/offline-bundle \
-   NEXORA_DEPLOYMENT_SCOPE=subscriber \
+   NEXORA_DEPLOYMENT_SCOPE=operator \
    SKIP_NETWORK_PRECHECKS=yes \
    MODE=augment \
-   PROFILE=node-agent-only \
+   PROFILE=control-plane+node-agent \
    ENROLLMENT_MODE=pull \
    TARGET_HOST=node-01.internal \
    ./deploy/bootstrap-full-platform.sh
@@ -338,30 +338,13 @@ Pour éviter tout glissement vers du self-hosting “plateforme complète” cô
    - artefact **client**: agent d’enrôlement/exec (sans console/control-plane exposé).
 2. **Forcer le scope de déploiement**
    - `NEXORA_DEPLOYMENT_SCOPE=operator` pour l’infra interne Nexora ;
-   - `NEXORA_DEPLOYMENT_SCOPE=subscriber` pour tout runtime client si un control-plane est présent (bloque les surfaces control-plane non autorisées).
+   - `NEXORA_DEPLOYMENT_SCOPE=operator` pour tout runtime client si un control-plane est présent (bloque les surfaces control-plane non autorisées).
 3. **Conserver les garde-fous operator-only**
    - `NEXORA_OPERATOR_ONLY_ENFORCE=1` ;
    - `NEXORA_API_TOKEN_ROLE_FILE=/etc/nexora/api-token-roles.json` root-owned, vide par défaut.
 4. **Approche client recommandée**
    - imposer `node-agent-only` pour les déploiements clients ;
    - enrôlement vers le control-plane SaaS opérateur, avec token scope tenant + claim HMAC.
-
-### Stratégie Git recommandée (2 dépôts séparés)
-
-- **Repo operator (privé)** : code complet (control-plane + console + packaging opérateur).
-- **Repo subscriber (public)** : scope node-agent-only, sans artefacts control-plane.
-
-Export local conseillé avant publication:
-
-```bash
-./scripts/export_split_repos.sh
-```
-
-Sorties:
-- `dist/repo-split/operator-private`
-- `dist/repo-split/subscriber-public`
-
-> Important : avec un accès root client, on ne peut pas empêcher totalement la lecture/copie locale du code déployé. La stratégie correcte est de ne pas livrer la logique SaaS critique côté client. Voir `docs/SECURITY.md`.
 
 ---
 

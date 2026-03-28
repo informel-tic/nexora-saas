@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
+
 from yunohost_mcp.utils.safety import validate_alphanum
 
 
@@ -12,7 +14,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_mode_current() -> str:
         """Affiche le mode opérationnel actuel et ses capacités."""
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         return json.dumps(mm.get_mode_info(), indent=2, ensure_ascii=False)
@@ -20,7 +22,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_mode_list() -> str:
         """Liste tous les modes disponibles avec leurs capacités."""
-        from nexora_core.modes import list_modes
+        from nexora_saas.modes import list_modes
 
         return json.dumps(list_modes(), indent=2, ensure_ascii=False)
 
@@ -32,16 +34,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             reason: Raison du changement
         """
         validate_alphanum(target_mode, "mode")
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         result = mm.switch_mode(target_mode, reason=reason, operator="mcp")
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_mode_escalate(
-        target_mode: str, duration_minutes: int = 60, reason: str = ""
-    ) -> str:
+    async def ynh_mode_escalate(target_mode: str, duration_minutes: int = 60, reason: str = "") -> str:
         """Crée un token d'escalation temporaire vers un mode supérieur.
         Args:
             target_mode: Mode cible temporaire
@@ -50,18 +50,16 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         """
         validate_alphanum(target_mode, "mode")
         duration = min(max(int(duration_minutes), 5), 480) * 60
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
-        result = mm.create_escalation_token(
-            target_mode, duration_seconds=duration, reason=reason
-        )
+        result = mm.create_escalation_token(target_mode, duration_seconds=duration, reason=reason)
         return json.dumps(result, indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_mode_list_escalations() -> str:
         """Liste les tokens d'escalation actifs."""
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         return json.dumps(mm.list_escalation_tokens(), indent=2, ensure_ascii=False)
@@ -69,7 +67,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_mode_history() -> str:
         """Affiche l'historique des changements de mode."""
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         info = mm.get_mode_info()
@@ -82,7 +80,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_mode_pending_confirmations() -> str:
         """Liste les actions en attente de confirmation."""
-        from nexora_core.modes import list_pending_confirmations
+        from nexora_saas.modes import list_pending_confirmations
 
         pending = list_pending_confirmations()
         if not pending:
@@ -98,12 +96,12 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             service: Nom du service
         """
         validate_alphanum(service, "service")
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         if not mm.require_mode("operator"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite au minimum: operator."
-        from nexora_core.operator_actions import restart_service
+        from nexora_node_sdk.operator_actions import restart_service
 
         return json.dumps(restart_service(service), indent=2, ensure_ascii=False)
 
@@ -114,16 +112,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             name: Nom (optionnel)
             description: Description
         """
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         if not mm.require_mode("operator"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: operator."
-        from nexora_core.operator_actions import create_backup
+        from nexora_node_sdk.operator_actions import create_backup
 
-        return json.dumps(
-            create_backup(name, description), indent=2, ensure_ascii=False
-        )
+        return json.dumps(create_backup(name, description), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_op_renew_cert(domain: str) -> str:
@@ -131,12 +127,12 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         Args:
             domain: Domaine cible
         """
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         if not mm.require_mode("operator"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: operator."
-        from nexora_core.operator_actions import renew_certificate
+        from nexora_node_sdk.operator_actions import renew_certificate
 
         return json.dumps(renew_certificate(domain), indent=2, ensure_ascii=False)
 
@@ -147,16 +143,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             brand_name: Nom de la marque
             accent: Couleur accent (hex)
         """
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         if not mm.require_mode("operator"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: operator."
-        from nexora_core.operator_actions import apply_branding
+        from nexora_node_sdk.operator_actions import apply_branding
 
-        return json.dumps(
-            apply_branding(brand_name, accent), indent=2, ensure_ascii=False
-        )
+        return json.dumps(apply_branding(brand_name, accent), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_op_backup_rotate(keep_count: int = 7) -> str:
@@ -164,16 +158,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         Args:
             keep_count: Nombre de backups à conserver (défaut: 7)
         """
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         if not mm.require_mode("operator"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: operator."
-        from nexora_core.operator_actions import execute_backup_rotation
+        from nexora_node_sdk.operator_actions import execute_backup_rotation
 
-        return json.dumps(
-            execute_backup_rotation(keep_count), indent=2, ensure_ascii=False
-        )
+        return json.dumps(execute_backup_rotation(keep_count), indent=2, ensure_ascii=False)
 
     # ── Admin actions (with confirmation) ─────────────────────────────
 
@@ -193,7 +185,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             label: Label affiché
             confirm_token: Token de confirmation (obtenu via un premier appel sans token)
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -204,20 +196,16 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
         if not confirm_token:
             return json.dumps(
-                request_confirmation(
-                    "install_app", {"app": app_id, "domain": domain, "path": path}
-                ),
+                request_confirmation("install_app", {"app": app_id, "domain": domain, "path": path}),
                 indent=2,
                 ensure_ascii=False,
             )
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token de confirmation invalide ou expiré."
-        from nexora_core.admin_actions import install_app
+        from nexora_saas.admin_actions import install_app
 
-        return json.dumps(
-            install_app(app_id, domain, path, label), indent=2, ensure_ascii=False
-        )
+        return json.dumps(install_app(app_id, domain, path, label), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_admin_remove_app(app_id: str, confirm_token: str = "") -> str:
@@ -226,7 +214,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             app_id: Application à supprimer
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -244,7 +232,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token de confirmation invalide ou expiré."
-        from nexora_core.admin_actions import remove_app
+        from nexora_saas.admin_actions import remove_app
 
         return json.dumps(remove_app(app_id), indent=2, ensure_ascii=False)
 
@@ -255,7 +243,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             app_id: App spécifique (vide = toutes)
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -273,21 +261,19 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token de confirmation invalide ou expiré."
-        from nexora_core.admin_actions import upgrade_app
+        from nexora_saas.admin_actions import upgrade_app
 
         return json.dumps(upgrade_app(app_id), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_admin_deploy_blueprint(
-        slug: str, domain: str, confirm_token: str = ""
-    ) -> str:
+    async def ynh_admin_deploy_blueprint(slug: str, domain: str, confirm_token: str = "") -> str:
         """[ADMIN] Déploie un blueprint métier complet. Nécessite confirmation.
         Args:
             slug: Identifiant du blueprint
             domain: Domaine principal
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -296,8 +282,9 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         mm = get_mode_manager()
         if not mm.require_mode("admin"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
-        from nexora_core.blueprints import load_blueprints
         from pathlib import Path
+
+        from nexora_node_sdk.blueprints import load_blueprints
 
         bps = load_blueprints(Path("/opt/nexora/blueprints")) or load_blueprints(
             Path(__file__).resolve().parents[3] / "blueprints"
@@ -317,7 +304,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token de confirmation invalide ou expiré."
-        from nexora_core.admin_actions import deploy_blueprint
+        from nexora_saas.admin_actions import deploy_blueprint
 
         return json.dumps(
             deploy_blueprint(slug, domain, bp.recommended_apps, bp.subdomains),
@@ -326,16 +313,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         )
 
     @mcp.tool()
-    async def ynh_admin_system_upgrade(
-        apps: bool = False, system: bool = False, confirm_token: str = ""
-    ) -> str:
+    async def ynh_admin_system_upgrade(apps: bool = False, system: bool = False, confirm_token: str = "") -> str:
         """[ADMIN] Mise à jour système et/ou apps. Nécessite confirmation.
         Args:
             apps: Mettre à jour les apps
             system: Mettre à jour le système
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -346,16 +331,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
         if not confirm_token:
             return json.dumps(
-                request_confirmation(
-                    "system_upgrade", {"apps": apps, "system": system}
-                ),
+                request_confirmation("system_upgrade", {"apps": apps, "system": system}),
                 indent=2,
                 ensure_ascii=False,
             )
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token de confirmation invalide ou expiré."
-        from nexora_core.admin_actions import system_upgrade
+        from nexora_saas.admin_actions import system_upgrade
 
         return json.dumps(system_upgrade(apps, system), indent=2, ensure_ascii=False)
 
@@ -365,12 +348,12 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         Args:
             lines: Nombre d'entrées (défaut: 50)
         """
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         if not mm.require_mode("admin"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
-        from nexora_core.admin_actions import get_admin_action_log
+        from nexora_saas.admin_actions import get_admin_action_log
 
         log = get_admin_action_log(lines)
         if not log:
@@ -378,16 +361,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         return json.dumps(log, indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_admin_restore_backup(
-        name: str, apps: str = "", confirm_token: str = ""
-    ) -> str:
+    async def ynh_admin_restore_backup(name: str, apps: str = "", confirm_token: str = "") -> str:
         """[ADMIN] Restaure un backup YunoHost. Nécessite confirmation.
         Args:
             name: Nom de l'archive
             apps: Apps à restaurer (vide = toutes)
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -404,7 +385,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token invalide ou expiré."
-        from nexora_core.admin_actions import restore_backup
+        from nexora_saas.admin_actions import restore_backup
 
         return json.dumps(restore_backup(name, apps), indent=2, ensure_ascii=False)
 
@@ -424,7 +405,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             password: Mot de passe
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -435,15 +416,13 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
         if not confirm_token:
             return json.dumps(
-                request_confirmation(
-                    "create_user", {"username": username, "domain": domain}
-                ),
+                request_confirmation("create_user", {"username": username, "domain": domain}),
                 indent=2,
             )
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token invalide ou expiré."
-        from nexora_core.admin_actions import create_user
+        from nexora_saas.admin_actions import create_user
 
         return json.dumps(
             create_user(username, fullname, domain, password),
@@ -452,16 +431,14 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         )
 
     @mcp.tool()
-    async def ynh_admin_delete_user(
-        username: str, purge: bool = False, confirm_token: str = ""
-    ) -> str:
+    async def ynh_admin_delete_user(username: str, purge: bool = False, confirm_token: str = "") -> str:
         """[ADMIN] Supprime un utilisateur. Nécessite confirmation.
         Args:
             username: Login
             purge: Supprimer aussi les données
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -472,15 +449,13 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
         if not confirm_token:
             return json.dumps(
-                request_confirmation(
-                    "delete_user", {"username": username, "purge": purge}
-                ),
+                request_confirmation("delete_user", {"username": username, "purge": purge}),
                 indent=2,
             )
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token invalide ou expiré."
-        from nexora_core.admin_actions import delete_user
+        from nexora_saas.admin_actions import delete_user
 
         return json.dumps(delete_user(username, purge), indent=2, ensure_ascii=False)
 
@@ -491,7 +466,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             domain: Nom de domaine
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -501,13 +476,11 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         if not mm.require_mode("admin"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
         if not confirm_token:
-            return json.dumps(
-                request_confirmation("add_domain", {"domain": domain}), indent=2
-            )
+            return json.dumps(request_confirmation("add_domain", {"domain": domain}), indent=2)
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token invalide ou expiré."
-        from nexora_core.admin_actions import add_domain
+        from nexora_saas.admin_actions import add_domain
 
         return json.dumps(add_domain(domain), indent=2, ensure_ascii=False)
 
@@ -518,7 +491,7 @@ def register_mode_tools(mcp: FastMCP, settings=None):
             domain: Nom de domaine
             confirm_token: Token de confirmation
         """
-        from nexora_core.modes import (
+        from nexora_saas.modes import (
             get_mode_manager,
             request_confirmation,
             validate_confirmation,
@@ -528,13 +501,11 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         if not mm.require_mode("admin"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: admin."
         if not confirm_token:
-            return json.dumps(
-                request_confirmation("remove_domain", {"domain": domain}), indent=2
-            )
+            return json.dumps(request_confirmation("remove_domain", {"domain": domain}), indent=2)
         confirmed = validate_confirmation(confirm_token)
         if not confirmed:
             return "❌ Token invalide ou expiré."
-        from nexora_core.admin_actions import remove_domain
+        from nexora_saas.admin_actions import remove_domain
 
         return json.dumps(remove_domain(domain), indent=2, ensure_ascii=False)
 
@@ -544,21 +515,19 @@ def register_mode_tools(mcp: FastMCP, settings=None):
         Args:
             node_id: ID du nœud cible
         """
-        from nexora_core.modes import get_mode_manager
+        from nexora_saas.modes import get_mode_manager
 
         mm = get_mode_manager()
         if not mm.require_mode("operator"):
             return f"❌ Mode actuel: {mm.current_mode}. Nécessite: operator."
-        from nexora_core.state import StateStore
-        from nexora_core.operator_actions import sync_branding_to_node
-        from nexora_core.auth import get_api_token
+        from nexora_node_sdk.auth import get_api_token
+        from nexora_node_sdk.operator_actions import sync_branding_to_node
+        from nexora_node_sdk.state import StateStore
 
         store = StateStore("/opt/nexora/var/state.json")
         state = store.load()
         branding = state.get("branding", {})
-        node = next(
-            (n for n in state.get("nodes", []) if n.get("node_id") == node_id), None
-        )
+        node = next((n for n in state.get("nodes", []) if n.get("node_id") == node_id), None)
         if not node:
             return f"❌ Nœud '{node_id}' non trouvé."
         result = sync_branding_to_node(

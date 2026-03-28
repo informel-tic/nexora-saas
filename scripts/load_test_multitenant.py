@@ -17,7 +17,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from apps.control_plane.api import app
-from nexora_core.auth import get_api_token
+from nexora_node_sdk.auth import get_api_token
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 

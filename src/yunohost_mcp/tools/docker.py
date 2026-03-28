@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+
 from mcp.server.fastmcp import FastMCP
+
 from yunohost_mcp.utils.safety import validate_name, validate_positive_int
 
 
@@ -12,7 +14,7 @@ def register_docker_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_docker_status() -> str:
         """Vérifie si Docker est installé et affiche les infos système Docker."""
-        from nexora_core.docker import docker_info
+        from nexora_node_sdk.docker import docker_info
 
         return json.dumps(docker_info(), indent=2, ensure_ascii=False)
 
@@ -22,14 +24,14 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         Args:
             show_all: Afficher aussi les conteneurs arrêtés
         """
-        from nexora_core.docker import list_containers
+        from nexora_node_sdk.docker import list_containers
 
         return json.dumps(list_containers(show_all), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_docker_container_stats() -> str:
         """Affiche les statistiques CPU/mémoire de chaque conteneur."""
-        from nexora_core.docker import container_stats
+        from nexora_node_sdk.docker import container_stats
 
         return json.dumps(container_stats(), indent=2, ensure_ascii=False)
 
@@ -42,14 +44,14 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         """
         validate_name(name, "container name")
         lines = validate_positive_int(int(lines), "lines", 500)
-        from nexora_core.docker import container_logs
+        from nexora_node_sdk.docker import container_logs
 
         return container_logs(name, lines)
 
     @mcp.tool()
     async def ynh_docker_list_templates() -> str:
         """Liste les templates Docker prêts à l'emploi (Redis, PostgreSQL, Minio, etc.)."""
-        from nexora_core.docker import list_docker_templates
+        from nexora_node_sdk.docker import list_docker_templates
 
         return json.dumps(list_docker_templates(), indent=2, ensure_ascii=False)
 
@@ -59,7 +61,7 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         Args:
             services: JSON array de services [{name, image, ports, volumes, environment}]
         """
-        from nexora_core.docker import generate_compose_file
+        from nexora_node_sdk.docker import generate_compose_file
 
         try:
             svc_list = json.loads(services)
@@ -73,7 +75,7 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         Args:
             template_names: Noms de templates séparés par des virgules (ex: redis,postgres,grafana)
         """
-        from nexora_core.docker import get_docker_template, generate_compose_file
+        from nexora_node_sdk.docker import generate_compose_file, get_docker_template
 
         names = [n.strip() for n in template_names.split(",")]
         services = []
@@ -96,11 +98,9 @@ def register_docker_tools(mcp: FastMCP, settings=None):
             internal_port: Port interne du conteneur
             path: Chemin URL (défaut: /)
         """
-        from nexora_core.docker import generate_nginx_proxy_for_container
+        from nexora_node_sdk.docker import generate_nginx_proxy_for_container
 
-        return generate_nginx_proxy_for_container(
-            container_name, domain, internal_port, path=path
-        )
+        return generate_nginx_proxy_for_container(container_name, domain, internal_port, path=path)
 
     @mcp.tool()
     async def ynh_docker_estimate_resources(services: str) -> str:
@@ -108,12 +108,10 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         Args:
             services: Noms de templates séparés par des virgules
         """
-        from nexora_core.docker import estimate_docker_resources
+        from nexora_node_sdk.docker import estimate_docker_resources
 
         names = [n.strip() for n in services.split(",")]
-        return json.dumps(
-            estimate_docker_resources(names), indent=2, ensure_ascii=False
-        )
+        return json.dumps(estimate_docker_resources(names), indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_docker_pull(image: str) -> str:
@@ -121,14 +119,12 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         Args:
             image: Image à télécharger (ex: redis:7-alpine)
         """
-        from nexora_core.docker import docker_pull
+        from nexora_node_sdk.docker import docker_pull
 
         return json.dumps(docker_pull(image), indent=2, ensure_ascii=False)
 
     @mcp.tool()
-    async def ynh_docker_run(
-        image: str, name: str, ports: str = "", environment: str = ""
-    ) -> str:
+    async def ynh_docker_run(image: str, name: str, ports: str = "", environment: str = "") -> str:
         """[OPERATOR] Lance un conteneur Docker.
         Args:
             image: Image Docker
@@ -137,14 +133,10 @@ def register_docker_tools(mcp: FastMCP, settings=None):
             environment: Variables (ex: KEY=val,KEY2=val2)
         """
         validate_name(name, "container name")
-        from nexora_core.docker import docker_run
+        from nexora_node_sdk.docker import docker_run
 
         port_list = [p.strip() for p in ports.split(",") if p.strip()] if ports else []
-        env_dict = (
-            dict(kv.split("=", 1) for kv in environment.split(",") if "=" in kv)
-            if environment
-            else {}
-        )
+        env_dict = dict(kv.split("=", 1) for kv in environment.split(",") if "=" in kv) if environment else {}
         return json.dumps(
             docker_run(image, name, ports=port_list, environment=env_dict),
             indent=2,
@@ -158,7 +150,7 @@ def register_docker_tools(mcp: FastMCP, settings=None):
             name: Nom du conteneur
         """
         validate_name(name, "container name")
-        from nexora_core.docker import docker_start
+        from nexora_node_sdk.docker import docker_start
 
         return json.dumps(docker_start(name), indent=2, ensure_ascii=False)
 
@@ -169,7 +161,7 @@ def register_docker_tools(mcp: FastMCP, settings=None):
             name: Nom du conteneur
         """
         validate_name(name, "container name")
-        from nexora_core.docker import docker_stop
+        from nexora_node_sdk.docker import docker_stop
 
         return json.dumps(docker_stop(name), indent=2, ensure_ascii=False)
 
@@ -181,7 +173,7 @@ def register_docker_tools(mcp: FastMCP, settings=None):
             force: Forcer la suppression (si en cours)
         """
         validate_name(name, "container name")
-        from nexora_core.docker import docker_remove
+        from nexora_node_sdk.docker import docker_remove
 
         return json.dumps(docker_remove(name, force), indent=2, ensure_ascii=False)
 
@@ -191,11 +183,11 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         Args:
             services: Noms de templates séparés par virgules (ex: redis,postgres)
         """
-        from nexora_core.docker import (
-            get_docker_template,
-            generate_compose_file,
-            write_compose_file,
+        from nexora_node_sdk.docker import (
             docker_compose_up,
+            generate_compose_file,
+            get_docker_template,
+            write_compose_file,
         )
 
         names = [n.strip() for n in services.split(",")]
@@ -208,14 +200,12 @@ def register_docker_tools(mcp: FastMCP, settings=None):
         content = generate_compose_file(svc_list)
         written = write_compose_file(content)
         result = docker_compose_up(written["written"])
-        return json.dumps(
-            {"compose": written, "deploy": result}, indent=2, ensure_ascii=False
-        )
+        return json.dumps({"compose": written, "deploy": result}, indent=2, ensure_ascii=False)
 
     @mcp.tool()
     async def ynh_docker_compose_down() -> str:
         """[ADMIN] Arrête et supprime les conteneurs du docker-compose Nexora."""
-        from nexora_core.docker import docker_compose_down
+        from nexora_node_sdk.docker import docker_compose_down
 
         return json.dumps(
             docker_compose_down("/opt/nexora/docker/docker-compose.yml"),

@@ -19,7 +19,7 @@ Ce tableau matérialise la gouvernance en 3 colonnes demandée par le plan.
 
 - [x] SQL/RLS J0-J1 validés (dual-write + fallback JSON, 17 tests persistence backend verts).
 - [x] Isolation tenant prouvée sur les surfaces clés (45 tests comportementaux, p8_behavioral + ws9_multitenancy).
-- [x] Durcissement subscriber boundaries et parcours support/offboarding (guide abonné complet, scope enforcement testé).
+- [x] Durcissement operator boundaries et parcours support/offboarding (guide abonné complet, scope enforcement testé).
 - [x] Tests multi-tenant longue durée validés — 1500 req, 12 tenants, 0 échec, p95=98ms (seuil 750ms).
 - [x] Fermeture des derniers écarts UX console non critiques (Docker, Stockage, Notifications, Hooks ajoutés).
 - [x] SQL/RLS J2-J3 (isolation RLS Postgres par tenant) — scripts de migration Postgres créés (`deploy/sql_rls/init/`), flag `j2_sql_primary` ajouté à `describe()`, 3 tests J2 validés. Bloqué en production sur NEXT-25 (instance Postgres live requise), mais implémentation complète côté code.

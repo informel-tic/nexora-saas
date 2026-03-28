@@ -1,4 +1,4 @@
-# Nexora — Modèle fonctionnel SaaS vs Subscriber (commercial & marketing)
+# Nexora — Modèle fonctionnel SaaS operator (commercial & marketing)
 
 _Dernière mise à jour : 2026-03-24._
 
@@ -7,9 +7,7 @@ _Dernière mise à jour : 2026-03-24._
 Nexora opère selon une séparation stricte:
 
 - **Côté SaaS opérateur (privé)**: control-plane, console, gouvernance, orchestration multi-tenant, facturation d’usage, politiques avancées.
-- **Côté subscriber (public)**: node-agent + enrollment uniquement.
 
-La valeur commerciale centrale reste côté SaaS opérateur; le subscriber runtime est un connecteur d’exécution.
 
 ## 2) Modèle de distribution (2 repos)
 
@@ -18,7 +16,6 @@ La valeur commerciale centrale reste côté SaaS opérateur; le subscriber runti
 - Contient la plateforme complète (control-plane + console + packaging opérateur).
 - Utilisé par l’équipe Nexora pour l’exploitation SaaS et le dogfooding interne.
 
-### Repo public subscriber
 
 - Contient le périmètre client “agent-only”.
 - Exclut les artefacts control-plane/console.
@@ -44,7 +41,7 @@ La valeur commerciale centrale reste côté SaaS opérateur; le subscriber runti
 
 ### Ce qui n’est pas vendu
 
-- self-hosting complet du control-plane par les subscribers.
+- self-hosting complet du control-plane par les clients.
 
 ## 4) Modèle marketing (GTM)
 
@@ -57,18 +54,18 @@ La valeur commerciale centrale reste côté SaaS opérateur; le subscriber runti
 ### Messages clés
 
 1. **Souveraineté opérée**: vous gardez vos nœuds, Nexora opère la couche de pilotage.
-2. **Moins de risque**: surface critique centralisée, subscribers en agent-only.
+2. **Moins de risque**: surface critique centralisée, clients en agent-only.
 3. **Mise en service rapide**: enrollment sécurisé des nœuds via runtime léger.
 
 ### Funnel recommandé
 
 1. Démo SaaS control-plane,
-2. POC avec 1–3 nœuds subscriber,
+2. POC avec 1–3 nœuds client,
 3. montée en charge progressive + upsell SLA/compliance.
 
 ## 5) Sécurité & conformité orientées business
 
-- séparation operator/subscriber imposée (scope + artefacts),
+- séparation operator/client imposée (scope + artefacts),
 - tokens tenant-scopés, claims signés, mTLS,
 - journal d’audit et traçabilité des actions,
 - politique de revocation/rotation comme exigence contractuelle.
@@ -85,4 +82,4 @@ La valeur commerciale centrale reste côté SaaS opérateur; le subscriber runti
 
 Toute évolution produit, packaging, documentation et CI doit préserver l’invariant:
 
-> **Le control-plane SaaS complet reste côté opérateur. Le subscriber ne reçoit qu’un agent d’enrollment/exécution.**
+> **Le control-plane SaaS complet reste côté opérateur. Le client ne reçoit qu’un agent d’enrollment/exécution.**

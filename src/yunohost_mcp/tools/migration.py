@@ -16,7 +16,7 @@ def register_migration_tools(mcp: FastMCP, settings=None):
             image: Image Docker source (ex: ghcr.io/org/app:latest)
             app_name: Nom du futur package YNH
         """
-        from nexora_core.migration import docker_to_ynh_checklist
+        from nexora_saas.migration import docker_to_ynh_checklist
 
         return json.dumps(docker_to_ynh_checklist(image, app_name), indent=2, ensure_ascii=False)
 
@@ -26,7 +26,7 @@ def register_migration_tools(mcp: FastMCP, settings=None):
         Args:
             app_id: Identifiant de l'app YunoHost
         """
-        from nexora_core.migration import ynh_to_docker_export
+        from nexora_saas.migration import ynh_to_docker_export
         from yunohost_mcp.utils.runner import run_ynh_command
 
         r = await run_ynh_command("app", "info", app_id)
@@ -41,7 +41,7 @@ def register_migration_tools(mcp: FastMCP, settings=None):
             target_type: Type cible
             apps: Noms d'apps séparés par des virgules
         """
-        from nexora_core.migration import generate_migration_plan
+        from nexora_saas.migration import generate_migration_plan
 
         app_list = [a.strip() for a in apps.split(",")]
         return json.dumps(

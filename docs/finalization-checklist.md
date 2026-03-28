@@ -38,13 +38,12 @@ But: formaliser la baseline de sortie et rendre vérifiable la clôture palier 1
 3) Critères Palier 2 (SaaS production)
 - Persistance SQL/RLS déployée et validée (J0..J3).
 - Isolation des données par `tenant_id` prouvée par tests et audits.
-- Subscriber boundaries durcies et guide abonné finalisé.
+- Operator boundaries durcies et guide abonné finalisé.
 - Tests longue durée multi-tenant passés et SLO/SLA définis.
 - Observabilité, métriques et journaux prêts pour support en production.
 
 4) Vérifications automatisées (commandes de preuve)
 - `PYTHONPATH=src python -m pytest --collect-only -q`
-- `PYTHONPATH=src python -m pytest tests/test_ci_guardrails.py tests/test_docs_completeness.py tests/test_docs_inventory_contract.py tests/test_repo_split_contract.py tests/test_docs_obsolescence_contract.py -q`
 - `PYTHONPATH=src python -m pytest tests/test_debt_guardrails.py tests/test_persistence_backend.py tests/test_multitenant_extended.py tests/test_ws9_multitenancy.py tests/test_p8_behavioral.py tests/test_load_test_multitenant.py -q`
 - `PYTHONPATH=src python -m pytest tests/ -v --tb=short`
 - `PYTHONPATH=src python scripts/load_test_multitenant.py --tenants 12 --requests 1500 --workers 24 --duration-seconds 45 --max-failures 0 --max-p95-ms 750`

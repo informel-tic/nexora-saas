@@ -32,7 +32,7 @@ Nexora is evolving toward a clear platform split:
 - **Nexora Console** as operator UI
 - **YunoHost package** as a distribution/support artifact
 
-Strategic baseline: operator-managed sovereign SaaS with recursive internal dogfooding; subscriber-facing self-hosting is out of scope.
+Strategic baseline: operator-managed sovereign SaaS with recursive internal dogfooding; client-facing self-hosting is out of scope.
 
 ## Active checkpoints
 
@@ -78,7 +78,7 @@ Strategic baseline: operator-managed sovereign SaaS with recursive internal dogf
    - ~~establish single source of versioning for releases~~
 
 6. **Commercial Vision & SaaS (WS9 / Phase 7) - DELIVERED (Functional Baseline)**
-   - ~~document operator-internal platform vs subscriber SaaS positioning~~
+   - ~~document operator-internal platform vs SaaS positioning~~
    - tenant isolation extended across fleet + governance + security surfaces
    - scoped-token tenant claim binding is active (`X-Nexora-Tenant-Claim`)
    - runtime quota enforcement includes nodes/apps/storage and usage/quota operator endpoint

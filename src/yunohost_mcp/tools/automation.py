@@ -12,7 +12,7 @@ def register_automation_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_auto_list_templates() -> str:
         """Liste tous les modèles d'automatisation disponibles."""
-        from nexora_core.automation import list_automation_templates
+        from nexora_saas.automation import list_automation_templates
 
         return json.dumps(list_automation_templates(), indent=2, ensure_ascii=False)
 
@@ -22,7 +22,7 @@ def register_automation_tools(mcp: FastMCP, settings=None):
         Args:
             profile: Profil (minimal, standard, professional)
         """
-        from nexora_core.automation import generate_automation_plan
+        from nexora_saas.automation import generate_automation_plan
 
         return json.dumps(generate_automation_plan(profile), indent=2, ensure_ascii=False)
 
@@ -32,7 +32,7 @@ def register_automation_tools(mcp: FastMCP, settings=None):
         Args:
             profile: Profil (minimal, standard, professional)
         """
-        from nexora_core.automation import generate_automation_plan, generate_crontab
+        from nexora_saas.automation import generate_automation_plan, generate_crontab
 
         plan = generate_automation_plan(profile)
         crontab = generate_crontab(plan["jobs"])
@@ -41,7 +41,7 @@ def register_automation_tools(mcp: FastMCP, settings=None):
     @mcp.tool()
     async def ynh_auto_list_checklists() -> str:
         """Liste toutes les checklists disponibles."""
-        from nexora_core.automation import list_checklists
+        from nexora_saas.automation import list_checklists
 
         return json.dumps(list_checklists(), indent=2, ensure_ascii=False)
 
@@ -51,7 +51,7 @@ def register_automation_tools(mcp: FastMCP, settings=None):
         Args:
             checklist_id: ID de la checklist (pre_deployment, post_deployment, incident_response, monthly_review)
         """
-        from nexora_core.automation import get_checklist
+        from nexora_saas.automation import get_checklist
 
         return json.dumps(get_checklist(checklist_id), indent=2, ensure_ascii=False)
 
@@ -61,6 +61,6 @@ def register_automation_tools(mcp: FastMCP, settings=None):
         Args:
             profile: Profil (minimal, standard, professional)
         """
-        from nexora_core.automation import install_crontab
+        from nexora_saas.automation import install_crontab
 
         return json.dumps(install_crontab(profile), indent=2, ensure_ascii=False)

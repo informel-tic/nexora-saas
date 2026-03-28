@@ -175,7 +175,7 @@ Detailed REST vs MCP parity definitions are maintained in `src/nexora_core/inter
 
 ## Operator-only Surface Matrix (Phase 10)
 
-The following REST routes are explicitly reserved to operator actors (`X-Nexora-Actor-Role` in `operator/admin/architect`) and are denied to subscriber-facing actors when `NEXORA_OPERATOR_ONLY_ENFORCE=1`:
+The following REST routes are explicitly reserved to operator actors (`X-Nexora-Actor-Role` in `operator/admin/architect`) and are denied to client-facing actors when `NEXORA_OPERATOR_ONLY_ENFORCE=1`:
 
 - `GET /api/persistence`
 - `GET /api/interface-parity/fleet-lifecycle`
@@ -192,7 +192,7 @@ The following REST routes are explicitly reserved to operator actors (`X-Nexora-
 - `GET /api/automation/templates`
 - `GET /api/automation/checklists`
 
-Behavioral enforcement is covered in `tests/test_p8_behavioral.py` (`test_operator_only_surface_matrix_denies_subscriber_access`).
+Behavioral enforcement is covered in `tests/test_p8_behavioral.py` .
 
 ---
 

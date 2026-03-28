@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from nexora_core.auth import get_api_token
-from nexora_core.orchestrator import NexoraService
-from nexora_core.runtime_context import build_service
-from nexora_core.state import StateStore
+from nexora_node_sdk.auth import get_api_token
+from nexora_node_sdk.state import StateStore
+from nexora_saas.orchestrator import NexoraService
+from nexora_saas.runtime_context import build_service
 
 
 @dataclass(slots=True)
@@ -28,11 +28,7 @@ class MCPAdapterContext:
         return nodes if isinstance(nodes, list) else []
 
     def load_node_index(self) -> dict[str, dict[str, object]]:
-        return {
-            str(node.get("node_id")): node
-            for node in self.load_nodes()
-            if node.get("node_id")
-        }
+        return {str(node.get("node_id")): node for node in self.load_nodes() if node.get("node_id")}
 
     def api_token(self) -> str:
         return get_api_token()
