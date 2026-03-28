@@ -75,13 +75,13 @@ export async function apiPost(path, body) {
   const headers = {
     Accept: 'application/json',
     'Content-Type': 'application/json',
-    'X-Nexora-Action': 'true',
-    'X-Nexora-Token': ctx.token
+    'X-Nexora-Action': 'true'
   };
+  if (ctx.token) headers.Authorization = `Bearer ${ctx.token}`;
   if (ctx.tenantId) headers['X-Nexora-Tenant-Id'] = ctx.tenantId;
   if (ctx.actorRole) headers['X-Nexora-Actor-Role'] = ctx.actorRole;
   if (ctx.tenantClaim) headers['X-Nexora-Tenant-Claim'] = ctx.tenantClaim;
-  const opts = { method: 'POST', headers };
+  const opts = { method: 'POST', headers, credentials: 'same-origin' };
   if (body !== undefined) opts.body = JSON.stringify(body);
   const res = await fetch(url, opts);
   if (res.status === 401) { showTokenPrompt(); throw new Error('Authentication required'); }
@@ -138,7 +138,12 @@ export function showTokenPrompt(msg, onLoginSuccess) {
     try { await refreshTenantClaim(); } catch (e) { /* noop */ }
 
     div.remove();
-    if (onLoginSuccess) onLoginSuccess();
+    if (onLoginSuccess) {
+      onLoginSuccess();
+    } else {
+      // Auto-reload current section after login
+      window.location.reload();
+    }
   };
   document.getElementById('token-submit-btn').addEventListener('click', function() { void submit(); });
   input.addEventListener('keydown', function(e) { if (e.key === 'Enter') void submit(); });

@@ -35,12 +35,65 @@ VERSION = "2.0.0"
 ACTION_METRICS: dict[str, int] = {"requests_total": 0, "mutations_total": 0}
 MAX_PAYLOAD_BYTES = 131_072
 
-# ── In-memory state (production: use persistent store) ────────────
+# ── Persistent state backend ──────────────────────────────────────
+_STATE_FILE = Path(os.environ.get("NEXORA_NODE_STATE_PATH", "/var/lib/nexora/node-agent-state.json"))
+
+
+def _load_persistent_state() -> dict[str, Any]:
+    """Load node agent state from disk (if available)."""
+    if _STATE_FILE.exists():
+        try:
+            data = json.loads(_STATE_FILE.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Failed to load node state from %s: %s", _STATE_FILE, exc)
+    return {}
+
+
+def _save_persistent_state() -> None:
+    """Persist current node agent state to disk."""
+    state = {
+        "enrolled": _enrolled,
+        "enrollment_data": _enrollment_data,
+        "saas_secret": _saas_secret,
+        "overlay_manifest": _overlay_manifest,
+        "tamper_events": _tamper_events[-100:],  # keep last 100
+    }
+    try:
+        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _STATE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+        tmp.replace(_STATE_FILE)
+        try:
+            os.chmod(str(_STATE_FILE), 0o600)
+        except OSError:
+            pass
+    except OSError as exc:
+        logger.warning("Failed to persist node state to %s: %s", _STATE_FILE, exc)
+
+
+def _restore_state() -> None:
+    """Restore state from disk on startup."""
+    global _saas_secret, _enrolled, _enrollment_data, _overlay_manifest, _tamper_events
+    saved = _load_persistent_state()
+    if saved.get("enrolled"):
+        _enrolled = True
+        _enrollment_data = saved.get("enrollment_data", {})
+        _saas_secret = saved.get("saas_secret")
+        _overlay_manifest = saved.get("overlay_manifest", {"components": [], "last_heartbeat": None})
+        _tamper_events = saved.get("tamper_events", [])
+
+
+# ── In-memory state (restored from persistent store on startup) ───
 _saas_secret: str | None = None
 _enrolled: bool = False
 _enrollment_data: dict[str, Any] = {}
 _overlay_manifest: dict[str, Any] = {"components": [], "last_heartbeat": None}
 _tamper_events: list[dict[str, Any]] = []
+
+# Restore from disk
+_restore_state()
 
 
 # ── Helpers ───────────────────────────────────────────────────────
@@ -86,6 +139,7 @@ def _verify_saas_command(
             "action": action,
             "timestamp": _utc_now(),
         })
+        _save_persistent_state()
         return False, "HMAC signature mismatch"
     return True, "ok"
 
@@ -134,6 +188,7 @@ def _install_component(kind: str, name: str, config: dict[str, Any]) -> dict[str
     ]
     _overlay_manifest["components"].append(component)
     _resign_manifest()
+    _save_persistent_state()
     return {"installed": True, "kind": kind, "name": name}
 
 
@@ -146,6 +201,7 @@ def _remove_component(kind: str, name: str) -> dict[str, Any]:
     ]
     removed = before - len(_overlay_manifest["components"])
     _resign_manifest()
+    _save_persistent_state()
     return {"removed": removed > 0, "kind": kind, "name": name}
 
 
@@ -250,6 +306,7 @@ def register_enrollment_routes(app: FastAPI) -> None:
             "enrolled_at": _utc_now(),
             "node_id": os.environ.get("NEXORA_NODE_ID", "local-dev"),
         }
+        _save_persistent_state()
         return {
             "success": True,
             "node_id": _enrollment_data["node_id"],
@@ -278,6 +335,7 @@ def register_enrollment_routes(app: FastAPI) -> None:
         _resign_manifest()
         _enrolled = False
         _saas_secret = None
+        _save_persistent_state()
         return {
             "success": True,
             "changed": True,
@@ -427,6 +485,7 @@ def register_overlay_routes(app: FastAPI) -> None:
             comp["status"] = "active"
         _overlay_manifest["last_heartbeat"] = now
         _resign_manifest()
+        _save_persistent_state()
         return {
             "leases_renewed": len(_overlay_manifest.get("components", [])),
             "lease_seconds": lease_seconds,
@@ -443,6 +502,7 @@ def register_overlay_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=400, detail="Secret must be >= 32 characters")
         _saas_secret = secret
         _mark_mutation()
+        _save_persistent_state()
         return {"secret_established": True, "enrolled": _enrolled}
 
     # ── Rollback (no SaaS signature — must work during uninstall) ─

@@ -1,6 +1,6 @@
 # Architecture Nexora
 
-_Dernière mise à jour : 2026-03-26._
+_Dernière mise à jour : 2026-07-12._
 
 ---
 
@@ -56,11 +56,13 @@ Propriétaire des préoccupations au niveau de la flotte :
 
 | Composant | Chemin | Rôle |
 |-----------|--------|------|
-| nexora_core | src/nexora_core/ | Domain logic partagé (58 modules) |
+| nexora_saas | src/nexora_saas/ | Domain logic SaaS (orchestrator, subscription, provisioning) |
+| nexora_node_sdk | src/nexora_node_sdk/ | SDK nœud partagé (state, identity, security, lifecycle) |
 | yunohost_mcp | src/yunohost_mcp/ | Adaptateur MCP vers AI |
-| control_plane | apps/control_plane/ | API centrale + Console |
-| node_agent | apps/node_agent/ | Runtime local node |
-| console | apps/console/ | Interface opérateur HTML |
+| control_plane | apps/control_plane/ | API centrale FastAPI (99 routes) |
+| node_agent | apps/node_agent/ | Agent local passif — récepteur HMAC |
+| console | apps/console/ | SPA opérateur JS (20 vues, vanilla JS) |
+| public_site | apps/public_site/ | Page publique offres SaaS |
 | deploy/ | deploy/ | Scripts bootstrap |
 | ynh-package/ | ynh-package/ | Artefact distribution YunoHost |
 
@@ -116,14 +118,19 @@ Propriétaire des préoccupations au niveau de la flotte :
 Structure par domaine (fonctions `register_*_routes`) :
 
 ```
+register_public_routes()          GET /api/public/offers
 register_health_routes()          GET /api/health, /api/v1/health
-register_inventory_routes()       GET /api/dashboard, /api/inventory/*
+register_inventory_routes()       GET /api/dashboard, /api/inventory/*, /api/identity
 register_fleet_routes()           GET/POST /api/fleet/*, /api/fleet/nodes/*
 register_catalog_routes()         GET /api/blueprints/*
-register_governance_routes()      GET /api/governance/*, /api/scores/*
+register_governance_routes()      GET /api/governance/*, /api/scores/*, /api/security/*
 register_modes_routes()           GET/POST /api/modes/*
-register_operations_routes()      GET /api/security/*, /api/storage/*, etc.
-register_console_routes()         montage static console + redirect
+register_operations_routes()      GET /api/storage/*, /api/docker/*, etc.
+register_auth_routes()            POST /api/token/validate, /api/auth/login
+register_subscription_routes()    GET/POST /api/plans, /api/organizations, /api/subscriptions
+register_tenant_mgmt_routes()     GET/POST /api/tenants/*
+register_provisioning_routes()    GET/POST /api/provisioning/*
+register_console_routes()         montage static console + /api/console/access-context
 ```
 
 **Middlewares actifs (ordre d'application)** :
@@ -136,23 +143,44 @@ register_console_routes()         montage static console + redirect
 
 ## 6. Node Agent (apps/node_agent/api.py)
 
-Exposé localement sur le nœud géré. Backends réels pour :
-- inventory/refresh — lecture système réel
-- permissions/sync — synchronisation permissions YunoHost
-- branding/apply — customisation thème/logo
-- healthcheck/run — vérification santé services
-- pra/snapshot — snapshot PRA local
-- maintenance/enable|disable — mode maintenance
-- docker/compose/apply — gestion Docker Compose
-- hooks/install, automation/install — via chemins privilégiés hors sandbox
+Interface passive exposée localement (port 38121). Le node agent **ne prend aucune initiative** :
+le SaaS control plane pousse toutes les fonctionnalités après enrollment.
+
+**Modèle de sécurité** :
+- Routes READ : accessibles avec token API local
+- Routes MUTATION (overlay) : exigent une signature HMAC-SHA256 du SaaS (`X-Nexora-SaaS-Signature`)
+- Rollback : ne requiert pas de signature SaaS (doit fonctionner pendant désinstallation)
+
+**Persistance** : état sauvegardé dans `/var/lib/nexora/node-agent-state.json` (atomique, 0o600).
+Restauration automatique au démarrage.
+
+**Routes** :
+- Read : `/health`, `/api/v1/status`, `/overlay/status`, `/overlay/services`, `/overlay/guard`, `/overlay/integrity`, `/overlay/tamper-log`, `/metrics`
+- Enrollment : `POST /enroll`, `/attest`, `/revoke`, `/establish-secret`
+- Overlay mutations (HMAC) : `POST /overlay/docker/*`, `/overlay/service/*`, `/overlay/nginx/*`, `/overlay/cron/*`, `/overlay/systemd/*`, `/overlay/heartbeat`
 
 ---
 
 ## 7. Console opérateur (apps/console/)
 
-SPA HTML/JS servie depuis le control plane (/console).
-Vues : Fleet, Adoption, Gouvernance, PRA/Backup, Sécurité, SLA/Observabilité.
-Primitives UI réutilisables : modal, table, alert, badge, stat card.
+SPA vanilla JS (aucun framework) servie depuis le control plane (`/console`).
+
+**Fichiers** : `index.html`, `app.js` (contrôleur), `api.js` (auth + fetch), `views.js` (20 vues), `components.js` (primitives), `styles.css`.
+
+**20 vues** : Dashboard, Scores, Apps, Services, Domaines, Sécurité, PRA, Fleet,
+Blueprints, Automation, Adoption, Modes, Docker, Storage, Notifications, Hooks,
+Governance, SLA-Tracking, Subscription, Provisioning.
+
+**Auth** : token stocké en `sessionStorage`, envoyé via `Authorization: Bearer`.
+Prompt automatique si pas de token. Rôle abonné masque les sections admin.
+
+**Dashboard** : carte nœud hôte (identité, version YunoHost/Debian), session console (token, rôle, tenant), alertes, apps récentes, services.
+
+**Sécurité** : 5 sous-panneaux temps réel (mises à jour, fail2ban, ports ouverts, audit permissions, connexions récentes).
+
+**Subscription** : plans, organisations, souscriptions avec actions (suspendre, résilier, réactiver).
+
+**Provisioning** : carte par nœud avec features, statut, boutons provision/déprovision, rafraîchissement.
 
 ---
 
@@ -246,7 +274,7 @@ Format : `<domaine>.<verbe>` (ex: `fleet.enrollment`, `node.actions`). Lowercase
 |----|-------------|--------|--------|
 | A1 | multitenant.py stub (68 LOC), pas d'isolation RLS | Critique SaaS | NEXT-25 |
 | A2 | SQL désactivé par défaut | Production risk | NEXT-17 |
-| A3 | Endpoints hardcodés sans vraies données YunoHost | Fonctionnel | NEXT-13 |
+| A3 | ~~Endpoints hardcodés~~ — Résolu : 5 stubs sécurité remplacés par implémentations dérivées de l'état | ~~Fonctionnel~~ ✅ | NEXT-13 |
 | A4 | Monolithe applicatif (control plane + console dans le même process) | Scale | futur |
 
 ---

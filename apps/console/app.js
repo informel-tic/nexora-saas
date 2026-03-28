@@ -5,6 +5,24 @@ import * as views from './views.js';
 // Init token
 initToken();
 
+// Toast notification helper
+window.nxToast = function(message, level) {
+  const container = document.getElementById('nx-toast-container') || (function() {
+    const div = document.createElement('div');
+    div.id = 'nx-toast-container';
+    div.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:10000;display:flex;flex-direction:column;gap:.5rem;max-width:400px';
+    document.body.appendChild(div);
+    return div;
+  })();
+  const toast = document.createElement('div');
+  const colors = { success: '#059669', warning: '#d97706', danger: '#dc2626', info: '#2563eb' };
+  const bg = colors[level] || colors.info;
+  toast.style.cssText = 'padding:.75rem 1rem;border-radius:8px;color:#fff;font-size:.9rem;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fade-in .3s ease;background:' + bg;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(function() { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(function() { toast.remove(); }, 300); }, 5000);
+};
+
 // Make API helpers globally available for onclick handlers in views
 window.api = api;
 window.apiPost = apiPost;
@@ -69,6 +87,107 @@ window.switchMode = async function() {
   } catch (e) {
     result.innerHTML = nxAlert('Erreur: ' + e.message, 'critical');
   }
+};
+
+window.createOrg = async function() {
+  const name = prompt('Nom de l\'organisation :');
+  if (!name) return;
+  const email = prompt('Email de contact :');
+  if (!email) return;
+  try {
+    const data = await apiPost('organizations', { name: name, contact_email: email, billing_address: '' });
+    if (data && data.org_id) {
+      alert('Organisation créée : ' + data.org_id);
+      NexoraConsole.navigate('subscription');
+    } else {
+      alert('Erreur : ' + JSON.stringify(data));
+    }
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+
+window.createSubscription = async function() {
+  const orgId = prompt('ID de l\'organisation :');
+  if (!orgId) return;
+  const tier = prompt('Tier (free / pro / enterprise) :', 'free');
+  if (!tier) return;
+  const label = prompt('Label tenant (optionnel) :', '');
+  try {
+    const data = await apiPost('subscriptions', { org_id: orgId, plan_tier: tier, tenant_label: label || '' });
+    if (data && data.subscription_id) {
+      alert('Souscription créée : ' + data.subscription_id + ' (tenant: ' + (data.tenant_id || '-') + ')');
+      NexoraConsole.navigate('subscription');
+    } else {
+      alert('Erreur : ' + JSON.stringify(data));
+    }
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+
+window.suspendSubscription = async function(subId) {
+  if (!confirm('Suspendre la souscription ' + subId + ' ?')) return;
+  const reason = prompt('Raison de la suspension :', 'impayé');
+  try {
+    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/suspend', { reason: reason || 'manual' });
+    window.nxToast('Souscription suspendue', 'success');
+    NexoraConsole.navigate('subscription');
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+
+window.cancelSubscription = async function(subId) {
+  if (!confirm('Résilier définitivement la souscription ' + subId + ' ?')) return;
+  try {
+    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/cancel', {});
+    window.nxToast('Souscription résiliée', 'success');
+    NexoraConsole.navigate('subscription');
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+
+window.reactivateSubscription = async function(subId) {
+  if (!confirm('Réactiver la souscription ' + subId + ' ?')) return;
+  try {
+    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/suspend', { reason: '', reactivate: true });
+    window.nxToast('Souscription réactivée', 'success');
+    NexoraConsole.navigate('subscription');
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+
+window.provisionNode = async function(nodeId) {
+  const url = prompt('URL du nœud (ex: https://node.example.tld:38121) :');
+  if (!url) return;
+  const secret = prompt('HMAC secret (min 32 caractères) :');
+  if (!secret || secret.length < 32) { alert('Secret HMAC trop court (min 32 caractères)'); return; }
+  try {
+    const data = await apiPost('provisioning/provision', {
+      node_id: nodeId, node_url: url, hmac_secret: secret, api_token: '', tenant_id: (sessionStorage.getItem('nexora_tenant_id') || '')
+    });
+    alert('Provisioning ' + (data.status || 'effectué') + ' pour ' + nodeId);
+    NexoraConsole.navigate('provisioning');
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+
+window.deprovisionNode = async function(nodeId) {
+  if (!confirm('Déprovisionner le nœud ' + nodeId + ' ?')) return;
+  const url = prompt('URL du nœud :');
+  if (!url) return;
+  try {
+    const data = await apiPost('provisioning/deprovision', { node_id: nodeId, node_url: url, hmac_secret: '' });
+    alert('Déprovisionnement ' + (data.status || 'effectué') + ' pour ' + nodeId);
+    NexoraConsole.navigate('provisioning');
+  } catch (e) { alert('Erreur : ' + e.message); }
+};
+
+window.enrollNode = async function() {
+  const hostname = prompt('Hostname ou adresse du nœud à enrôler :');
+  if (!hostname) return;
+  try {
+    const data = await apiPost('fleet/enroll/request', { hostname: hostname, requested_by: 'console' });
+    if (data && data.token) {
+      alert('Token d\'enrollment généré : ' + data.token + '\nCopiez ce token sur le nœud cible.');
+    } else {
+      alert('Enrollment initié : ' + JSON.stringify(data));
+    }
+    window.nxToast('Enrollment initié pour ' + hostname, 'success');
+    NexoraConsole.navigate('fleet');
+  } catch (e) { alert('Erreur : ' + e.message); }
 };
 
 /* ── Section renderers map ── */
@@ -196,6 +315,7 @@ const NexoraConsole = {
     renderer(document.getElementById('sec-' + name), this).catch(function(e) {
       const sec = document.getElementById('sec-' + name);
       if (sec) sec.innerHTML = nxAlert('Erreur de chargement: ' + e.message, 'critical');
+      window.nxToast('Erreur section ' + name + ': ' + e.message, 'danger');
     });
   },
 

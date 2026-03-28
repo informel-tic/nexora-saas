@@ -2,7 +2,7 @@ import { api, apiPost } from './api.js';
 import { scoreColor, nxStatCard, nxGauge, nxAlert, nxTable, nxLoader, nxEmpty, nxBadge } from './components.js';
 
 export async function loadDashboard(sec) {
-  const [dash, health] = await Promise.all([api('dashboard'), api('health')]);
+  const [dash, health, identity] = await Promise.all([api('dashboard'), api('health'), api('identity').catch(function() { return {}; })]);
   document.getElementById('health-badge').textContent = health.status === 'ok' ? 'online' : 'offline';
   const node = dash.node || {};
 
@@ -11,6 +11,33 @@ export async function loadDashboard(sec) {
     ${nxStatCard(node.domains_count || 0, 'Domaines')}
     ${nxStatCard(node.backups_count || 0, 'Sauvegardes')}
     ${nxStatCard((node.health_score || 0) + '%', 'Santé', scoreColor(node.health_score || 0))}
+  </div>`;
+
+  /* Host node identity card */
+  const hostId = identity.node_id || node.node_id || '—';
+  const hostRole = identity.role || 'host';
+  const ynhVer = identity.yunohost_version || node.yunohost_version || '—';
+  const debVer = identity.debian_version || node.debian_version || '—';
+  html += `<div class="nx-card mb"><div class="nx-card-header"><h3>Nœud hôte SaaS</h3></div>
+    <div class="nx-grid nx-grid-4 p-md">
+      ${nxStatCard(hostId, 'Node ID', 'var(--accent)')}
+      ${nxStatCard(hostRole, 'Rôle', 'var(--purple)')}
+      ${nxStatCard(ynhVer, 'YunoHost', 'var(--blue)')}
+      ${nxStatCard(debVer, 'Debian', 'var(--fg)')}
+    </div>
+  </div>`;
+
+  /* Session / token context card */
+  const token = sessionStorage.getItem('nexora_token') || '';
+  const tenantId = sessionStorage.getItem('nexora_tenant_id') || 'aucun';
+  const actorRole = sessionStorage.getItem('nexora_actor_role') || 'admin';
+  const tokenPreview = token ? (token.slice(0, 8) + '\u2026' + token.slice(-4)) : 'non d\u00e9fini';
+  html += `<div class="nx-card mb"><div class="nx-card-header"><h3>Session console</h3></div>
+    <div class="nx-grid nx-grid-3 p-md">
+      ${nxStatCard(tokenPreview, 'Token', 'var(--accent)')}
+      ${nxStatCard(actorRole, 'R\u00f4le', 'var(--purple)')}
+      ${nxStatCard(tenantId, 'Tenant', 'var(--blue)')}
+    </div>
   </div>`;
 
   if (dash.alerts && dash.alerts.length) {
@@ -105,7 +132,15 @@ export async function loadDomains(sec) {
 }
 
 export async function loadSecurity(sec) {
-  const [posture, risks] = await Promise.all([api('security/posture'), api('governance/risks')]);
+  const [posture, risks, updates, f2b, ports, perms, logins] = await Promise.all([
+    api('security/posture'),
+    api('governance/risks'),
+    api('security/updates').catch(function() { return {}; }),
+    api('security/fail2ban/status').catch(function() { return {}; }),
+    api('security/open-ports').catch(function() { return { ports: [] }; }),
+    api('security/permissions-audit').catch(function() { return {}; }),
+    api('security/recent-logins').catch(function() { return { logins: [] }; })
+  ]);
 
   let html = `<div class="nx-card mb"><div class="nx-card-header"><h3>Posture de sécurité</h3></div>
     <div class="nx-grid nx-grid-3 mb">
@@ -127,6 +162,63 @@ export async function loadSecurity(sec) {
       }))
     : nxAlert('Aucun risque identifié', 'success');
   html += '</div>';
+
+  /* Security sub-panels */
+  html += `<div class="nx-grid nx-grid-2 mt">`;
+
+  /* Updates */
+  html += `<div class="nx-card"><div class="nx-card-header"><h3>Mises à jour système</h3></div>`;
+  if (updates.updates_available) {
+    html += nxAlert(updates.packages.length + ' mise(s) à jour disponible(s)', 'warning');
+    html += nxTable(['Paquet', 'Version', 'Disponible'], (updates.packages || []).map(function(p) {
+      return [p.name, p.current || '-', p.available || '-'];
+    }));
+  } else {
+    html += nxAlert('Système à jour', 'success');
+  }
+  html += '</div>';
+
+  /* Fail2ban */
+  html += `<div class="nx-card"><div class="nx-card-header"><h3>Fail2ban</h3></div>`;
+  html += '<div class="p-md">' + nxStatCard(f2b.active ? 'Actif' : 'Inactif', 'État', f2b.active ? 'var(--green)' : 'var(--red)');
+  html += nxStatCard((f2b.banned_ips || []).length, 'IPs bannies', 'var(--orange)') + '</div>';
+  if ((f2b.banned_ips || []).length) {
+    html += '<ul class="item-list">' + f2b.banned_ips.map(function(ip) { return '<li><code>' + ip + '</code></li>'; }).join('') + '</ul>';
+  }
+  html += '</div>';
+
+  /* Open ports */
+  html += `<div class="nx-card"><div class="nx-card-header"><h3>Ports ouverts</h3></div>`;
+  const portList = ports.ports || [];
+  html += portList.length
+    ? '<div class="p-md">' + portList.map(function(p) { return nxBadge(p, 'info'); }).join(' ') + '</div>'
+    : nxEmpty('Aucun port détecté');
+  html += '</div>';
+
+  /* Permissions audit */
+  html += `<div class="nx-card"><div class="nx-card-header"><h3>Audit des permissions</h3></div>`;
+  const auditStatus = perms.audit || 'ok';
+  html += nxAlert('Statut: ' + auditStatus, auditStatus === 'ok' ? 'success' : 'warning');
+  if ((perms.public_apps || []).length) {
+    html += '<ul class="item-list">' + perms.public_apps.map(function(a) { return '<li>Public: <strong>' + a + '</strong></li>'; }).join('') + '</ul>';
+  }
+  html += '</div>';
+
+  html += '</div>';
+
+  /* Recent logins */
+  html += `<div class="nx-card mt"><div class="nx-card-header"><h3>Connexions récentes (${(logins.logins || []).length})</h3></div>`;
+  const loginList = logins.logins || [];
+  html += loginList.length
+    ? nxTable(['Date', 'Action', 'Sévérité'], loginList.slice(-20).reverse().map(function(l) {
+        const sevBadge = l.severity === 'critical' ? nxBadge(l.severity, 'danger') :
+                         l.severity === 'warning' ? nxBadge(l.severity, 'warning') :
+                         nxBadge(l.severity, 'info');
+        return [(l.timestamp || '').slice(0, 19).replace('T', ' '), l.action || '-', sevBadge];
+      }))
+    : nxAlert('Aucune connexion enregistrée', 'info');
+  html += '</div>';
+
   sec.innerHTML = html;
 }
 
@@ -181,6 +273,7 @@ export async function loadFleet(sec, NexoraConsoleObj) {
   } else {
     html += nxAlert('Nœud unique', 'info');
   }
+  html += `<div class="p-md"><button class="nx-btn" onclick="window.enrollNode()">Enrôler un nœud</button></div>`;
   html += '</div>';
 
   html += `<div class="nx-card"><div class="nx-card-header"><h3>Topologie</h3></div>`;
@@ -537,11 +630,18 @@ export async function loadSubscription(sec) {
 
   html += `<div class="nx-card"><div class="nx-card-header"><h3>Souscriptions (${subList.length})</h3></div>`;
   if (subList.length) {
-    html += nxTable(['ID', 'Org', 'Tier', 'Tenant', 'Status', 'Cr\u00e9\u00e9 le'], subList.map(function(s) {
+    html += nxTable(['ID', 'Org', 'Tier', 'Tenant', 'Status', 'Cr\u00e9\u00e9 le', 'Actions'], subList.map(function(s) {
       const statusBadge = s.status === 'active' ? nxBadge(s.status, 'success') :
                           s.status === 'suspended' ? nxBadge(s.status, 'warning') :
                           nxBadge(s.status, 'danger');
-      return [s.subscription_id || '-', s.org_id || '-', s.tier || '-', s.tenant_id || '-', statusBadge, (s.created_at || '').slice(0, 10)];
+      let actions = '';
+      if (s.status === 'active') {
+        actions = `<button class="nx-btn nx-btn-sm" onclick="window.suspendSubscription('${s.subscription_id}')">Suspendre</button>
+          <button class="nx-btn nx-btn-sm nx-btn-danger" onclick="window.cancelSubscription('${s.subscription_id}')">R\u00e9silier</button>`;
+      } else if (s.status === 'suspended') {
+        actions = `<button class="nx-btn nx-btn-sm" onclick="window.reactivateSubscription('${s.subscription_id}')">R\u00e9activer</button>`;
+      }
+      return [s.subscription_id || '-', s.org_id || '-', s.tier || '-', s.tenant_id || '-', statusBadge, (s.created_at || '').slice(0, 10), actions];
     }));
   } else {
     html += nxEmpty('Aucune souscription');
@@ -557,7 +657,8 @@ export async function loadProvisioning(sec) {
   const fleet = await api('fleet').catch(function() { return { nodes: [] }; });
   const nodes = fleet.nodes || [];
 
-  let html = `<div class="nx-card mb"><div class="nx-card-header"><h3>Provisioning des fonctionnalit\u00e9s</h3></div>
+  let html = `<div class="nx-card mb"><div class="nx-card-header"><h3>Provisioning des fonctionnalit\u00e9s</h3>
+    <button class="nx-btn nx-btn-sm" onclick="NexoraConsole.navigate('provisioning')" style="margin-left:auto">\u21bb Rafra\u00eechir</button></div>
     <p class="p-md" style="color:var(--muted)">
       Le SaaS pousse les fonctionnalit\u00e9s vers les n\u0153uds enroll\u00e9s. Les n\u0153uds sont des interfaces passives.
     </p>`;

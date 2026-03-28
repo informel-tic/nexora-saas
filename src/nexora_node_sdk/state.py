@@ -50,6 +50,8 @@ DEFAULT_STATE = {
     "security_audit": [],
     "organizations": [],
     "tenants": [],
+    "subscriptions": [],
+    "provisioning_events": [],
 }
 
 

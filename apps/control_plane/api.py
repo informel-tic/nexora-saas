@@ -215,12 +215,32 @@ def _resolve_trusted_actor_role_from_request(request) -> str | None:
 
 
 def _enforce_deployment_scope(path: str) -> None:
-    """Placeholder enforcement for deployment scope.
+    """Enforce deployment scope restrictions based on NEXORA_DEPLOYMENT_SCOPE.
 
-    Current CI expects this symbol to exist; real enforcement
-    can be added here if needed (env: NEXORA_DEPLOYMENT_SCOPE).
+    When the env var is set (e.g. 'production', 'staging'), restrict dangerous
+    operations to prevent accidental cross-environment calls.
     """
-    return
+    scope = os.environ.get("NEXORA_DEPLOYMENT_SCOPE", "").strip().lower()
+    if not scope:
+        return
+    # In production scope, block certain destructive endpoints
+    if scope == "production":
+        destructive = {"/api/tenants/{tenant_id}/purge", "/api/mode/switch"}
+        normalized = path.rstrip("/") or "/"
+        # Check prefix-based patterns
+        for pattern in destructive:
+            if "{" in pattern:
+                prefix = pattern.split("{")[0]
+                if normalized.startswith(prefix):
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Destructive operation blocked in deployment scope '{scope}'",
+                    )
+            elif normalized == pattern:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Operation blocked in deployment scope '{scope}'",
+                )
 
 
 class NodeActionRequest(BaseModel):
@@ -305,6 +325,40 @@ def build_application() -> FastAPI:
     register_tenant_management_routes(app)
     register_provisioning_routes(app)
     register_console_routes(app)
+
+    @app.on_event("startup")
+    async def _register_host_node() -> None:
+        """Auto-register the local host as the first fleet node on startup."""
+        try:
+            state = service.state.load()
+            local = service.local_node_summary()
+            nodes = state.get("nodes", [])
+            host_exists = any(
+                isinstance(n, dict) and n.get("node_id") == local.node_id
+                for n in nodes
+            )
+            if not host_exists:
+                from nexora_node_sdk.state import normalize_node_record, transition_node_status
+                from datetime import datetime, timezone as _tz
+
+                node_record = normalize_node_record({
+                    "node_id": local.node_id,
+                    "hostname": local.node_id,
+                    "status": local.status,
+                    "apps_count": local.apps_count,
+                    "domains_count": local.domains_count,
+                    "health_score": local.health_score,
+                    "registered_at": datetime.now(_tz.utc).isoformat(),
+                    "role": "host",
+                })
+                node_record = transition_node_status(node_record, local.status or "healthy")
+                state.setdefault("nodes", []).append(node_record)
+                if local.node_id not in state.get("fleet", {}).get("managed_nodes", []):
+                    state.setdefault("fleet", {}).setdefault("managed_nodes", []).append(local.node_id)
+                service.state.save(state)
+        except Exception as exc:
+            logger.warning("Host self-registration skipped: %s", exc)
+
     return app
 
 
@@ -778,13 +832,21 @@ def register_governance_routes(app: FastAPI) -> None:
     def security_updates(
         x_nexora_tenant_id: str | None = Header(None),
     ) -> dict[str, object]:
-        # [STUB] A3: Returns hardcoded data. Real implementation requires calling
-        # `yunohost tools update --apps --system` via YunoHost CLI on each node.
+        state = service.state.load()
+        # Derive update info from inventory snapshots
+        snapshots = state.get("inventory_snapshots", [])
+        if x_nexora_tenant_id:
+            snapshots = [s for s in snapshots if s.get("tenant_id") == x_nexora_tenant_id]
+        latest_inv = snapshots[-1].get("inventory", {}) if snapshots else {}
+        system_info = latest_inv.get("system", {})
+        packages: list[dict[str, object]] = []
+        for pkg_name, pkg_info in (system_info.get("packages", {}) or {}).items():
+            if isinstance(pkg_info, dict) and pkg_info.get("update_available"):
+                packages.append({"name": pkg_name, "current": pkg_info.get("version", ""), "available": pkg_info.get("update_version", "")})
         payload: dict[str, object] = {
-            "updates_available": False,
-            "packages": [],
-            "_stub": True,
-            "_stub_note": "Real data requires YunoHost CLI integration on each node (NEXT-13).",
+            "updates_available": len(packages) > 0,
+            "packages": packages,
+            "last_check": snapshots[-1].get("timestamp") if snapshots else None,
         }
         if x_nexora_tenant_id:
             payload["tenant_id"] = x_nexora_tenant_id
@@ -793,13 +855,26 @@ def register_governance_routes(app: FastAPI) -> None:
     def fail2ban_status(
         x_nexora_tenant_id: str | None = Header(None),
     ) -> dict[str, object]:
-        # [STUB] A3: Returns hardcoded data. Real implementation requires reading
-        # fail2ban-client status via privileged node agent action.
+        state = service.state.load()
+        # Derive fail2ban info from security audit events
+        audit = state.get("security_audit", [])
+        if isinstance(audit, dict):
+            audit = audit.get("events", [])
+        ban_events = [e for e in audit if isinstance(e, dict) and e.get("action") in ("fail2ban_ban", "fail2ban_unban")]
+        if x_nexora_tenant_id:
+            ban_events = [e for e in ban_events if e.get("tenant_id") == x_nexora_tenant_id]
+        # Track currently banned IPs (ban adds, unban removes)
+        banned: set[str] = set()
+        for evt in ban_events:
+            ip = (evt.get("details") or {}).get("ip", "")
+            if evt.get("action") == "fail2ban_ban" and ip:
+                banned.add(ip)
+            elif evt.get("action") == "fail2ban_unban" and ip:
+                banned.discard(ip)
         payload: dict[str, object] = {
             "active": True,
-            "banned_ips": [],
-            "_stub": True,
-            "_stub_note": "Real data requires fail2ban-client integration via node agent (NEXT-13).",
+            "banned_ips": sorted(banned),
+            "total_ban_events": len([e for e in ban_events if e.get("action") == "fail2ban_ban"]),
         }
         if x_nexora_tenant_id:
             payload["tenant_id"] = x_nexora_tenant_id
@@ -842,12 +917,17 @@ def register_governance_routes(app: FastAPI) -> None:
         return payload
 
     def open_ports(x_nexora_tenant_id: str | None = Header(None)) -> dict[str, object]:
-        # [STUB] A3: Returns hardcoded data. Real implementation requires calling
-        # `yunohost firewall list` via node agent privileged action.
+        state = service.state.load()
+        # Derive open ports from latest inventory snapshot
+        snapshots = state.get("inventory_snapshots", [])
+        if x_nexora_tenant_id:
+            snapshots = [s for s in snapshots if s.get("tenant_id") == x_nexora_tenant_id]
+        latest_inv = snapshots[-1].get("inventory", {}) if snapshots else {}
+        firewall = latest_inv.get("firewall", {})
+        ports = firewall.get("ports", [22, 80, 443]) if firewall else [22, 80, 443]
         payload: dict[str, object] = {
-            "ports": [80, 443, 22],
-            "_stub": True,
-            "_stub_note": "Real data requires yunohost firewall list via node agent (NEXT-13).",
+            "ports": ports,
+            "source": "inventory" if firewall else "default",
         }
         if x_nexora_tenant_id:
             payload["tenant_id"] = x_nexora_tenant_id
@@ -856,13 +936,23 @@ def register_governance_routes(app: FastAPI) -> None:
     def permissions_audit(
         x_nexora_tenant_id: str | None = Header(None),
     ) -> dict[str, object]:
-        # [STUB] A3: Returns hardcoded data. Real implementation requires calling
-        # `yunohost user permission list` via node agent.
+        state = service.state.load()
+        # Derive permissions from security posture
+        from nexora_node_sdk.security_audit import filter_security_events
+        audit = state.get("security_audit", [])
+        if isinstance(audit, dict):
+            audit = audit.get("events", [])
+        auth_events = filter_security_events(audit, category="auth")
+        if x_nexora_tenant_id:
+            auth_events = [e for e in auth_events if e.get("tenant_id") == x_nexora_tenant_id]
+        # Check posture for public permissions
+        posture = security_posture(x_nexora_tenant_id=x_nexora_tenant_id)
+        public_apps = posture.get("public_permissions", [])
         payload: dict[str, object] = {
-            "audit": "ok",
-            "public_apps": [],
-            "_stub": True,
-            "_stub_note": "Real data requires yunohost user permission list via node agent (NEXT-13).",
+            "audit": "warning" if public_apps else "ok",
+            "public_apps": public_apps,
+            "auth_events_count": len(auth_events),
+            "permissions_risk_count": posture.get("permissions_risk_count", 0),
         }
         if x_nexora_tenant_id:
             payload["tenant_id"] = x_nexora_tenant_id
@@ -871,12 +961,28 @@ def register_governance_routes(app: FastAPI) -> None:
     def recent_logins(
         x_nexora_tenant_id: str | None = Header(None),
     ) -> dict[str, object]:
-        # [STUB] A3: Returns hardcoded data. Real implementation requires parsing
-        # auth.log or sssd audit logs via node agent.
+        state = service.state.load()
+        # Derive login events from security audit
+        from nexora_node_sdk.security_audit import filter_security_events
+        audit = state.get("security_audit", [])
+        if isinstance(audit, dict):
+            audit = audit.get("events", [])
+        login_events = filter_security_events(audit, category="auth")
+        if x_nexora_tenant_id:
+            login_events = [e for e in login_events if e.get("tenant_id") == x_nexora_tenant_id]
+        # Return last 50 auth events as login entries
+        recent = login_events[-50:] if login_events else []
+        logins = []
+        for evt in recent:
+            logins.append({
+                "timestamp": evt.get("timestamp", ""),
+                "action": evt.get("action", ""),
+                "severity": evt.get("severity", "info"),
+                "details": evt.get("details", {}),
+            })
         payload: dict[str, object] = {
-            "logins": [],
-            "_stub": True,
-            "_stub_note": "Real data requires auth.log parsing via node agent (NEXT-13).",
+            "logins": logins,
+            "total_auth_events": len(login_events),
         }
         if x_nexora_tenant_id:
             payload["tenant_id"] = x_nexora_tenant_id
