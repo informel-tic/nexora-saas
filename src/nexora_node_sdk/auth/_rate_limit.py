@@ -34,9 +34,9 @@ def _auth_runtime_file() -> Path:
 
 def _load_auth_runtime_payload() -> dict[str, Any]:
     path = _auth_runtime_file()
-    if not path.exists():
-        return {}
     try:
+        if not path.exists():
+            return {}
         payload = json.loads(path.read_text(encoding="utf-8"))
         return payload if isinstance(payload, dict) else {}
     except (json.JSONDecodeError, OSError):

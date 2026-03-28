@@ -6,15 +6,17 @@ import os
 import secrets
 
 import uvicorn
-from fastapi import FastAPI, Header, HTTPException, Query
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.responses import Response
 
 from nexora_node_sdk.auth import (
+    _load_token_actor_roles,
     CSRFProtectionMiddleware,
     TokenAuthMiddleware,
+    build_tenant_scope_claim,
     get_api_token,
     resolve_actor_role_for_token,
 )
@@ -31,6 +33,8 @@ from nexora_saas.runtime_context import build_service
 
 REPO_ROOT = resolve_repo_root(__file__)
 CONSOLE_DIR = REPO_ROOT / "apps" / "console"
+PUBLIC_SITE_DIR = REPO_ROOT / "apps" / "public_site"
+PUBLIC_SITE_INDEX = PUBLIC_SITE_DIR / "index.html"
 service = build_service(__file__, os.environ.get("NEXORA_STATE_PATH"))
 OPERATOR_ONLY_ROUTES = frozenset(
     {
@@ -50,6 +54,42 @@ OPERATOR_ONLY_ROUTES = frozenset(
         "/api/automation/checklists",
     }
 )
+SUBSCRIBER_DENIED_PREFIXES = (
+    "/api/admin",
+    "/api/mode",
+    "/api/adoption/import",
+    "/api/persistence",
+    "/api/interface-parity",
+    "/api/docker",
+    "/api/failover",
+    "/api/storage/ynh-map",
+    "/api/notifications/templates",
+    "/api/hooks",
+)
+SUBSCRIBER_ALLOWED_MUTATIONS = frozenset(
+    {
+        "/api/fleet/enroll/request",
+        "/api/fleet/enroll/attest",
+        "/api/fleet/enroll/register",
+    }
+)
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def _load_public_landing_html() -> str:
+    if PUBLIC_SITE_INDEX.exists():
+        return PUBLIC_SITE_INDEX.read_text(encoding="utf-8")
+    return """
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"/><title>Nexora SaaS</title></head>
+<body>
+<h1>Nexora SaaS</h1>
+<p>Plateforme SaaS souveraine pour opérer vos noeuds YunoHost.</p>
+<p><a href="console/">Acceder a la console admin</a></p>
+</body>
+</html>
+""".strip()
 
 
 def _enforce_operator_only_surface(
@@ -92,7 +132,23 @@ def _is_operator_only_route(path: str) -> bool:
     return normalized in OPERATOR_ONLY_ROUTES
 
 
+def _is_subscriber_blocked(path: str, method: str) -> bool:
+    normalized = path.rstrip("/") or "/"
+    if normalized in OPERATOR_ONLY_ROUTES:
+        return True
+    if method not in SAFE_METHODS and normalized not in SUBSCRIBER_ALLOWED_MUTATIONS:
+        return True
+    for prefix in SUBSCRIBER_DENIED_PREFIXES:
+        if normalized.startswith(prefix):
+            return True
+    return False
+
+
 def _resolve_trusted_actor_role_from_request(request) -> str | None:
+    state_role = getattr(request.state, "nexora_actor_role", None)
+    if state_role:
+        return str(state_role)
+
     auth_header = request.headers.get("Authorization", "")
     token = ""
     if auth_header.startswith("Bearer "):
@@ -101,9 +157,14 @@ def _resolve_trusted_actor_role_from_request(request) -> str | None:
         token = request.headers.get("X-Nexora-Token", "").strip()
     if not token:
         return None
-    if not secrets.compare_digest(token, get_api_token()):
-        return None
-    return resolve_actor_role_for_token(token)
+
+    for configured_token, role in _load_token_actor_roles().items():
+        if secrets.compare_digest(token, configured_token):
+            return role
+
+    if secrets.compare_digest(token, get_api_token()):
+        return resolve_actor_role_for_token(token)
+    return None
 
 
 def _enforce_deployment_scope(path: str) -> None:
@@ -172,6 +233,19 @@ def build_application() -> FastAPI:
                 return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
         return await call_next(request)
 
+    @app.middleware("http")
+    async def subscriber_surface_middleware(request, call_next):
+        trusted_role = (_resolve_trusted_actor_role_from_request(request) or "").strip().lower()
+        if trusted_role == "subscriber" and _is_subscriber_blocked(request.url.path, request.method):
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "Subscriber profile is restricted to tenant-scoped monitoring and enrollment surfaces."
+                },
+            )
+        return await call_next(request)
+
+    register_public_routes(app)
     register_health_routes(app)
     register_inventory_routes(app)
     register_fleet_routes(app)
@@ -179,8 +253,129 @@ def build_application() -> FastAPI:
     register_governance_routes(app)
     register_modes_routes(app)
     register_operations_routes(app)
+    register_auth_routes(app)
     register_console_routes(app)
     return app
+
+
+def register_public_routes(app: FastAPI) -> None:
+    def public_offers() -> dict[str, object]:
+        return {
+            "platform": "Nexora SaaS",
+            "positioning": "Surcouche SaaS souveraine pour masquer la complexite des noeuds YunoHost.",
+            "offers": [
+                {
+                    "offer_id": "starter-subscriber",
+                    "name": "Subscriber Starter",
+                    "target": "PME ou freelance",
+                    "max_nodes": 3,
+                    "max_apps": 25,
+                    "features": ["enrollment", "monitoring", "alerts", "backup snapshots"],
+                },
+                {
+                    "offer_id": "pro-subscriber",
+                    "name": "Subscriber Pro",
+                    "target": "MSP ou equipe multi-sites",
+                    "max_nodes": 15,
+                    "max_apps": 120,
+                    "features": ["multi-tenant", "fleet lifecycle", "automation", "PRA workflows"],
+                },
+                {
+                    "offer_id": "operator-admin",
+                    "name": "SaaS Operator Admin",
+                    "target": "Operateur Nexora",
+                    "max_nodes": "unlimited",
+                    "max_apps": "unlimited",
+                    "features": [
+                        "operator-only governance",
+                        "tenant management",
+                        "infrastructure reinforcement",
+                        "commercial onboarding",
+                    ],
+                },
+            ],
+            "enrollment_api": "/api/fleet/enroll/request",
+        }
+
+    app.add_api_route("/api/public/offers", public_offers, methods=["GET"])
+
+
+def register_auth_routes(app: FastAPI) -> None:
+    def tenant_claim(
+        request: Request,
+        tenant_id: str = Query(..., min_length=1),
+    ) -> dict[str, str]:
+        auth_header = request.headers.get("Authorization", "")
+        provided_token = ""
+        if auth_header.startswith("Bearer "):
+            provided_token = auth_header[7:].strip()
+        if not provided_token:
+            provided_token = request.headers.get("X-Nexora-Token", "").strip()
+        if not provided_token:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        return {
+            "tenant_id": tenant_id,
+            "claim": build_tenant_scope_claim(provided_token, tenant_id),
+        }
+
+    def console_access_context(
+        request: Request,
+        x_nexora_tenant_id: str | None = Header(None),
+    ) -> dict[str, object]:
+        trusted_role = (_resolve_trusted_actor_role_from_request(request) or "observer").strip().lower()
+        tenant_record: dict[str, object] | None = None
+        if x_nexora_tenant_id:
+            state = service.state.load()
+            tenant_record = next(
+                (
+                    tenant
+                    for tenant in state.get("tenants", [])
+                    if isinstance(tenant, dict) and tenant.get("tenant_id") == x_nexora_tenant_id
+                ),
+                None,
+            )
+
+        full_sections = [
+            "dashboard",
+            "scores",
+            "apps",
+            "services",
+            "domains",
+            "security",
+            "pra",
+            "fleet",
+            "blueprints",
+            "automation",
+            "adoption",
+            "modes",
+            "docker",
+            "storage",
+            "notifications",
+            "hooks",
+            "governance",
+            "sla-tracking",
+        ]
+        subscriber_sections = [
+            "dashboard",
+            "scores",
+            "apps",
+            "services",
+            "domains",
+            "security",
+            "pra",
+            "fleet",
+        ]
+
+        return {
+            "actor_role": trusted_role,
+            "tenant_id": x_nexora_tenant_id,
+            "tenant": tenant_record,
+            "allowed_sections": subscriber_sections if trusted_role == "subscriber" else full_sections,
+            "subscriber_mode": trusted_role == "subscriber",
+        }
+
+    app.add_api_route("/api/auth/tenant-claim", tenant_claim, methods=["GET"])
+    app.add_api_route("/api/console/access-context", console_access_context, methods=["GET"])
 
 
 def register_health_routes(app: FastAPI) -> None:
@@ -883,14 +1078,24 @@ def register_console_routes(app: FastAPI) -> None:
         app.mount("/console", StaticFiles(directory=CONSOLE_DIR, html=True), name="console")
 
     def root():
+        if PUBLIC_SITE_INDEX.exists():
+            return HTMLResponse(content=_load_public_landing_html())
         if (CONSOLE_DIR / "index.html").exists():
-            return RedirectResponse(url="/console/")
+            return RedirectResponse(url="admin")
         return {"status": "ok", "hint": "Console not built yet"}
 
+    def subscribe():
+        return HTMLResponse(content=_load_public_landing_html())
+
+    def admin_redirect():
+        return RedirectResponse(url="console/")
+
     def console_redirect():
-        return RedirectResponse(url="/console/")
+        return RedirectResponse(url="console/")
 
     app.add_api_route("/", root, methods=["GET"])
+    app.add_api_route("/subscribe", subscribe, methods=["GET"])
+    app.add_api_route("/admin", admin_redirect, methods=["GET"])
     app.add_api_route("/console", console_redirect, methods=["GET"])
 
 

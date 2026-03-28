@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import json
 import os
+import secrets
 
 from fastapi.testclient import TestClient
 
@@ -47,6 +48,19 @@ class P8BehavioralTests(unittest.TestCase):
         payload = response.json()
         self.assertIn("safe_to_install", payload)
         self.assertIn("recommended_mode", payload)
+
+    def test_root_serves_public_saas_landing(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Nexora SaaS", response.text)
+        self.assertIn("Souscrire", response.text)
+
+    def test_public_offers_endpoint_is_accessible_without_token(self):
+        response = self.client.get("/api/public/offers")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload.get("platform"), "Nexora SaaS")
+        self.assertTrue(isinstance(payload.get("offers"), list))
 
     def test_adoption_import_rejects_missing_origin_and_referer(self):
         insecure_headers = {
@@ -286,6 +300,45 @@ class P8BehavioralTests(unittest.TestCase):
         allowed = self.client.get(
             "/api/persistence",
             headers={**self.headers, "X-Nexora-Actor-Role": "operator"},
+        )
+        self.assertEqual(allowed.status_code, 200)
+
+    def test_role_file_secondary_token_is_accepted_for_authentication(self):
+        secondary_token = secrets.token_urlsafe(24)
+        role_file = Path(self.tmp_dir.name) / "token-roles-secondary.json"
+        role_file.write_text(
+            json.dumps(
+                {
+                    get_api_token(): "admin",
+                    secondary_token: "subscriber",
+                }
+            ),
+            encoding="utf-8",
+        )
+        os.environ["NEXORA_API_TOKEN_ROLE_FILE"] = str(role_file)
+
+        response = self.client.get(
+            "/api/fleet",
+            headers={"Authorization": f"Bearer {secondary_token}"},
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_subscriber_role_is_restricted_to_safe_surfaces(self):
+        role_file = Path(self.tmp_dir.name) / "token-roles-subscriber.json"
+        role_file.write_text(json.dumps({get_api_token(): "subscriber"}), encoding="utf-8")
+        os.environ["NEXORA_API_TOKEN_ROLE_FILE"] = str(role_file)
+
+        denied = self.client.post(
+            "/api/adoption/import?domain=example.org&path=/nexora",
+            headers={**self.headers, "X-Nexora-Actor-Role": "subscriber"},
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertIn("Subscriber profile is restricted", denied.text)
+
+        allowed = self.client.post(
+            "/api/fleet/enroll/request",
+            json={"requested_by": "subscriber", "mode": "pull", "ttl_minutes": 15, "node_id": "node-sub-1"},
+            headers={**self.headers, "X-Nexora-Actor-Role": "subscriber", "X-Nexora-Tenant-Id": "tenant-a"},
         )
         self.assertEqual(allowed.status_code, 200)
 

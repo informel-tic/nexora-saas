@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse, Response
 from ._rate_limit import _check_rate_limit, _record_auth_failure
 from ._scopes import (
     _enforce_token_tenant_scope,
+    _load_token_actor_roles,
     _load_token_tenant_scopes,
     build_tenant_scope_claim,
     resolve_actor_role_for_token,
@@ -25,10 +26,50 @@ from ._token import get_api_token
 # ── Auth middleware ────────────────────────────────────────────────────
 
 # Paths that don't require auth
-_PUBLIC_PATHS = {"/api/health", "/health", "/console", "/console/"}
+_PUBLIC_PATHS = {
+    "/api/health",
+    "/health",
+    "/api/public/offers",
+    "/console",
+    "/console/",
+    "/subscribe",
+    "/admin",
+}
 
 # Static file prefixes
 _STATIC_PREFIXES = ("/console/",)
+
+
+def _iter_known_tokens() -> list[str]:
+    """Return all accepted API tokens (primary + optional scoped/role tokens)."""
+
+    tokens: list[str] = []
+
+    primary = get_api_token().strip()
+    if primary:
+        tokens.append(primary)
+
+    for token in _load_token_tenant_scopes().keys():
+        normalized = str(token).strip()
+        if normalized and normalized not in tokens:
+            tokens.append(normalized)
+
+    for token in _load_token_actor_roles().keys():
+        normalized = str(token).strip()
+        if normalized and normalized not in tokens:
+            tokens.append(normalized)
+
+    return tokens
+
+
+def _resolve_known_token(provided_token: str) -> str | None:
+    normalized = provided_token.strip()
+    if not normalized:
+        return None
+    for token in _iter_known_tokens():
+        if secrets.compare_digest(normalized, token):
+            return token
+    return None
 
 
 class TokenAuthMiddleware(BaseHTTPMiddleware):
@@ -60,13 +101,16 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             provided = auth_header[7:].strip()
-            if secrets.compare_digest(provided, get_api_token()):
-                provided_token = provided
+            matched = _resolve_known_token(provided)
+            if matched is not None:
+                provided_token = matched
 
         # Also accept X-Nexora-Token header
         token_header = request.headers.get("X-Nexora-Token", "").strip()
-        if provided_token is None and token_header and secrets.compare_digest(token_header, get_api_token()):
-            provided_token = token_header
+        if provided_token is None and token_header:
+            matched = _resolve_known_token(token_header)
+            if matched is not None:
+                provided_token = matched
 
         if provided_token is not None:
             trusted_actor_role = resolve_actor_role_for_token(provided_token)
@@ -84,6 +128,9 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
                     content={"detail": (f"Token is not authorized for tenant scope '{requested_tenant}'.")},
                 )
             if requested_tenant and configured_scopes:
+                # Scoped tokens can bootstrap the claim through this endpoint.
+                if path == "/api/auth/tenant-claim":
+                    return await call_next(request)
                 provided_claim = request.headers.get("X-Nexora-Tenant-Claim", "").strip()
                 expected_claim = build_tenant_scope_claim(provided_token, requested_tenant)
                 if not provided_claim or not hmac.compare_digest(provided_claim, expected_claim):

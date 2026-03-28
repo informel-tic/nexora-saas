@@ -115,7 +115,7 @@ def _load_token_actor_roles() -> dict[str, str]:
                 if not token_val or not role:
                     continue
                 try:
-                    mapping[token_val] = validate_operator_surface_role(role)
+                    mapping[token_val] = validate_trusted_actor_role(role)
                 except ValueError:
                     continue
             return mapping
@@ -127,7 +127,7 @@ def _load_token_actor_roles() -> dict[str, str]:
                 if not isinstance(role, str) or not role.strip():
                     continue
                 try:
-                    mapping[token_val.strip()] = validate_operator_surface_role(role)
+                    mapping[token_val.strip()] = validate_trusted_actor_role(role)
                 except ValueError:
                     continue
             return mapping
@@ -183,6 +183,16 @@ def validate_operator_surface_role(value: str) -> str:
     normalized = value.strip().lower()
     if normalized not in allowed:
         raise ValueError(f"Unsupported operator surface role: {value}")
+    return normalized
+
+
+def validate_trusted_actor_role(value: str) -> str:
+    """Validate roles that can be bound to API tokens in role mapping files."""
+
+    allowed = {"operator", "admin", "architect", "subscriber"}
+    normalized = value.strip().lower()
+    if normalized not in allowed:
+        raise ValueError(f"Unsupported trusted actor role: {value}")
     return normalized
 
 

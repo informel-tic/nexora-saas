@@ -159,7 +159,10 @@ class JsonStateRepository:
         }
 
     def _recover_from_journal(self) -> dict[str, Any] | None:
-        if not self.journal_path.exists():
+        try:
+            if not self.journal_path.exists():
+                return None
+        except PermissionError:
             return None
         try:
             journal = self._load_json(self.journal_path)

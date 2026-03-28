@@ -1,4 +1,4 @@
-import { initToken, api, apiPost } from './api.js';
+import { initToken, api, apiPost, loadAccessContext } from './api.js';
 import { nxAlert, nxLoader } from './components.js';
 import * as views from './views.js';
 
@@ -94,17 +94,68 @@ const sectionRenderers = {
   'sla-tracking': views.loadSlaTracking
 };
 
+const ADMIN_ONLY_SECTIONS = new Set([
+  'adoption',
+  'modes',
+  'docker',
+  'storage',
+  'notifications',
+  'hooks',
+  'governance',
+  'sla-tracking'
+]);
+
 /* ── NexoraConsole controller ── */
 const NexoraConsole = {
   loaded: new Set(),
   currentSection: null,
   main: null,
+  accessContext: null,
 
-  init: function() {
+  init: async function() {
     this.main = document.getElementById('main-content');
+    await this.loadAccessContext();
     this.bindNav();
-    this.navigate('dashboard');
+    this.navigate(this.defaultSection());
     this.loadModeBadge();
+  },
+
+  defaultSection: function() {
+    if (this.accessContext && this.accessContext.subscriber_mode) {
+      return 'fleet';
+    }
+    return 'dashboard';
+  },
+
+  loadAccessContext: async function() {
+    try {
+      const context = await loadAccessContext();
+      this.accessContext = context;
+      this.applyAccessContext();
+    } catch (e) {
+      this.accessContext = null;
+    }
+  },
+
+  applyAccessContext: function() {
+    const badge = document.getElementById('profile-badge');
+    const actorRole = (this.accessContext && this.accessContext.actor_role) || '';
+    if (badge && actorRole) {
+      badge.textContent = actorRole;
+    }
+
+    const allowed = new Set((this.accessContext && this.accessContext.allowed_sections) || []);
+    const subscriberMode = !!(this.accessContext && this.accessContext.subscriber_mode);
+
+    document.querySelectorAll('#main-nav a[data-section]').forEach(function(link) {
+      const section = link.dataset.section;
+      if (!subscriberMode) {
+        link.style.display = '';
+        return;
+      }
+      const blocked = ADMIN_ONLY_SECTIONS.has(section) || (allowed.size > 0 && !allowed.has(section));
+      link.style.display = blocked ? 'none' : '';
+    });
   },
 
   bindNav: function() {
@@ -147,6 +198,9 @@ const NexoraConsole = {
   },
 
   loadModeBadge: async function() {
+    if (this.accessContext && this.accessContext.subscriber_mode) {
+      return;
+    }
     try {
       const mode = await api('mode');
       const badge = document.getElementById('profile-badge');
@@ -158,5 +212,5 @@ const NexoraConsole = {
 window.NexoraConsole = NexoraConsole;
 
 document.addEventListener('DOMContentLoaded', function() {
-  NexoraConsole.init();
+  void NexoraConsole.init();
 });

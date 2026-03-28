@@ -55,6 +55,7 @@ from ._scopes import (
     resolve_actor_role_for_token,
     validate_actor_role,
     validate_operator_surface_role,
+    validate_trusted_actor_role,
     validate_scope,
 )
 
@@ -108,6 +109,7 @@ __all__ = [
     "build_tenant_scope_claim",
     "validate_actor_role",
     "validate_operator_surface_role",
+    "validate_trusted_actor_role",
     "validate_scope",
     "issue_node_secret",
     # rate_limit

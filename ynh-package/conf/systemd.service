@@ -21,7 +21,7 @@ RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ReadWritePaths=__DATA_DIR__ /var/log/__APP__ /tmp/nexora-export
-ProtectHome=true
+ProtectHome=no
 
 [Install]
 WantedBy=multi-user.target

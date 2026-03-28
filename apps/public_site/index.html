@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Nexora SaaS | Supervision souveraine YunoHost</title>
+  <style>
+    :root {
+      --bg: #f6f5f0;
+      --ink: #101828;
+      --muted: #475467;
+      --panel: #fffdf8;
+      --line: #d6d3c5;
+      --brand: #0b6e4f;
+      --brand-2: #c04f15;
+      --accent: #0f766e;
+      --danger: #b42318;
+      --shadow: 0 20px 40px rgba(16, 24, 40, 0.12);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI Variable", "Trebuchet MS", "Gill Sans", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 10%, rgba(192, 79, 21, 0.12), transparent 36%),
+        radial-gradient(circle at 92% 6%, rgba(11, 110, 79, 0.18), transparent 30%),
+        linear-gradient(180deg, #fffcf3 0%, #f3f2ec 46%, #ecece7 100%);
+      min-height: 100vh;
+      animation: fade-in 450ms ease;
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 1.25rem 1rem 2.2rem;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 248, 0.82);
+      backdrop-filter: blur(6px);
+      border-radius: var(--radius);
+      padding: 0.85rem 1rem;
+      box-shadow: var(--shadow);
+    }
+
+    .brand {
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .muted { color: var(--muted); }
+
+    .btns {
+      display: flex;
+      gap: 0.55rem;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid transparent;
+      border-radius: 999px;
+      padding: 0.6rem 1rem;
+      font-weight: 700;
+      text-decoration: none;
+      transition: transform 180ms ease, box-shadow 180ms ease;
+      display: inline-block;
+    }
+
+    .btn:hover { transform: translateY(-2px); }
+
+    .btn.primary {
+      background: linear-gradient(90deg, var(--brand), var(--accent));
+      color: #fff;
+      box-shadow: 0 10px 22px rgba(11, 110, 79, 0.33);
+    }
+
+    .btn.secondary {
+      border-color: var(--ink);
+      color: var(--ink);
+      background: transparent;
+    }
+
+    .hero {
+      margin-top: 1rem;
+      border-radius: calc(var(--radius) + 4px);
+      border: 1px solid var(--line);
+      background: linear-gradient(120deg, rgba(255, 254, 250, 0.95), rgba(252, 245, 237, 0.92));
+      box-shadow: var(--shadow);
+      padding: 1.4rem;
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 1.2rem;
+    }
+
+    .hero h1 {
+      margin: 0 0 0.8rem;
+      font-size: clamp(1.6rem, 3.2vw, 2.5rem);
+      line-height: 1.16;
+      font-family: "Book Antiqua", "Palatino Linotype", serif;
+    }
+
+    .hero p {
+      margin: 0;
+      line-height: 1.55;
+      color: var(--muted);
+      font-size: 1.02rem;
+    }
+
+    .chips {
+      margin-top: 0.95rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .chip {
+      padding: 0.35rem 0.6rem;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.86);
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #344054;
+    }
+
+    .hero-side {
+      border-radius: 14px;
+      border: 1px solid #d0cdbf;
+      background: #fff;
+      padding: 1rem;
+    }
+
+    .hero-side h3 {
+      margin: 0 0 0.65rem;
+      font-size: 1rem;
+      color: var(--brand);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-side ul {
+      margin: 0;
+      padding-left: 1.1rem;
+      color: #344054;
+      line-height: 1.45;
+    }
+
+    .grid {
+      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.9rem;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 0.95rem;
+      box-shadow: 0 8px 18px rgba(16, 24, 40, 0.08);
+    }
+
+    .card h3 {
+      margin: 0;
+      font-size: 1.05rem;
+    }
+
+    .tag {
+      display: inline-block;
+      margin-top: 0.4rem;
+      border-radius: 999px;
+      padding: 0.25rem 0.55rem;
+      font-weight: 700;
+      font-size: 0.75rem;
+      background: rgba(15, 118, 110, 0.12);
+      color: #0f766e;
+    }
+
+    .card ul {
+      margin: 0.7rem 0 0;
+      padding-left: 1.1rem;
+      color: #344054;
+      line-height: 1.45;
+      font-size: 0.92rem;
+    }
+
+    .split {
+      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.9rem;
+    }
+
+    .zone {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: #fff;
+      padding: 1rem;
+    }
+
+    .zone h4 {
+      margin: 0 0 0.4rem;
+      font-size: 1rem;
+    }
+
+    .zone .state {
+      font-size: 0.8rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    .zone.admin .state { color: var(--danger); }
+    .zone.sub .state { color: var(--brand); }
+
+    .zone p {
+      margin: 0;
+      color: #344054;
+      line-height: 1.5;
+      font-size: 0.93rem;
+    }
+
+    .footer-note {
+      margin-top: 1rem;
+      border: 1px dashed #bdb8a3;
+      border-radius: 12px;
+      padding: 0.8rem;
+      background: rgba(255, 255, 255, 0.8);
+      color: #4b5563;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 920px) {
+      .hero, .grid, .split { grid-template-columns: 1fr; }
+      .topbar { align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="topbar">
+      <div>
+        <div class="brand">Nexora SaaS</div>
+        <div class="muted">Control-plane multi-tenant pour masquer les noeuds YunoHost derriere une offre SaaS unifiee</div>
+      </div>
+      <div class="btns">
+        <a class="btn secondary" href="subscribe">Souscrire</a>
+        <a class="btn primary" href="admin">Console Admin SaaS</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div>
+        <h1>Une surcouche SaaS qui absorbe la complexite des noeuds YunoHost</h1>
+        <p>
+          Nexora expose une experience SaaS claire pour vos clients subscribers, tout en gardant pour vous,
+          administrateur SaaS, la maitrise complete de la flotte, des tenants, des politiques et de l'enrollment.
+        </p>
+        <div class="chips">
+          <span class="chip">Multi-tenant strict</span>
+          <span class="chip">Enrollment securise</span>
+          <span class="chip">PRA & backups quotidiens</span>
+          <span class="chip">Docker overlay optionnel</span>
+        </div>
+      </div>
+      <aside class="hero-side">
+        <h3>Acces differencies</h3>
+        <ul>
+          <li>Admin SaaS: gouvernance complete, gestion des offres, renforcement infra.</li>
+          <li>Subscriber: surfaces limitees au tenant, monitoring, enrollment de ses noeuds.</li>
+          <li>Isolation par tenant_id, quotas et claims HMAC.</li>
+        </ul>
+      </aside>
+    </section>
+
+    <section class="grid" aria-label="Offres SaaS">
+      <article class="card">
+        <h3>Subscriber Starter</h3>
+        <span class="tag">Offre d'entree</span>
+        <ul>
+          <li>Jusqu'a 3 noeuds enrolled</li>
+          <li>Monitoring et alerting de base</li>
+          <li>PRA snapshots journaliers</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Subscriber Pro</h3>
+        <span class="tag">Scale-up</span>
+        <ul>
+          <li>Multi-sites jusqu'a 15 noeuds</li>
+          <li>Lifecycle de flotte et automatisations</li>
+          <li>Blueprints metiers et quotas avances</li>
+        </ul>
+      </article>
+      <article class="card">
+        <h3>Operator Admin</h3>
+        <span class="tag">Interne SaaS</span>
+        <ul>
+          <li>Admin complet control-plane</li>
+          <li>Gouvernance, securite, interface parity</li>
+          <li>Ajout de noeuds proprietaires pour capacity boost</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="split" aria-label="Zones d'usage">
+      <div class="zone admin">
+        <div class="state">Zone interne SaaS</div>
+        <h4>Administration operateur</h4>
+        <p>
+          Via <strong>/admin</strong> puis <strong>/console</strong>, vous pilotez les tenants, policies,
+          actions de flotte et surfaces operator-only.
+        </p>
+      </div>
+      <div class="zone sub">
+        <div class="state">Zone subscribers</div>
+        <h4>Portail clients</h4>
+        <p>
+          Les subscribers se connectent avec un token scope + tenant pour enroler leurs propres noeuds,
+          sans acces aux surfaces internes operateur.
+        </p>
+      </div>
+    </section>
+
+    <div class="footer-note">
+      En API, consultez <strong>/api/public/offers</strong> pour recuperer les offres, et utilisez
+      les endpoints d'enrollment pour onboarder des noeuds dans un tenant dedie selon l'offre.
+    </div>
+  </div>
+</body>
+</html>
