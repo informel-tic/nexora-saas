@@ -8,9 +8,9 @@ User=__APP__
 Group=__APP__
 WorkingDirectory=__INSTALL_DIR__
 Environment=NEXORA_CONTROL_PLANE_HOST=127.0.0.1
-Environment=NEXORA_CONTROL_PLANE_PORT=38120
-Environment=NEXORA_STATE_PATH=/opt/nexora/var/state.json
-Environment=NEXORA_API_TOKEN_FILE=/opt/nexora/var/api-token
+Environment=NEXORA_CONTROL_PLANE_PORT=__PORT__
+Environment=NEXORA_STATE_PATH=__DATA_DIR__/state.json
+Environment=NEXORA_API_TOKEN_FILE=__DATA_DIR__/api-token
 Environment=NEXORA_API_TOKEN_ROLE_FILE=/etc/nexora/api-token-roles.json
 Environment=NEXORA_OPERATOR_ONLY_ENFORCE=1
 Environment=NEXORA_DEPLOYMENT_SCOPE=operator
@@ -19,7 +19,7 @@ Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/opt/nexora/var /tmp/nexora-export
+ReadWritePaths=__DATA_DIR__ /var/log/__APP__ /tmp/nexora-export
 ProtectHome=true
 
 [Install]

@@ -1,0 +1,20 @@
+#!/bin/bash
+source /usr/share/yunohost/helpers
+source _common.sh
+
+ynh_script_progression --message="Backing up the main app directory..." --weight=3
+ynh_backup --src_path="$install_dir"
+
+ynh_script_progression --message="Backing up data directory..." --weight=3
+ynh_backup --src_path="$data_dir"
+
+ynh_script_progression --message="Backing up NGINX configuration..." --weight=1
+ynh_backup --src_path="/etc/nginx/conf.d/$domain.d/$app.conf"
+
+ynh_script_progression --message="Backing up systemd service..." --weight=1
+ynh_backup --src_path="/etc/systemd/system/$app.service"
+
+ynh_script_progression --message="Backing up log rotation..." --weight=1
+ynh_backup --src_path="/etc/logrotate.d/$app"
+
+ynh_script_progression --message="Backup complete." --last

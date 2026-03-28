@@ -1,0 +1,50 @@
+{
+  "version": {
+    "yunohost": {
+      "version": "11.2.0",
+      "repo": "stable"
+    },
+    "moulinette": {
+      "version": "11.2.0"
+    }
+  },
+  "apps": {
+    "apps": [
+      {
+        "id": "wordpress",
+        "name": "WordPress",
+        "version": "6.4~ynh1"
+      }
+    ]
+  },
+  "domains": {
+    "domains": ["legacy.tld"]
+  },
+  "certs": {
+    "certificates": {
+      "legacy.tld": {
+        "style": "warning",
+        "validity": 0
+      }
+    }
+  },
+  "backups": {
+    "archives": []
+  },
+  "permissions": {
+    "permissions": {
+      "wordpress.main": {
+        "allowed": ["all_users"]
+      }
+    }
+  },
+  "services": {
+    "services": {
+      "nginx": {"status": "running"},
+      "slapd": {"status": "running"}
+    }
+  },
+  "settings": {},
+  "app_map": {},
+  "diagnosis": {}
+}

@@ -2,22 +2,31 @@
 source /usr/share/yunohost/helpers
 source _common.sh
 
-app=$YNH_APP_INSTANCE_NAME
-
 UNINSTALL_MODE="${NEXORA_UNINSTALL_MODE:-preserve}"
 
 ynh_script_progression --message="Stopping service..." --weight=1
 systemctl stop "$app" || true
 
+ynh_script_progression --message="Removing service integration..." --weight=1
+if yunohost service status "$app" >/dev/null 2>&1; then
+  yunohost service remove "$app"
+fi
+
 ynh_script_progression --message="Removing systemd service..." --weight=1
-ynh_remove_systemd_config
+ynh_config_remove_systemd
+
+ynh_script_progression --message="Removing NGINX configuration..." --weight=1
+ynh_config_remove_nginx
+
+ynh_script_progression --message="Removing log rotation..." --weight=1
+ynh_config_remove_logrotate
 
 if [ "$UNINSTALL_MODE" = "purge" ]; then
   ynh_script_progression --message="Purging Nexora data, logs and exports..." --weight=2
-  ynh_secure_remove --file="$install_dir"
-  ynh_secure_remove --file="$data_dir"
-  ynh_secure_remove --file="/var/log/$app"
-  ynh_secure_remove --file="/tmp/nexora-export"
+  ynh_safe_rm --file="$install_dir"
+  ynh_safe_rm --file="$data_dir"
+  ynh_safe_rm --file="/var/log/$app"
+  ynh_safe_rm --file="/tmp/nexora-export"
   systemctl disable --now nexora-control-plane 2>/dev/null || true
   systemctl disable --now nexora-node-agent 2>/dev/null || true
   purge_requested="true"

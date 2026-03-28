@@ -1,0 +1,50 @@
+{
+  "version": {
+    "yunohost": {
+      "version": "12.1.2",
+      "repo": "stable"
+    },
+    "moulinette": {
+      "version": "12.0.6"
+    }
+  },
+  "apps": {
+    "apps": [
+      {
+        "id": "nextcloud",
+        "name": "Nextcloud",
+        "version": "28.0.3~ynh1"
+      }
+    ]
+  },
+  "domains": {
+    "domains": ["example.tld"]
+  },
+  "certs": {
+    "certificates": {
+      "example.tld": {
+        "style": "success",
+        "validity": 89
+      }
+    }
+  },
+  "backups": {
+    "archives": ["daily-1"]
+  },
+  "permissions": {
+    "permissions": {
+      "nextcloud.main": {
+        "allowed": ["visitors", "all_users"]
+      }
+    }
+  },
+  "services": {
+    "services": {
+      "nginx": {"status": "running"},
+      "slapd": {"status": "running"}
+    }
+  },
+  "settings": {},
+  "app_map": {},
+  "diagnosis": {}
+}

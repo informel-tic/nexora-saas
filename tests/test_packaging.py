@@ -72,3 +72,71 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("Nexora bootstrap supports Debian 11.x/12.x/13.x on YunoHost nodes.", script)
         self.assertIn("scripts/node_coherence_audit.py", script)
 
+    # ── YunoHost v2.1 packaging compliance ──
+
+    def test_manifest_declares_helpers_version_2_1(self):
+        """Manifest must declare helpers_version = 2.1 for v2.1 helper names."""
+        manifest = Path("ynh-package/manifest.toml").read_text(encoding="utf-8")
+        self.assertIn('helpers_version = "2.1"', manifest)
+
+    def test_manifest_declares_port_resource(self):
+        """Port must be managed by YunoHost resources to avoid conflicts."""
+        manifest = Path("ynh-package/manifest.toml").read_text(encoding="utf-8")
+        self.assertIn("[resources.ports]", manifest)
+        self.assertIn("main.default = 38120", manifest)
+
+    def test_nginx_config_template_exists(self):
+        """NGINX reverse-proxy template is required for web access."""
+        self.assertTrue(Path("ynh-package/conf/nginx.conf").exists())
+        conf = Path("ynh-package/conf/nginx.conf").read_text(encoding="utf-8")
+        self.assertIn("proxy_pass", conf)
+        self.assertIn("__PORT__", conf)
+        self.assertIn("__PATH__", conf)
+
+    def test_install_configures_nginx_and_service_integration(self):
+        """Install must set up NGINX reverse proxy and register in YunoHost panel."""
+        script = Path("ynh-package/scripts/install").read_text(encoding="utf-8")
+        self.assertIn("ynh_config_add_nginx", script)
+        self.assertIn("ynh_config_add_systemd", script)
+        self.assertIn('yunohost service add "$app"', script)
+        self.assertIn("ynh_systemctl", script)
+
+    def test_remove_cleans_nginx_and_service_integration(self):
+        """Remove must tear down NGINX config and deregister from YunoHost panel."""
+        script = Path("ynh-package/scripts/remove").read_text(encoding="utf-8")
+        self.assertIn("ynh_config_remove_nginx", script)
+        self.assertIn("ynh_config_remove_systemd", script)
+        self.assertIn('yunohost service remove "$app"', script)
+
+    def test_upgrade_refreshes_nginx_and_service_integration(self):
+        """Upgrade must re-provision NGINX config and re-register service."""
+        script = Path("ynh-package/scripts/upgrade").read_text(encoding="utf-8")
+        self.assertIn("ynh_config_add_nginx", script)
+        self.assertIn("ynh_config_add_systemd", script)
+        self.assertIn('yunohost service add "$app"', script)
+
+    def test_restore_restores_nginx_and_service_integration(self):
+        """Restore must bring back NGINX config and re-register service."""
+        script = Path("ynh-package/scripts/restore").read_text(encoding="utf-8")
+        self.assertIn("ynh_config_add_nginx", script)
+        self.assertIn('yunohost service add "$app"', script)
+
+    def test_backup_script_exists_and_backs_up_nginx(self):
+        """Backup script must exist and include NGINX config."""
+        self.assertTrue(Path("ynh-package/scripts/backup").exists())
+        script = Path("ynh-package/scripts/backup").read_text(encoding="utf-8")
+        self.assertIn("ynh_backup", script)
+        self.assertIn("nginx", script)
+
+    def test_systemd_template_uses_port_placeholder(self):
+        """Systemd service must use __PORT__ placeholder, not hardcoded port."""
+        service = Path("ynh-package/conf/systemd.service").read_text(encoding="utf-8")
+        self.assertIn("__PORT__", service)
+        self.assertNotIn("NEXORA_CONTROL_PLANE_PORT=38120", service)
+
+    def test_scripts_do_not_use_deprecated_ynh_app_instance_name(self):
+        """v2 packaging auto-sets $app — no need for $YNH_APP_INSTANCE_NAME."""
+        for name in ("install", "remove", "upgrade", "restore"):
+            script = Path(f"ynh-package/scripts/{name}").read_text(encoding="utf-8")
+            self.assertNotIn("YNH_APP_INSTANCE_NAME", script, f"scripts/{name} still references deprecated variable")
+

@@ -1,7 +1,8 @@
 #!/bin/bash
 # Shared helpers for Nexora YunoHost package lifecycle scripts.
 
-NEXORA_PORT="${NEXORA_CONTROL_PLANE_PORT:-38120}"
+# $port is auto-set by YunoHost from [resources.ports]; fall back for pre-install checks
+NEXORA_PORT="${port:-${NEXORA_CONTROL_PLANE_PORT:-38120}}"
 NEXORA_VENV="/opt/nexora/venv"
 NEXORA_WHEEL_BUNDLE_DIR="${NEXORA_WHEEL_BUNDLE_DIR:-}"
 

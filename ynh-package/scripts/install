@@ -2,8 +2,6 @@
 source /usr/share/yunohost/helpers
 source _common.sh
 
-app=$YNH_APP_INSTANCE_NAME
-
 nexora_validate_yunohost_version
 nexora_abort_if_port_busy
 nexora_setup_operator_role_lock
@@ -14,10 +12,20 @@ ynh_setup_source --dest_dir="$install_dir/repo"
 ynh_script_progression --message="Setting up Python virtualenv..." --weight=5
 nexora_setup_venv "$install_dir/venv" "$install_dir/repo"
 
+ynh_script_progression --message="Configuring NGINX..." --weight=1
+ynh_config_add_nginx
+
 ynh_script_progression --message="Configuring systemd service..." --weight=1
-ynh_add_systemd_config
+ynh_config_add_systemd
+
+ynh_script_progression --message="Configuring log rotation..." --weight=1
+mkdir -p "/var/log/$app"
+ynh_config_add_logrotate
+
+ynh_script_progression --message="Integrating service in YunoHost..." --weight=1
+yunohost service add "$app" --description="Nexora Control Plane" --log="/var/log/$app/$app.log"
 
 ynh_script_progression --message="Starting service..." --weight=1
-systemctl start "$app"
+ynh_systemctl --service="$app" --action="start" --log_path="/var/log/$app/$app.log"
 
 ynh_script_progression --message="Installation complete." --last
