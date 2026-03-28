@@ -55,3 +55,63 @@ suggest_path() {
   done
   echo "$candidate"
 }
+
+retry_cmd() {
+  local max_attempts="$1"
+  local sleep_seconds="$2"
+  shift 2
+
+  local attempt=1
+  while true; do
+    if "$@"; then
+      return 0
+    fi
+    if [[ "$attempt" -ge "$max_attempts" ]]; then
+      return 1
+    fi
+    echo "Command failed (attempt ${attempt}/${max_attempts}): $*"
+    sleep "$sleep_seconds"
+    attempt=$((attempt + 1))
+  done
+}
+
+ensure_venv_with_pip() {
+  local venv_dir="$1"
+  local auto_install_python_venv_deps="${NEXORA_AUTO_INSTALL_PYTHON_VENV_DEPS:-yes}"
+
+  if [[ ! -x "$venv_dir/bin/python" ]]; then
+    if ! python3 -m venv "$venv_dir"; then
+      if [[ "$auto_install_python_venv_deps" == "yes" ]]; then
+        echo "python3 -m venv failed; installing python3-venv/python3-pip and retrying."
+        DEBIAN_FRONTEND=noninteractive apt-get update -y
+        DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip
+        python3 -m venv "$venv_dir"
+      else
+        echo "python3 -m venv failed and auto-install is disabled (NEXORA_AUTO_INSTALL_PYTHON_VENV_DEPS=no)." >&2
+        echo "Install python3-venv and python3-pip, then re-run bootstrap." >&2
+        exit 1
+      fi
+    fi
+  fi
+
+  if [[ ! -x "$venv_dir/bin/pip" ]]; then
+    if ! "$venv_dir/bin/python" -m ensurepip --upgrade; then
+      if [[ "$auto_install_python_venv_deps" == "yes" ]]; then
+        echo "ensurepip is unavailable; reinstalling python3-venv/python3-pip and recreating venv."
+        DEBIAN_FRONTEND=noninteractive apt-get update -y
+        DEBIAN_FRONTEND=noninteractive apt-get install -y python3-venv python3-pip
+        rm -rf "$venv_dir"
+        python3 -m venv "$venv_dir"
+      else
+        echo "ensurepip is unavailable and auto-install is disabled (NEXORA_AUTO_INSTALL_PYTHON_VENV_DEPS=no)." >&2
+        echo "Install python3-venv and python3-pip, then re-run bootstrap." >&2
+        exit 1
+      fi
+    fi
+  fi
+
+  if [[ ! -x "$venv_dir/bin/pip" ]]; then
+    echo "Unable to provision pip inside $venv_dir. Check python3-venv/python3-pip installation." >&2
+    exit 1
+  fi
+}

@@ -78,3 +78,46 @@ PYTHONPATH=src python -m pytest tests/ -v --tb=short > artifacts/tests/pytest-re
 - Une PR ne doit pas être fusionnée si un des jobs `test-collection`, `docs-quality` ou `tests` échoue.
 - Le job `tests` doit rester dépendant des deux jobs de qualité pour éviter les contournements.
 - Toute modification du workflow CI doit inclure la mise à jour de `docs/CI_QUALITY_GATES.md`.
+
+---
+
+## Runbook : Installation full plateforme SaaS bloquée
+
+**Symptôme :** `deploy/bootstrap-full-platform.sh` échoue avant la fin en mode `fresh`, `adopt` ou `augment`.
+
+### Étape 1 - Identifier le type de blocage
+
+1. Lire le log principal : `tail -n 200 /var/log/nexora/bootstrap-node.log`
+2. Lire les événements SLO : `tail -n 50 /var/log/nexora/bootstrap-slo.jsonl`
+3. Lire la cohérence nœud : `cat /opt/nexora/var/node-coherence-report.json`
+
+### Étape 2 - Appliquer le contournement ciblé
+
+1. Commandes système manquantes
+	Action: `NEXORA_AUTO_INSTALL_BOOTSTRAP_DEPS=yes`.
+2. Incident venv/ensurepip
+	Action: `NEXORA_AUTO_INSTALL_PYTHON_VENV_DEPS=yes`.
+3. Préchecks réseau échoués
+	Action: `NEXORA_ALLOW_NETWORK_PRECHECK_BYPASS=yes` ou `SKIP_NETWORK_PRECHECKS=yes`.
+4. Echec cohérence bloquante en environnement labo
+	Action: `NEXORA_ALLOW_COHERENCE_BLOCKER_BYPASS=yes` + allowlist minimale.
+5. Echec apt/pip intermittent
+	Action: augmenter retries (`NEXORA_BOOTSTRAP_RETRY_ATTEMPTS`, `NEXORA_BOOTSTRAP_RETRY_DELAY_SECONDS`).
+
+### Étape 3 - Rejouer en mode contrôlé
+
+```bash
+NEXORA_AUTO_INSTALL_BOOTSTRAP_DEPS=yes \
+NEXORA_AUTO_INSTALL_PYTHON_VENV_DEPS=yes \
+NEXORA_ALLOW_NETWORK_PRECHECK_BYPASS=yes \
+NEXORA_BOOTSTRAP_RETRY_ATTEMPTS=5 \
+NEXORA_BOOTSTRAP_RETRY_DELAY_SECONDS=8 \
+MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull TARGET_HOST=node-01.internal \
+./deploy/bootstrap-full-platform.sh
+```
+
+### Étape 4 - Retour en posture stricte
+
+1. Désactiver les bypass non requis.
+2. Rejouer un bootstrap sans contournement.
+3. Archiver les logs d’incident et la configuration finale validée.

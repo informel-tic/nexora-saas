@@ -63,6 +63,77 @@ Quick SLO summary:
 python scripts/bootstrap_slo_summary.py --log /var/log/nexora/bootstrap-slo.jsonl
 ```
 
+## Incidents bloquants full plateforme SaaS et contournements
+
+Le bootstrap full plateforme intègre des garde-fous stricts, mais aussi des contournements explicites pour les environnements de test, de reprise et de migration.
+
+### Variables de résilience (avec valeurs par défaut)
+
+- `NEXORA_AUTO_INSTALL_BOOTSTRAP_DEPS=yes` : installe automatiquement les commandes manquantes (`jq`, `curl`, `python3`, etc.).
+- `NEXORA_AUTO_INSTALL_PYTHON_VENV_DEPS=yes` : corrige les incidents `venv/ensurepip` via installation `python3-venv`/`python3-pip`.
+- `NEXORA_ALLOW_NETWORK_PRECHECK_BYPASS=yes` : poursuit en mode dégradé si les préchecks DNS/Internet échouent.
+- `SKIP_NETWORK_PRECHECKS=no` : bypass manuel des préchecks réseau externes.
+- `NEXORA_ALLOW_COHERENCE_BLOCKER_BYPASS=no` : autorise un bypass contrôlé des blockers de cohérence.
+- `NEXORA_COHERENCE_BLOCKER_ALLOWLIST=unsupported_distribution_non_debian` : liste des blockers bypassables quand le bypass est activé.
+- `NEXORA_BOOTSTRAP_RETRY_ATTEMPTS=3` : nombre de retries pour opérations sensibles (apt/pip).
+- `NEXORA_BOOTSTRAP_RETRY_DELAY_SECONDS=3` : délai entre retries.
+- `ALLOW_INSTALL_YUNOHOST=no` : autorise l’installation YunoHost sur Debian fraîche si `yes`.
+
+### Matrice des cas bloquants et contournements recommandés
+
+1. Commandes système manquantes (`jq`, `curl`, `timeout`, etc.)
+   Action: laisser `NEXORA_AUTO_INSTALL_BOOTSTRAP_DEPS=yes`, ou installer via apt puis relancer.
+2. `python3 -m venv` / `No module named ensurepip`
+   Action: laisser `NEXORA_AUTO_INSTALL_PYTHON_VENV_DEPS=yes` (correction automatique).
+3. Préchecks réseau externes en échec (DNS/proxy/offline)
+   Action: utiliser `NEXORA_ALLOW_NETWORK_PRECHECK_BYPASS=yes` et préférer un bundle offline (`NEXORA_WHEEL_BUNDLE_DIR`).
+4. Bundle offline incomplet (`nexora_platform-*.whl` absent)
+   Action: régénérer le bundle via `scripts/build_offline_bundle.sh`, ou autoriser fallback online (`NEXORA_ALLOW_ONLINE_WHEEL_FALLBACK=yes`).
+5. Coherence audit bloquant
+   Action: corriger les blockers côté hôte ; pour labo uniquement, activer `NEXORA_ALLOW_COHERENCE_BLOCKER_BYPASS=yes` avec allowlist minimale.
+6. YunoHost absent sur hôte Debian
+   Action: installer YunoHost au préalable, ou autoriser la séquence auto via `ALLOW_INSTALL_YUNOHOST=yes`.
+7. Collision `domain + path`
+   Action: appliquer le chemin suggéré par le bootstrap (`suggest_path`) puis relancer.
+8. Échec transitoire apt/pip
+   Action: augmenter `NEXORA_BOOTSTRAP_RETRY_ATTEMPTS` et `NEXORA_BOOTSTRAP_RETRY_DELAY_SECONDS`.
+
+### Profils de commandes prêts à l’emploi
+
+1. VM isolée (offline, préchecks réseau bypassés)
+
+```bash
+NEXORA_WHEEL_BUNDLE_DIR=./dist/offline-bundle \
+SKIP_NETWORK_PRECHECKS=yes \
+MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull TARGET_HOST=node-01.internal \
+./deploy/bootstrap-full-platform.sh
+```
+
+2. Environnement instable (retries renforcés)
+
+```bash
+NEXORA_BOOTSTRAP_RETRY_ATTEMPTS=5 \
+NEXORA_BOOTSTRAP_RETRY_DELAY_SECONDS=8 \
+MODE=fresh PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=example.org PATH_URL=/nexora \
+./deploy/bootstrap-full-platform.sh
+```
+
+3. Labo de migration (bypass de cohérence contrôlé)
+
+```bash
+NEXORA_ALLOW_COHERENCE_BLOCKER_BYPASS=yes \
+NEXORA_COHERENCE_BLOCKER_ALLOWLIST=unsupported_distribution_non_debian \
+MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull TARGET_HOST=lab-node.internal \
+./deploy/bootstrap-full-platform.sh
+```
+
+### Bonnes pratiques de sécurité opérationnelle
+
+1. N’activer les bypass de cohérence que pour labo/migration, jamais en production standard.
+2. Conserver les logs `bootstrap-node.log` et `bootstrap-slo.jsonl` pour audit de reprise.
+3. Privilégier un bundle offline signé/checksummé pour les environnements restreints.
+4. Revenir aux valeurs strictes (sans bypass) après stabilisation de l’hôte.
+
 
 ## Deploy On Existing Yunohost
 

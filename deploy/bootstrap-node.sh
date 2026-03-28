@@ -13,6 +13,12 @@ PATH_URL="${PATH_URL:-/nexora}"
 MODE="${MODE:-augment}"
 ALLOW_INSTALL_YUNOHOST="${ALLOW_INSTALL_YUNOHOST:-no}"
 SKIP_NETWORK_PRECHECKS="${SKIP_NETWORK_PRECHECKS:-no}"
+AUTO_INSTALL_BOOTSTRAP_DEPS="${NEXORA_AUTO_INSTALL_BOOTSTRAP_DEPS:-yes}"
+ALLOW_NETWORK_PRECHECK_BYPASS="${NEXORA_ALLOW_NETWORK_PRECHECK_BYPASS:-yes}"
+ALLOW_COHERENCE_BLOCKER_BYPASS="${NEXORA_ALLOW_COHERENCE_BLOCKER_BYPASS:-no}"
+COHERENCE_BLOCKER_ALLOWLIST="${NEXORA_COHERENCE_BLOCKER_ALLOWLIST:-unsupported_distribution_non_debian}"
+BOOTSTRAP_RETRY_ATTEMPTS="${NEXORA_BOOTSTRAP_RETRY_ATTEMPTS:-3}"
+BOOTSTRAP_RETRY_DELAY_SECONDS="${NEXORA_BOOTSTRAP_RETRY_DELAY_SECONDS:-3}"
 DEPLOYMENT_SCOPE="operator"
 BOOTSTRAP_LOG="${BOOTSTRAP_LOG:-/var/log/nexora/bootstrap-node.log}"
 BOOTSTRAP_SLO_LOG="${BOOTSTRAP_SLO_LOG:-/var/log/nexora/bootstrap-slo.jsonl}"
@@ -103,15 +109,57 @@ required_cmds=(python3 jq systemctl getent timeout)
 if [[ "$SKIP_NETWORK_PRECHECKS" != "yes" ]]; then
   required_cmds+=(curl)
 fi
+missing_cmds=()
 for cmd in "${required_cmds[@]}"; do
-  command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command: $cmd" >&2; exit 1; }
+  command -v "$cmd" >/dev/null 2>&1 || missing_cmds+=("$cmd")
 done
+
+if [[ "${#missing_cmds[@]}" -gt 0 ]]; then
+  echo "Missing required commands: ${missing_cmds[*]}"
+  if [[ "$AUTO_INSTALL_BOOTSTRAP_DEPS" == "yes" ]]; then
+    install_pkgs=()
+    for cmd in "${missing_cmds[@]}"; do
+      case "$cmd" in
+        python3) install_pkgs+=(python3) ;;
+        jq) install_pkgs+=(jq) ;;
+        curl) install_pkgs+=(curl) ;;
+        timeout) install_pkgs+=(coreutils) ;;
+        getent) install_pkgs+=(libc-bin) ;;
+        systemctl) install_pkgs+=(systemd) ;;
+      esac
+    done
+    if [[ "${#install_pkgs[@]}" -gt 0 ]]; then
+      unique_pkgs=( $(printf '%s\n' "${install_pkgs[@]}" | sort -u) )
+      echo "Installing missing bootstrap dependencies: ${unique_pkgs[*]}"
+      retry_cmd "$BOOTSTRAP_RETRY_ATTEMPTS" "$BOOTSTRAP_RETRY_DELAY_SECONDS" apt-get update -y
+      retry_cmd "$BOOTSTRAP_RETRY_ATTEMPTS" "$BOOTSTRAP_RETRY_DELAY_SECONDS" env DEBIAN_FRONTEND=noninteractive apt-get install -y "${unique_pkgs[@]}"
+    fi
+    for cmd in "${missing_cmds[@]}"; do
+      command -v "$cmd" >/dev/null 2>&1 || { echo "Missing required command after auto-install: $cmd" >&2; exit 1; }
+    done
+  else
+    echo "Set NEXORA_AUTO_INSTALL_BOOTSTRAP_DEPS=yes to auto-install missing commands." >&2
+    exit 1
+  fi
+fi
 
 if [[ "$SKIP_NETWORK_PRECHECKS" == "yes" ]]; then
   echo "Warning: SKIP_NETWORK_PRECHECKS=yes -> external DNS/connectivity prechecks are skipped."
 else
-  timeout 10 getent hosts deb.debian.org >/dev/null || { echo "DNS lookup failed for deb.debian.org" >&2; exit 1; }
-  timeout 10 curl -fsSI https://repo.yunohost.org >/dev/null || { echo "Network reachability failed for https://repo.yunohost.org" >&2; exit 1; }
+  network_prechecks_ok="yes"
+  timeout 10 getent hosts deb.debian.org >/dev/null || network_prechecks_ok="no"
+  timeout 10 curl -fsSI https://repo.yunohost.org >/dev/null || network_prechecks_ok="no"
+  if [[ "$network_prechecks_ok" != "yes" ]]; then
+    if [[ "$ALLOW_NETWORK_PRECHECK_BYPASS" == "yes" ]]; then
+      SKIP_NETWORK_PRECHECKS="yes"
+      echo "Warning: network prechecks failed; continuing with degraded mode (SKIP_NETWORK_PRECHECKS=yes)."
+      echo "If online installation fails, provide NEXORA_WHEEL_BUNDLE_DIR for offline install."
+    else
+      echo "Network prechecks failed (DNS/reachability)." >&2
+      echo "Set NEXORA_ALLOW_NETWORK_PRECHECK_BYPASS=yes or SKIP_NETWORK_PRECHECKS=yes to proceed in controlled environments." >&2
+      exit 1
+    fi
+  fi
 fi
 
 timedatectl status --no-pager >/dev/null 2>&1 || echo "Warning: timedatectl unavailable, NTP check skipped"
@@ -186,13 +234,45 @@ then
 fi
 
 COHERENCE_REPORT_PATH="$STATE_DIR/node-coherence-report.json"
+set +e
 python3 "$ROOT/scripts/node_coherence_audit.py" \
   --scope "$DEPLOYMENT_SCOPE" \
   --profile "$PROFILE" \
   --mode "$MODE" \
   --yunohost-version "$yunohost_version" \
   --output "$COHERENCE_REPORT_PATH"
+coherence_rc=$?
+set -e
 echo "Node coherence report: $COHERENCE_REPORT_PATH"
+
+if [[ "$coherence_rc" -ne 0 ]]; then
+  if [[ "$ALLOW_COHERENCE_BLOCKER_BYPASS" == "yes" ]]; then
+    if python3 - <<'PY' "$COHERENCE_REPORT_PATH" "$COHERENCE_BLOCKER_ALLOWLIST"
+import json
+import sys
+from pathlib import Path
+
+report_path = Path(sys.argv[1])
+allowlist = {item.strip() for item in sys.argv[2].split(',') if item.strip()}
+report = json.loads(report_path.read_text(encoding='utf-8'))
+blockers = set(report.get('blockers', []))
+unknown = blockers - allowlist
+if unknown:
+    print(json.dumps({'status': 'blocked', 'unknown_blockers': sorted(unknown)}, ensure_ascii=False))
+    raise SystemExit(1)
+print(json.dumps({'status': 'bypass_allowed', 'blockers': sorted(blockers)}, ensure_ascii=False))
+PY
+    then
+      echo "Warning: coherence blockers bypassed by policy allowlist: $COHERENCE_BLOCKER_ALLOWLIST"
+    else
+      echo "Node coherence audit blocked bootstrap with non-allowlisted blockers." >&2
+      exit 1
+    fi
+  else
+    echo "Node coherence audit blocked bootstrap. Set NEXORA_ALLOW_COHERENCE_BLOCKER_BYPASS=yes for controlled bypass." >&2
+    exit 1
+  fi
+fi
 
 if ! id nexora >/dev/null 2>&1; then
   useradd --system --home-dir /opt/nexora --shell /usr/sbin/nologin nexora
@@ -206,16 +286,11 @@ fi
 chown root:root /etc/nexora/api-token-roles.json
 chmod 600 /etc/nexora/api-token-roles.json
 
-if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-  python3 -m venv "$VENV_DIR"
-fi
-if [[ ! -x "$VENV_DIR/bin/pip" ]]; then
-  "$VENV_DIR/bin/python" -m ensurepip --upgrade
-fi
+ensure_venv_with_pip "$VENV_DIR"
 
 install_nexora_online() {
-  "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
-  "$VENV_DIR/bin/python" -m pip install "$ROOT"
+  retry_cmd "$BOOTSTRAP_RETRY_ATTEMPTS" "$BOOTSTRAP_RETRY_DELAY_SECONDS" "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
+  retry_cmd "$BOOTSTRAP_RETRY_ATTEMPTS" "$BOOTSTRAP_RETRY_DELAY_SECONDS" "$VENV_DIR/bin/python" -m pip install "$ROOT"
 }
 
 BUNDLE_DIR="${NEXORA_WHEEL_BUNDLE_DIR:-$ROOT/dist/offline-bundle}"
@@ -234,7 +309,7 @@ if [[ -d "$WHEEL_DIR" ]] && compgen -G "$WHEEL_DIR/*.whl" > /dev/null; then
     fi
   else
     echo "Installing Nexora from offline wheel bundle: $WHEEL_DIR"
-    "$VENV_DIR/bin/python" -m pip install --no-index --find-links "$WHEEL_DIR" "$NEXORA_WHEEL"
+    retry_cmd "$BOOTSTRAP_RETRY_ATTEMPTS" "$BOOTSTRAP_RETRY_DELAY_SECONDS" "$VENV_DIR/bin/python" -m pip install --no-index --find-links "$WHEEL_DIR" "$NEXORA_WHEEL"
   fi
 else
   install_nexora_online

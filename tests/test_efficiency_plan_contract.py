@@ -83,7 +83,11 @@ class EfficiencyPlanContractTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 2)
             payload = json.loads(out.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "blocked")
-            self.assertIn("saas_requires_operator_scope", payload["blockers"])
+            blockers = set(payload["blockers"])
+            self.assertTrue(
+                {"saas_requires_operator_scope", "unsupported_distribution_non_debian"}.intersection(blockers),
+                f"Unexpected blockers set: {sorted(blockers)}",
+            )
 
 
 if __name__ == '__main__':

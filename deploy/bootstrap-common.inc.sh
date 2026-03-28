@@ -29,12 +29,7 @@ if [[ ! -f "$STATE_DIR/api-token" ]]; then
   echo "API token generated at $STATE_DIR/api-token"
 fi
 
-if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-  python3 -m venv "$VENV_DIR"
-fi
-if [[ ! -x "$VENV_DIR/bin/pip" ]]; then
-  "$VENV_DIR/bin/python" -m ensurepip --upgrade
-fi
+ensure_venv_with_pip "$VENV_DIR"
 BUNDLE_DIR="${NEXORA_WHEEL_BUNDLE_DIR:-$REPO_ROOT/dist/offline-bundle}"
 WHEEL_DIR="$BUNDLE_DIR/wheels"
 if [[ -d "$WHEEL_DIR" ]] && compgen -G "$WHEEL_DIR/*.whl" > /dev/null; then
