@@ -47,7 +47,7 @@ class RuntimeBoundaryRefactorTests(unittest.TestCase):
         self.assertIn("python3 -m nexora_saas.bootstrap assess", source)
         self.assertIn("python3 -m nexora_saas.bootstrap bootstrap-node", source)
         package_common = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
-        self.assertIn("python3 -m nexora_saas.bootstrap assess-package-lifecycle", package_common)
+        self.assertIn("nexora_saas.bootstrap assess-package-lifecycle", package_common)
 
     def test_sync_tools_use_mcp_adapter_context(self):
         source = Path("src/yunohost_mcp/tools/sync.py").read_text(encoding="utf-8")

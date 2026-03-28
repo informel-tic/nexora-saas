@@ -25,7 +25,7 @@ class PackagingTests(unittest.TestCase):
         """Package-side validation must defer exact-minor policy to the canonical bootstrap service."""
 
         script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
-        self.assertIn("python3 -m nexora_saas.bootstrap assess-package-lifecycle", script)
+        self.assertIn("nexora_saas.bootstrap assess-package-lifecycle", script)
         self.assertIn("--operation", script)
         self.assertIn("--repo-root", script)
         self.assertIn("--state-path", script)
@@ -63,7 +63,8 @@ class PackagingTests(unittest.TestCase):
         """When nexora_saas.bootstrap is not available, version check should not abort."""
 
         script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
-        self.assertIn('python3 -c "import nexora_saas.bootstrap" 2>/dev/null', script)
+        self.assertIn('import nexora_saas.bootstrap', script)
+        self.assertIn('2>/dev/null', script)
 
     def test_upgrade_script_stops_service_before_port_check(self):
         """Upgrade must not fail on its own bound port."""
@@ -190,4 +191,21 @@ class PackagingTests(unittest.TestCase):
         from nexora_saas import bootstrap
         source = inspect.getsource(bootstrap.main)
         self.assertIn('payload.get("success")', source)
+
+    def test_common_script_does_not_export_path_with_venv(self):
+        """_common.sh must NOT globally export PATH with the bootstrap venv.
+
+        YunoHost helpers (toml_to_json, etc.) rely on system python3 having
+        the toml module. Putting the venv's python3 first in PATH breaks them.
+        """
+        script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
+        self.assertNotIn('export PATH="${NEXORA_VENV}/bin:${PATH}"', script)
+        self.assertNotIn('export PATH=', script)
+
+    def test_common_script_uses_venv_python_for_bootstrap_only(self):
+        """nexora_saas.bootstrap calls must use explicit venv python, not bare python3."""
+        script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
+        self.assertIn('_venv_python="${NEXORA_VENV}/bin/python3"', script)
+        self.assertIn('"$_venv_python" -m nexora_saas.bootstrap', script)
+        self.assertIn('"$_venv_python" -c "import nexora_saas.bootstrap"', script)
 

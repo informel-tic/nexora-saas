@@ -6,9 +6,6 @@ NEXORA_PORT="${port:-${NEXORA_CONTROL_PLANE_PORT:-38120}}"
 NEXORA_VENV="/opt/nexora/venv"
 NEXORA_WHEEL_BUNDLE_DIR="${NEXORA_WHEEL_BUNDLE_DIR:-}"
 
-# Ensure python3 resolves nexora_saas modules via the Nexora venv
-export PATH="${NEXORA_VENV}/bin:${PATH}"
-
 nexora_validate_yunohost_version() {
   local ynh_version operation="${1:-install}"
 
@@ -35,8 +32,9 @@ nexora_validate_yunohost_version() {
   # $install_dir / $data_dir are set by YunoHost resource provisioning before script body.
   local _repo_root="${install_dir:-/opt/nexora}/repo"
   local _state_path="${data_dir:-/opt/nexora/var}/state.json"
-  if python3 -c "import nexora_saas.bootstrap" 2>/dev/null; then
-    python3 -m nexora_saas.bootstrap assess-package-lifecycle \
+  local _venv_python="${NEXORA_VENV}/bin/python3"
+  if [ -x "$_venv_python" ] && "$_venv_python" -c "import nexora_saas.bootstrap" 2>/dev/null; then
+    "$_venv_python" -m nexora_saas.bootstrap assess-package-lifecycle \
       --repo-root "$_repo_root" \
       --state-path "$_state_path" \
       --operation "$operation" \
