@@ -5,6 +5,9 @@ NEXORA_PORT="${NEXORA_CONTROL_PLANE_PORT:-38120}"
 NEXORA_VENV="/opt/nexora/venv"
 NEXORA_WHEEL_BUNDLE_DIR="${NEXORA_WHEEL_BUNDLE_DIR:-}"
 
+# Ensure python3 resolves nexora_saas modules via the Nexora venv
+export PATH="${NEXORA_VENV}/bin:${PATH}"
+
 nexora_validate_yunohost_version() {
   local ynh_version
   ynh_version="$(yunohost tools version --output-as json 2>/dev/null \

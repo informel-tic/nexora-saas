@@ -35,7 +35,7 @@ class PackagingTests(unittest.TestCase):
 
         script = Path("ynh-package/scripts/upgrade").read_text(encoding="utf-8")
         self.assertLess(
-            script.index('ynh_systemctl --service_name="$app" --action="stop" || true'),
+            script.index('systemctl stop "$app" || true'),
             script.index("nexora_abort_if_port_busy"),
         )
 
@@ -44,7 +44,7 @@ class PackagingTests(unittest.TestCase):
 
         script = Path("ynh-package/scripts/restore").read_text(encoding="utf-8")
         self.assertIn("nexora_validate_yunohost_version", script)
-        self.assertIn('ynh_systemctl --service_name="$app" --action="stop" || true', script)
+        self.assertIn('systemctl stop "$app" || true', script)
         self.assertIn("nexora_setup_operator_role_lock", script)
 
     def test_systemd_enforces_operator_only_guardrails(self):

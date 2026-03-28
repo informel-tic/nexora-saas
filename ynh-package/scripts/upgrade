@@ -1,13 +1,13 @@
 #!/bin/bash
 source /usr/share/yunohost/helpers
-source ../settings/scripts/_common.sh
+source _common.sh
 
 app=$YNH_APP_INSTANCE_NAME
 
 nexora_validate_yunohost_version
 
 ynh_script_progression --message="Stopping service before upgrade..." --weight=1
-ynh_systemctl --service_name="$app" --action="stop" || true
+systemctl stop "$app" || true
 
 nexora_abort_if_port_busy
 
@@ -23,6 +23,6 @@ ynh_script_progression --message="Updating systemd service..." --weight=1
 ynh_add_systemd_config
 
 ynh_script_progression --message="Starting service..." --weight=1
-ynh_systemctl --service_name="$app" --action="start" --log_path="/var/log/$app/$app.log"
+systemctl start "$app"
 
 ynh_script_progression --message="Upgrade complete." --last
