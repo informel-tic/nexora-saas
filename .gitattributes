@@ -1,0 +1,4 @@
+# Ensure all shell scripts keep Unix LF line endings even on Windows checkouts
+*.sh text eol=lf
+ynh-package/scripts/* text eol=lf
+deploy/**/*.sh text eol=lf

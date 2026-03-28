@@ -18,7 +18,6 @@ if [ "$UNINSTALL_MODE" = "purge" ]; then
   ynh_secure_remove --file="$data_dir"
   ynh_secure_remove --file="/var/log/$app"
   ynh_secure_remove --file="/tmp/nexora-export"
-  # Disable standalone systemd units (if any remain from bootstrap install)
   systemctl disable --now nexora-control-plane 2>/dev/null || true
   systemctl disable --now nexora-node-agent 2>/dev/null || true
   purge_requested="true"
@@ -33,7 +32,7 @@ import json, sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-mode, purged, install_dir, data_dir = sys.argv[1:5]
+mode, purged, inst_dir, d_dir = sys.argv[1:5]
 report = {
     "timestamp": datetime.now(timezone.utc).isoformat(),
     "mode": mode,
@@ -43,12 +42,14 @@ report = {
     "notes": [],
 }
 if purged == "true":
-    report["removed_paths"] = [install_dir, data_dir, "/var/log/$app", "/tmp/nexora-export"]
+    report["removed_paths"] = [inst_dir, d_dir, "/var/log/nexora", "/tmp/nexora-export"]
     report["notes"].append("Full purge completed.")
 else:
-    report["preserved_paths"] = [data_dir, "/tmp/nexora-export"]
+    report["preserved_paths"] = [d_dir, "/tmp/nexora-export"]
     report["notes"].append("Preserve mode: data and exports kept.")
-Path("/var/log/nexora-uninstall-report.json").write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+Path("/var/log/nexora-uninstall-report.json").write_text(
+    json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8"
+)
 PYEOF
 
 ynh_script_progression --message="Removal complete." --last

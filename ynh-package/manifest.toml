@@ -2,8 +2,8 @@ packaging_format = 2
 
 id = "nexora"
 name = "Nexora"
-description.en = "Nexora SaaS Control Plane — sovereign multi-node orchestration on YunoHost"
-description.fr = "Nexora SaaS Control Plane — orchestration multi-nœud souveraine sur YunoHost"
+description.en = "Nexora SaaS Control Plane - sovereign multi-node orchestration on YunoHost"
+description.fr = "Nexora SaaS Control Plane - orchestration multi-noeud souveraine sur YunoHost"
 
 version = "2.0.0~ynh1"
 
