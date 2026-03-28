@@ -392,7 +392,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         payload = orchestrator.apply_augment(domain=args.domain or None, path_url=args.path_url or None)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
-    return 0
+    return 0 if payload.get("success") else 1
 
 
 if __name__ == "__main__":

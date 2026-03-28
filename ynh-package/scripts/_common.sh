@@ -65,9 +65,11 @@ nexora_setup_operator_role_lock() {
 nexora_setup_venv() {
   local venv_dir="$1"
   local repo_dir="$2"
-  python3 -m venv "$venv_dir" || {
+  # Use system python3 (not the bootstrap venv's) to create a clean virtualenv
+  local sys_python3="/usr/bin/python3"
+  "$sys_python3" -m venv "$venv_dir" || {
     apt-get install -y python3-venv python3-pip
-    python3 -m venv "$venv_dir"
+    "$sys_python3" -m venv "$venv_dir"
   }
   "$venv_dir/bin/python" -m pip install --upgrade pip setuptools wheel
 

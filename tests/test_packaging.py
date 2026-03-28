@@ -175,3 +175,19 @@ class PackagingTests(unittest.TestCase):
             script = Path(f"ynh-package/scripts/{name}").read_text(encoding="utf-8")
             self.assertNotIn("YNH_APP_INSTANCE_NAME", script, f"scripts/{name} still references deprecated variable")
 
+    def test_common_script_venv_uses_system_python(self):
+        """nexora_setup_venv must use /usr/bin/python3, not the bootstrap venv python."""
+        script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
+        self.assertIn('/usr/bin/python3', script)
+        # Ensure sys_python3 is used for venv creation, not bare python3
+        venv_section = script[script.index("nexora_setup_venv"):]
+        self.assertIn('sys_python3="/usr/bin/python3"', venv_section)
+        self.assertIn('"$sys_python3" -m venv', venv_section)
+
+    def test_bootstrap_cli_returns_nonzero_on_error_contract(self):
+        """bootstrap.py main() must return non-zero exit code when payload.success is false."""
+        import inspect
+        from nexora_saas import bootstrap
+        source = inspect.getsource(bootstrap.main)
+        self.assertIn('payload.get("success")', source)
+
