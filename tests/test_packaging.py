@@ -27,6 +27,8 @@ class PackagingTests(unittest.TestCase):
         script = Path("ynh-package/scripts/_common.sh").read_text(encoding="utf-8")
         self.assertIn("python3 -m nexora_saas.bootstrap assess-package-lifecycle", script)
         self.assertIn("--operation", script)
+        self.assertIn("--repo-root", script)
+        self.assertIn("--state-path", script)
         self.assertNotIn("12.2*", script)
         self.assertNotIn("12.3*", script)
 

@@ -31,9 +31,14 @@ nexora_validate_yunohost_version() {
     ynh_die --message="Cannot detect YunoHost version."
   fi
 
-  # Delegate exact version policy to the bootstrap compatibility service
+  # Delegate exact version policy to the bootstrap compatibility service.
+  # $install_dir / $data_dir are set by YunoHost resource provisioning before script body.
+  local _repo_root="${install_dir:-/opt/nexora}/repo"
+  local _state_path="${data_dir:-/opt/nexora/var}/state.json"
   if python3 -c "import nexora_saas.bootstrap" 2>/dev/null; then
     python3 -m nexora_saas.bootstrap assess-package-lifecycle \
+      --repo-root "$_repo_root" \
+      --state-path "$_state_path" \
       --operation "$operation" \
       --yunohost-version "$ynh_version" || ynh_die --message="YunoHost version $ynh_version is not compatible."
   else
