@@ -13,6 +13,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 
+from ._owner_session import validate_owner_session
 from ._rate_limit import _check_rate_limit, _record_auth_failure
 from ._scopes import (
     _enforce_token_tenant_scope,
@@ -22,7 +23,6 @@ from ._scopes import (
     resolve_actor_role_for_token,
 )
 from ._token import get_api_token
-from ._owner_session import validate_owner_session
 
 # ── Auth middleware ────────────────────────────────────────────────────
 

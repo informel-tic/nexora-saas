@@ -93,7 +93,7 @@ class ConsoleAppHandlerTests(unittest.TestCase):
 
     def test_dashboard_shows_host_identity(self):
         self.assertIn("identity", self.views_source)
-        self.assertIn("Nœud hôte SaaS", self.views_source.encode().decode("unicode_escape", errors="ignore") 
+        self.assertIn("Nœud hôte SaaS", self.views_source.encode().decode("unicode_escape", errors="ignore")
                        if False else self.views_source)
 
     def test_dashboard_shows_session_context(self):

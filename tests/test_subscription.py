@@ -6,13 +6,11 @@ import unittest
 from nexora_saas.subscription import (
     PLAN_CATALOG,
     PlanTier,
-    SubscriptionStatus,
     cancel_subscription,
     create_organization,
     create_subscription,
     get_organization,
     get_plan,
-    get_subscription,
     get_subscription_by_tenant,
     list_organizations,
     list_plans,

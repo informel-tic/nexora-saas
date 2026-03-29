@@ -5,7 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from nexora_saas.bootstrap import BootstrapOrchestrator, main as bootstrap_main
+from nexora_saas.bootstrap import BootstrapOrchestrator
+from nexora_saas.bootstrap import main as bootstrap_main
 from nexora_saas.orchestrator import NexoraService
 
 
@@ -54,7 +55,6 @@ class BootstrapOrchestrationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo_root = Path(tmp)
             state_path = repo_root / "var" / "state.json"
-            output_path = repo_root / "output.json"
             cmd = [
                 "--repo-root", str(repo_root),
                 "--state-path", str(state_path),
@@ -66,8 +66,8 @@ class BootstrapOrchestrationTests(unittest.TestCase):
                 "--domain", "",
                 "--path-url", "/nexora",
             ]
-            import io
             import contextlib
+            import io
 
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):

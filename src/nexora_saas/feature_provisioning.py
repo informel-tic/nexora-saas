@@ -18,7 +18,6 @@ Feature provisioning flow:
 from __future__ import annotations
 
 import logging
-import secrets
 from datetime import datetime, timezone
 from typing import Any
 
@@ -33,7 +32,7 @@ from .node_connector import (
     build_service_deploy_command,
     build_systemd_install_command,
 )
-from .subscription import PlanTier, get_subscription_by_tenant
+from .subscription import get_subscription_by_tenant
 
 logger = logging.getLogger(__name__)
 

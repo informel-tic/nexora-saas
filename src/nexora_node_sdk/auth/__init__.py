@@ -34,6 +34,17 @@ from ._middleware import (
     TokenAuthMiddleware,
 )
 
+# ── Owner session ─────────────────────────────────────────────────────
+from ._owner_session import (
+    create_owner_session,
+    has_passphrase_configured,
+    owner_tenant_id,
+    revoke_owner_session,
+    set_owner_passphrase,
+    validate_owner_session,
+    verify_passphrase,
+)
+
 # ── Rate limiting ─────────────────────────────────────────────────────
 from ._rate_limit import (
     _AUTH_FAILURES,
@@ -55,19 +66,8 @@ from ._scopes import (
     resolve_actor_role_for_token,
     validate_actor_role,
     validate_operator_surface_role,
-    validate_trusted_actor_role,
     validate_scope,
-)
-
-# ── Owner session ─────────────────────────────────────────────────────
-from ._owner_session import (
-    create_owner_session,
-    has_passphrase_configured,
-    owner_tenant_id,
-    revoke_owner_session,
-    set_owner_passphrase,
-    validate_owner_session,
-    verify_passphrase,
+    validate_trusted_actor_role,
 )
 
 # ── SecretStore ───────────────────────────────────────────────────────

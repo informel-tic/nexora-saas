@@ -5,8 +5,8 @@ import unittest
 import unittest.mock
 from pathlib import Path
 
-from nexora_saas.node_lifecycle import apply_lifecycle_action
 from nexora_node_sdk.state import DEFAULT_STATE
+from nexora_saas.node_lifecycle import apply_lifecycle_action
 
 
 class NodeLifecycleTests(unittest.TestCase):

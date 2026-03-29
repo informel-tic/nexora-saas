@@ -14,14 +14,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from nexora_saas.enrollment import (
-    attest_node,
-    build_attestation_response,
-    consume_enrollment_token,
-    issue_enrollment_token,
-    validate_enrollment_token,
-)
-from nexora_node_sdk.identity import generate_node_id, revoke_node_credentials
+from nexora_node_sdk.identity import revoke_node_credentials
 from nexora_node_sdk.identity_lifecycle import (
     audit_credential_health,
     emit_node_identity,
@@ -36,7 +29,6 @@ from nexora_node_sdk.secret_store import (
     verify_secret,
 )
 from nexora_node_sdk.security_audit import (
-    CRITICAL_ACTIONS,
     build_security_event,
     emit_security_event,
     filter_security_events,
@@ -50,11 +42,16 @@ from nexora_node_sdk.tls import (
     verify_mtls_preconditions,
 )
 from nexora_node_sdk.trust_policy import (
-    ACTION_TRUST_REQUIREMENTS,
-    TRUST_LEVELS,
     build_trust_challenge,
     evaluate_trust_level,
     verify_node_trust,
+)
+from nexora_saas.enrollment import (
+    attest_node,
+    build_attestation_response,
+    consume_enrollment_token,
+    issue_enrollment_token,
+    validate_enrollment_token,
 )
 
 
@@ -443,7 +440,7 @@ class SecurityAuditEventTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             state_path = Path(tmp) / "state.json"
             state = _fresh_state()
-            evt = emit_security_event(state, "auth", "token_issued", state_path=str(state_path), actor="admin")
+            emit_security_event(state, "auth", "token_issued", state_path=str(state_path), actor="admin")
             self.assertEqual(len(state["security_audit"]), 1)
             persisted = json.loads(state_path.read_text())
             self.assertEqual(len(persisted["security_audit"]), 1)
@@ -500,7 +497,7 @@ class AuthHardeningTests(unittest.TestCase):
         self.assertFalse(validate_session_age("not-a-number"))
 
     def test_rate_limit_tracking(self):
-        from nexora_node_sdk.auth import _check_rate_limit, _record_auth_failure, _AUTH_FAILURES
+        from nexora_node_sdk.auth import _AUTH_FAILURES, _check_rate_limit, _record_auth_failure
         test_ip = "192.0.2.99"
         _AUTH_FAILURES.pop(test_ip, None)
         for _ in range(10):

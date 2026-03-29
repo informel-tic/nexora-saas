@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import tempfile
-import unittest
-from pathlib import Path
-import sys
 import json
 import os
 import secrets
+import sys
+import tempfile
+import unittest
+from pathlib import Path
 
 from fastapi.testclient import TestClient
 
@@ -14,9 +14,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import apps.control_plane.api as api_module
-from nexora_node_sdk.auth import get_api_token, build_tenant_scope_claim
-from nexora_saas.orchestrator import NexoraService
+import apps.control_plane.api as api_module  # noqa: E402
+from nexora_node_sdk.auth import build_tenant_scope_claim, get_api_token  # noqa: E402
+from nexora_saas.orchestrator import NexoraService  # noqa: E402
 
 
 class P8BehavioralTests(unittest.TestCase):

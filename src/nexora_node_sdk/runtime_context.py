@@ -8,7 +8,6 @@ from pathlib import Path
 from .node_service import NodeService
 
 
-
 def resolve_repo_root(current_file: str) -> Path:
     """Resolve the repository root from an adapter module path.
 

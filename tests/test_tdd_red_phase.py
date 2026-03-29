@@ -20,7 +20,6 @@ import sys
 import tempfile
 import time
 import unittest
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -30,10 +29,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import apps.control_plane.api as api_module
-from nexora_node_sdk.auth import build_tenant_scope_claim, get_api_token
-from nexora_node_sdk.state import DEFAULT_STATE
-from nexora_saas.orchestrator import NexoraService
+import apps.control_plane.api as api_module  # noqa: E402
+from nexora_node_sdk.auth import build_tenant_scope_claim, get_api_token  # noqa: E402
+from nexora_saas.orchestrator import NexoraService  # noqa: E402
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -1194,7 +1192,7 @@ class OwnerSessionSecurityTests(TDDTestBase):
 
     def test_owner_session_grants_full_access(self):
         """Owner session must grant full access-context with all sections."""
-        from nexora_node_sdk.auth import set_owner_passphrase, create_owner_session
+        from nexora_node_sdk.auth import create_owner_session, set_owner_passphrase
         set_owner_passphrase("OwnerTest!!")
         session = create_owner_session()
 
@@ -1406,7 +1404,7 @@ class OwnerConsoleE2ETests(TDDTestBase):
 
     def test_passphrase_change_invalidates_old_sessions(self):
         """Changing passphrase must invalidate all existing sessions."""
-        from nexora_node_sdk.auth import set_owner_passphrase, create_owner_session
+        from nexora_node_sdk.auth import create_owner_session, set_owner_passphrase
         set_owner_passphrase("OldPass2026!!")
         old_session = create_owner_session()
 

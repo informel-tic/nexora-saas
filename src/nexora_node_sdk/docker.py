@@ -384,8 +384,8 @@ def write_compose_file(content: str, path: str = "/opt/nexora/docker/docker-comp
 
 def docker_hub_search(query: str, limit: int = 20) -> list[dict[str, Any]]:
     """Search Docker Hub for images via the public registry API."""
-    import urllib.request
     import urllib.parse
+    import urllib.request
 
     q = urllib.parse.quote_plus(query.strip())
     url = f"https://hub.docker.com/v2/search/repositories/?query={q}&page_size={min(limit, 100)}"
@@ -457,15 +457,16 @@ def docker_inspect(name: str) -> dict[str, Any]:
         return {"raw": r["stdout"]}
 
 
-def container_logs(name: str, lines: int = 100) -> str:
+def container_logs_extended(name: str, lines: int = 100) -> str:
+    """Like container_logs but with timestamps and more lines (for streaming)."""
     r = _run(["docker", "logs", "--tail", str(lines), "--timestamps", name], timeout=15)
     return r["stdout"] or r["stderr"]
 
 
 def container_logs_stream_last(name: str, lines: int = 50) -> list[str]:
     """Return last N log lines as a list for API consumption."""
-    raw = container_logs(name, lines)
-    return [l for l in raw.splitlines() if l.strip()]
+    raw = container_logs_extended(name, lines)
+    return [line for line in raw.splitlines() if line.strip()]
 
 
 # ── Compose stack management ───────────────────────────────────────

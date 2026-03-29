@@ -10,7 +10,6 @@ This module implements the commercial layer for the Nexora SaaS platform:
 from __future__ import annotations
 
 import secrets
-from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
@@ -313,12 +312,40 @@ def upgrade_subscription(state: dict[str, Any], subscription_id: str, new_tier: 
             tenant["tier"] = new_tier
             break
 
+    # If downgrading, check for quota violations against current tenant usage
+    violations: list[dict[str, int]] = []
+    tenant = next((t for t in state.get("tenants", []) if t.get("tenant_id") == sub.get("tenant_id")), None)
+    if tenant:
+        # Node count
+        current_nodes = int(tenant.get("nodes", 0) or 0)
+        allowed_nodes = int(sub.get("limits", {}).get("max_nodes", 0) or 0)
+        if current_nodes > allowed_nodes:
+            violations.append({"limit": "max_nodes", "current": current_nodes, "allowed": allowed_nodes})
+
+        # Apps per node
+        current_apps = int(tenant.get("apps_per_node", 0) or 0)
+        allowed_apps = int(sub.get("limits", {}).get("max_apps_per_node", 0) or 0)
+        if current_apps > allowed_apps:
+            violations.append({"limit": "max_apps_per_node", "current": current_apps, "allowed": allowed_apps})
+
+        # Storage
+        current_storage = int(tenant.get("storage_gb", 0) or 0)
+        allowed_storage = int(sub.get("limits", {}).get("max_storage_gb", 0) or 0)
+        if current_storage > allowed_storage:
+            violations.append({"limit": "max_storage_gb", "current": current_storage, "allowed": allowed_storage})
+
+    if violations:
+        sub["quota_violations"] = violations
+    else:
+        sub.pop("quota_violations", None)
+
     return {
         "success": True,
         "subscription": sub,
         "previous_tier": old_tier,
         "downgrade": is_downgrade,
         "warning": sub.get("warning"),
+        "violations": violations,
     }
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from nexora_saas.admin_actions import install_app, upgrade_app, deploy_blueprint
+from nexora_saas.admin_actions import deploy_blueprint, install_app, upgrade_app
 from nexora_saas.preflight import build_blueprint_preflight, build_install_preflight, build_upgrade_preflight
 
 

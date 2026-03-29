@@ -4,7 +4,6 @@ import re
 import unittest
 from pathlib import Path
 
-
 FORBIDDEN_PATTERNS = [
     re.compile(r"except\s+Exception\s*:\s*pass"),
     re.compile(r"except\s*:\s*pass"),

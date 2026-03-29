@@ -1,16 +1,18 @@
 """Integration tests for Workstream 9: Multi-tenancy and SaaS Readiness."""
 
-import os
 import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
+
 import pytest
-from nexora_saas.orchestrator import NexoraService
+
 from nexora_node_sdk.models import NodeSummary
-from nexora_saas.enrollment import build_attestation_response
 from nexora_node_sdk.version import NEXORA_VERSION
+from nexora_saas.enrollment import build_attestation_response
+from nexora_saas.orchestrator import NexoraService
+
 
 @pytest.fixture
 def service():
@@ -24,19 +26,19 @@ def test_tenant_onboarding_and_isolation(service):
     # 1. Onboard two tenants
     service.onboard_tenant("tenant-a", "org-1", tier="pro")
     service.onboard_tenant("tenant-b", "org-1", tier="free")
-    
+
     tenants = service.list_tenants()
     assert len(tenants) == 2
     assert any(t["tenant_id"] == "tenant-a" for t in tenants)
-    
+
     # 2. Verify quota enforcement (Mock node registration for simplicity in this integration test)
-    # Since we can't easily run full enrollment in a unit test without mocks, 
+    # Since we can't easily run full enrollment in a unit test without mocks,
     # we verify the quota calculation logic.
-    from nexora_saas.quotas import is_quota_exceeded, get_quota_limit
-    
+    from nexora_saas.quotas import get_quota_limit, is_quota_exceeded
+
     assert get_quota_limit("free", "max_nodes") == 5
     assert get_quota_limit("pro", "max_nodes") == 50
-    
+
     assert is_quota_exceeded("free", "max_nodes", 5) is True
     assert is_quota_exceeded("free", "max_nodes", 4) is False
 
@@ -51,12 +53,12 @@ def test_data_purging(service):
         "hostname": "test-node"
     })
     service.state.save(state)
-    
+
     # 2. Purge data
     result = service.purge_tenant_data("tenant-purge")
     assert result["success"] is True
     assert result["purged_nodes_count"] == 1
-    
+
     # 3. Verify state is clean
     new_state = service.state.load()
     assert not any(n["tenant_id"] == "tenant-purge" for n in new_state.get("nodes", []))

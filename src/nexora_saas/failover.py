@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import os
 import re
 import subprocess as _sp
@@ -273,19 +274,16 @@ def remove_maintenance_mode(domain: str) -> dict[str, Any]:
 
 # ── Failover pair state persistence ──────────────────────────────────────
 
-import json as _json  # noqa: E402
-from pathlib import Path as _Path
-
-_DEFAULT_FAILOVER_STATE_FILE = _Path("/opt/nexora/var/failover_state.json")
+_DEFAULT_FAILOVER_STATE_FILE = Path("/opt/nexora/var/failover_state.json")
 
 
-def _resolve_failover_state_file() -> _Path:
+def _resolve_failover_state_file() -> Path:
     override = os.environ.get("NEXORA_FAILOVER_STATE_PATH", "").strip()
     if override:
-        return _Path(override)
+        return Path(override)
     state_hint = os.environ.get("NEXORA_STATE_PATH", "").strip()
     if state_hint:
-        hint_path = _Path(state_hint)
+        hint_path = Path(state_hint)
         base_dir = hint_path.parent if hint_path.suffix else hint_path
         return base_dir / "failover_state.json"
     return _DEFAULT_FAILOVER_STATE_FILE
@@ -296,7 +294,7 @@ def _load_failover_state() -> dict[str, Any]:
     try:
         state_file = _resolve_failover_state_file()
         if state_file.exists():
-            return _json.loads(state_file.read_text(encoding="utf-8"))
+            return json.loads(state_file.read_text(encoding="utf-8"))
     except Exception:
         pass
     return {"pairs": {}, "events": []}
@@ -306,7 +304,7 @@ def _save_failover_state(state: dict[str, Any]) -> None:
     """Persist failover state to disk."""
     state_file = _resolve_failover_state_file()
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(_json.dumps(state, indent=2, default=str), encoding="utf-8")
+    state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
 
 
 def get_failover_pairs() -> list[dict[str, Any]]:

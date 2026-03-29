@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from nexora_saas.admin_actions import install_app
 from nexora_node_sdk.app_profiles import AppProfileError, list_app_profiles, resolve_app_profile, validate_install_request
+from nexora_saas.admin_actions import install_app
 
 
 class AppProfileRegistryTests(unittest.TestCase):

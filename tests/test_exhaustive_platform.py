@@ -28,9 +28,9 @@ import secrets
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -38,10 +38,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import apps.control_plane.api as api_module
-from nexora_node_sdk.auth import build_tenant_scope_claim, get_api_token
-from nexora_node_sdk.state import DEFAULT_STATE
-from nexora_saas.orchestrator import NexoraService
+import apps.control_plane.api as api_module  # noqa: E402
+from nexora_node_sdk.auth import build_tenant_scope_claim, get_api_token  # noqa: E402
+from nexora_node_sdk.state import DEFAULT_STATE  # noqa: E402
+from nexora_saas.orchestrator import NexoraService  # noqa: E402
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -579,7 +579,7 @@ class SubscriptionDomainTests(unittest.TestCase):
     """Direct domain-layer subscription tests (no HTTP)."""
 
     def setUp(self):
-        from nexora_saas.subscription import create_organization, create_subscription
+        from nexora_saas.subscription import create_organization
 
         self.state: dict = {}
         self.org = create_organization(self.state, name="TestCorp", contact_email="admin@tc.test")["organization"]
@@ -1181,7 +1181,7 @@ class ModesDomainTests(unittest.TestCase):
     """Domain-level mode system tests."""
 
     def test_mode_manager_lifecycle(self):
-        from nexora_saas.modes import get_mode_manager, list_modes
+        from nexora_saas.modes import list_modes
 
         modes = list_modes()
         self.assertTrue(len(modes) >= 4)

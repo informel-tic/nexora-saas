@@ -12,9 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-import apps.control_plane.api as api_module
-from nexora_node_sdk.auth import get_api_token
-from nexora_saas.orchestrator import NexoraService
+import apps.control_plane.api as api_module  # noqa: E402
+from nexora_node_sdk.auth import get_api_token  # noqa: E402
+from nexora_saas.orchestrator import NexoraService  # noqa: E402
 
 
 class ConsoleMissingFeaturesTDDTests(unittest.TestCase):

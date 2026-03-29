@@ -188,6 +188,7 @@ class PackagingTests(unittest.TestCase):
     def test_bootstrap_cli_returns_nonzero_on_error_contract(self):
         """bootstrap.py main() must return non-zero exit code when payload.success is false."""
         import inspect
+
         from nexora_saas import bootstrap
         source = inspect.getsource(bootstrap.main)
         self.assertIn('payload.get("success")', source)
@@ -213,6 +214,7 @@ class PackagingTests(unittest.TestCase):
         """resolve_repo_root must use NEXORA_REPO_ROOT env var when set."""
         import os
         from pathlib import Path as P
+
         from nexora_node_sdk.runtime_context import resolve_repo_root
 
         os.environ["NEXORA_REPO_ROOT"] = "/var/www/nexora/repo"

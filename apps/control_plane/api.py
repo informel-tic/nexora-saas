@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import os
-import secrets
 import logging
+import os
 import re
+import secrets
 from datetime import datetime, timezone
 
 import uvicorn
@@ -16,22 +16,23 @@ from pydantic import BaseModel, Field, field_validator
 from starlette.responses import Response
 
 from nexora_node_sdk.auth import (
-    _load_token_actor_roles,
     CSRFProtectionMiddleware,
     TokenAuthMiddleware,
+    _load_token_actor_roles,
     build_tenant_scope_claim,
     create_owner_session,
     get_api_token,
     has_passphrase_configured,
-    owner_tenant_id as _owner_tenant_id_from_session,
     resolve_actor_role_for_token,
     revoke_owner_session,
     set_owner_passphrase,
     validate_owner_session,
     verify_passphrase,
 )
-from nexora_node_sdk.auth._middleware import resolve_surface
-from nexora_node_sdk.auth._middleware import SecurityHeadersMiddleware
+from nexora_node_sdk.auth import (
+    owner_tenant_id as _owner_tenant_id_from_session,
+)
+from nexora_node_sdk.auth._middleware import SecurityHeadersMiddleware, resolve_surface
 from nexora_node_sdk.logging_config import setup_logging
 from nexora_node_sdk.models import (
     EnrollmentAttestationRequest,
@@ -648,8 +649,10 @@ def build_application() -> FastAPI:
                 for n in nodes
             )
             if not host_exists:
+                from datetime import datetime
+                from datetime import timezone as _tz
+
                 from nexora_node_sdk.state import normalize_node_record, transition_node_status
-                from datetime import datetime, timezone as _tz
 
                 node_record = normalize_node_record({
                     "node_id": local.node_id,

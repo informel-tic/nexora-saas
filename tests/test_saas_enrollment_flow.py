@@ -13,14 +13,6 @@ from __future__ import annotations
 
 import unittest
 
-from nexora_saas.subscription import (
-    cancel_subscription,
-    create_organization,
-    create_subscription,
-    get_subscription,
-    suspend_subscription,
-    upgrade_subscription,
-)
 from nexora_saas.feature_provisioning import (
     build_heartbeat_for_node,
     deprovision_node,
@@ -29,7 +21,13 @@ from nexora_saas.feature_provisioning import (
     resolve_features_for_tier,
 )
 from nexora_saas.node_connector import NodeConnector
-
+from nexora_saas.subscription import (
+    cancel_subscription,
+    create_organization,
+    create_subscription,
+    get_subscription,
+    upgrade_subscription,
+)
 
 HMAC_SECRET = "abcdefghijklmnopqrstuvwxyz123456"
 NODE_URL = "http://192.168.1.100:38121"
