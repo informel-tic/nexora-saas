@@ -8,36 +8,42 @@ from typing import Any
 # Predefined theme palettes
 THEME_PALETTES = {
     "corporate": {
+        "primary": "#2563eb",
         "accent": "#2563eb",
         "surface": "#f8fafc",
         "text": "#1e293b",
         "muted": "#64748b",
     },
     "creative": {
+        "primary": "#8b5cf6",
         "accent": "#8b5cf6",
         "surface": "#faf5ff",
         "text": "#1e1b4b",
         "muted": "#7c3aed",
     },
     "nature": {
+        "primary": "#059669",
         "accent": "#059669",
         "surface": "#f0fdf4",
         "text": "#064e3b",
         "muted": "#6ee7b7",
     },
     "warm": {
+        "primary": "#ea580c",
         "accent": "#ea580c",
         "surface": "#fff7ed",
         "text": "#431407",
         "muted": "#fb923c",
     },
     "dark_pro": {
+        "primary": "#2dd4bf",
         "accent": "#2dd4bf",
         "surface": "#0f172a",
         "text": "#e5eefb",
         "muted": "#94a3b8",
     },
     "neutral": {
+        "primary": "#6366f1",
         "accent": "#6366f1",
         "surface": "#fafafa",
         "text": "#18181b",

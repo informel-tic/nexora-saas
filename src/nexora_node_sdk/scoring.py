@@ -144,9 +144,13 @@ def compute_health_score(inventory: dict[str, Any]) -> dict[str, Any]:
     running = sum(1 for v in services.values() if isinstance(v, dict) and v.get("status") == "running")
     if total_svc > 0:
         ratio = running / total_svc
-        bonus = int(ratio * 20)
-        score += bonus
-        details.append(f"+{bonus} pts: {running}/{total_svc} services running")
+        # bonus for high availability, penalty for low availability
+        adjustment = int((2 * ratio - 1) * 20)  # range: -20 (all down) to +20 (all up)
+        score += adjustment
+        if adjustment >= 0:
+            details.append(f"+{adjustment} pts: {running}/{total_svc} services running")
+        else:
+            details.append(f"{adjustment} pts: only {running}/{total_svc} services running")
 
     backups = inventory.get("backups", {}).get("archives", []) if isinstance(inventory.get("backups"), dict) else []
     if backups:
