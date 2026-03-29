@@ -10,6 +10,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import secrets
 from pathlib import Path
 
@@ -136,10 +137,36 @@ def _load_token_actor_roles() -> dict[str, str]:
 
 
 def resolve_actor_role_for_token(token: str) -> str | None:
-    """Resolve trusted actor role bound to a token, if configured."""
+    """Resolve trusted actor role bound to a token, if configured.
+
+    Falls back to ``"operator"`` for the primary API token when no explicit
+    role mapping file entry exists, so that the default generated token always
+    has full operator privileges.
+    """
 
     mapping = _load_token_actor_roles()
-    return mapping.get(token)
+    role = mapping.get(token)
+    if role is not None:
+        return role
+
+    # Fallback: primary API token gets operator privileges by default
+    from ._token import get_api_token
+
+    primary = get_api_token().strip()
+    if primary and secrets.compare_digest(token, primary):
+        # Allow overriding the fallback trusted role for the primary API token
+        # via environment variable `NEXORA_PRIMARY_TOKEN_ROLE`. If unset or
+        # invalid, fall back to the historical default "operator" role.
+        env_role = os.environ.get("NEXORA_PRIMARY_TOKEN_ROLE", "").strip()
+        if env_role:
+            try:
+                return validate_trusted_actor_role(env_role)
+            except ValueError:
+                # Ignore invalid override and keep default
+                pass
+        return "operator"
+
+    return None
 
 
 # ── HMAC tenant-scope claim ───────────────────────────────────────────
@@ -179,7 +206,7 @@ def validate_actor_role(value: str) -> str:
 def validate_operator_surface_role(value: str) -> str:
     """Validate trusted role bindings for operator-only routes."""
 
-    allowed = {"operator", "admin", "architect"}
+    allowed = {"operator", "admin", "architect", "owner"}
     normalized = value.strip().lower()
     if normalized not in allowed:
         raise ValueError(f"Unsupported operator surface role: {value}")
@@ -189,7 +216,7 @@ def validate_operator_surface_role(value: str) -> str:
 def validate_trusted_actor_role(value: str) -> str:
     """Validate roles that can be bound to API tokens in role mapping files."""
 
-    allowed = {"operator", "admin", "architect", "subscriber"}
+    allowed = {"operator", "admin", "architect", "subscriber", "owner"}
     normalized = value.strip().lower()
     if normalized not in allowed:
         raise ValueError(f"Unsupported trusted actor role: {value}")

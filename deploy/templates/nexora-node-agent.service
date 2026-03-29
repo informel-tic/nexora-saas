@@ -10,6 +10,8 @@ Environment=NEXORA_NODE_AGENT_HOST=127.0.0.1
 Environment=NEXORA_NODE_AGENT_PORT=38121
 Environment=NEXORA_STATE_PATH=/opt/nexora/var/state.json
 Environment=NEXORA_API_TOKEN_FILE=/opt/nexora/var/api-token
+ExecStartPre=+/bin/mkdir -p /tmp/nexora-export
+ExecStartPre=+/bin/chown nexora:nexora /tmp/nexora-export
 ExecStart=/opt/nexora/venv/bin/nexora-node-agent
 Restart=on-failure
 RestartSec=5

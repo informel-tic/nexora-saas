@@ -1,6 +1,6 @@
 # Architecture Nexora
 
-_Dernière mise à jour : 2026-07-12._
+_Dernière mise à jour : 2026-03-29._
 
 ---
 

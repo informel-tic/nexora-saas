@@ -22,8 +22,35 @@ from ._scopes import (
     resolve_actor_role_for_token,
 )
 from ._token import get_api_token
+from ._owner_session import validate_owner_session
 
 # ── Auth middleware ────────────────────────────────────────────────────
+
+
+def resolve_surface(request) -> str:
+    """Detect which surface the request targets based on Host header or explicit header.
+
+    Returns one of: 'saas', 'console', 'public', or empty string when no
+    subdomain is detected (single-domain / test / direct backend access).
+    - saas.*     → owner console (passphrase auth)
+    - console.*  → subscriber console (token auth)
+    - www.*      → public site
+    - (other)    → '' (no surface restriction applied)
+    """
+    # Explicit header (set by nginx) takes priority
+    explicit = (request.headers.get("X-Nexora-Surface", "") or "").strip().lower()
+    if explicit in ("saas", "console", "public"):
+        return explicit
+
+    host = (request.headers.get("Host", "") or "").split(":")[0].strip().lower()
+    if host.startswith("saas."):
+        return "saas"
+    if host.startswith("console."):
+        return "console"
+    if host.startswith("www."):
+        return "public"
+    # No recognized subdomain → no surface restriction
+    return ""
 
 # Paths that don't require auth
 _PUBLIC_PATHS = {
@@ -32,12 +59,16 @@ _PUBLIC_PATHS = {
     "/api/public/offers",
     "/console",
     "/console/",
+    "/owner-console",
+    "/owner-console/",
     "/subscribe",
     "/admin",
+    "/api/auth/owner-login",
+    "/api/plans",
 }
 
 # Static file prefixes
-_STATIC_PREFIXES = ("/console/",)
+_STATIC_PREFIXES = ("/console/", "/owner-console/")
 
 
 def _iter_known_tokens() -> list[str]:
@@ -87,30 +118,40 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
         if path in _PUBLIC_PATHS or path == "/":
             return await call_next(request)
         for prefix in _STATIC_PREFIXES:
-            if path.startswith(prefix) and not path.startswith("/console/api"):
+            if path.startswith(prefix):
                 return await call_next(request)
 
         client_ip = request.client.host if request.client else "unknown"
 
-        # Rate-limit check.
-        if _check_rate_limit(client_ip):
-            return JSONResponse(status_code=429, content={"detail": "Too many authentication attempts."})
-
         provided_token: str | None = None
+        raw_tokens: list[str] = []
+
         # Check Bearer token
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
-            provided = auth_header[7:].strip()
-            matched = _resolve_known_token(provided)
-            if matched is not None:
-                provided_token = matched
+            raw_tokens.append(auth_header[7:].strip())
 
         # Also accept X-Nexora-Token header
         token_header = request.headers.get("X-Nexora-Token", "").strip()
-        if provided_token is None and token_header:
-            matched = _resolve_known_token(token_header)
+        if token_header:
+            raw_tokens.append(token_header)
+
+        for raw_token in raw_tokens:
+            matched = _resolve_known_token(raw_token)
             if matched is not None:
                 provided_token = matched
+                break
+
+        # Check for owner session token (passphrase-based auth)
+        if provided_token is None:
+            session_header = request.headers.get("X-Nexora-Session", "").strip()
+            if session_header:
+                session = validate_owner_session(session_header)
+                if session is not None:
+                    request.state.nexora_actor_role = session["role"]
+                    request.state.nexora_owner_session = True
+                    request.state.nexora_tenant_id = session["tenant_id"]
+                    return await call_next(request)
 
         if provided_token is not None:
             trusted_actor_role = resolve_actor_role_for_token(provided_token)
@@ -140,7 +181,11 @@ class TokenAuthMiddleware(BaseHTTPMiddleware):
                     )
             return await call_next(request)
 
-        _record_auth_failure(client_ip)
+        if raw_tokens:
+            _record_auth_failure(client_ip)
+            if _check_rate_limit(client_ip):
+                return JSONResponse(status_code=429, content={"detail": "Too many authentication attempts."})
+
         return JSONResponse(
             status_code=401,
             content={

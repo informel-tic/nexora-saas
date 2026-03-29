@@ -20,11 +20,38 @@ function authContext() {
 function buildHeaders() {
   const ctx = authContext();
   const headers = { Accept: 'application/json' };
-  if (ctx.token) headers.Authorization = `Bearer ${ctx.token}`;
+  if (ctx.token) {
+    headers.Authorization = `Bearer ${ctx.token}`;
+    headers['X-Nexora-Token'] = ctx.token;
+  }
   if (ctx.tenantId) headers['X-Nexora-Tenant-Id'] = ctx.tenantId;
   if (ctx.actorRole) headers['X-Nexora-Actor-Role'] = ctx.actorRole;
   if (ctx.tenantClaim) headers['X-Nexora-Tenant-Claim'] = ctx.tenantClaim;
   return headers;
+}
+
+async function parseErrorDetail(res) {
+  try {
+    const payload = await res.json();
+    if (payload && payload.detail) return String(payload.detail);
+  } catch (e) { /* noop */ }
+  return '';
+}
+
+async function requestWithAuth(url, buildOpts, allowClaimRetry) {
+  const res = await fetch(url, buildOpts());
+  if (res.status === 401) { showTokenPrompt(); throw new Error('Authentication required'); }
+  if (res.status === 429) { showTokenPrompt('Trop de tentatives. Reessayez plus tard.'); throw new Error('Rate limited'); }
+  if (res.status === 403) {
+    const detail = await parseErrorDetail(res);
+    if (allowClaimRetry && detail.indexOf('X-Nexora-Tenant-Claim') >= 0) {
+      await refreshTenantClaim();
+      return requestWithAuth(url, buildOpts, false);
+    }
+    throw new Error(detail || `${res.status} ${res.statusText}`);
+  }
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json();
 }
 
 export async function refreshTenantClaim() {
@@ -38,6 +65,7 @@ export async function refreshTenantClaim() {
   const headers = {
     Accept: 'application/json',
     Authorization: `Bearer ${ctx.token}`,
+    'X-Nexora-Token': ctx.token,
     'X-Nexora-Tenant-Id': ctx.tenantId
   };
   if (ctx.actorRole) headers['X-Nexora-Actor-Role'] = ctx.actorRole;
@@ -61,32 +89,31 @@ export async function loadAccessContext() {
 
 export async function api(path) {
   const url = `${BASE}/api/${path}`;
-  const headers = buildHeaders();
-  const res = await fetch(url, { headers, credentials: 'same-origin' });
-  if (res.status === 401) { showTokenPrompt(); throw new Error('Authentication required'); }
-  if (res.status === 429) { showTokenPrompt('Trop de tentatives. Réessayez plus tard.'); throw new Error('Rate limited'); }
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  return requestWithAuth(url, function() {
+    return { headers: buildHeaders(), credentials: 'same-origin' };
+  }, true);
 }
 
 export async function apiPost(path, body) {
   const url = `${BASE}/api/${path}`;
-  const ctx = authContext();
-  const headers = {
-    Accept: 'application/json',
-    'Content-Type': 'application/json',
-    'X-Nexora-Action': 'true'
-  };
-  if (ctx.token) headers.Authorization = `Bearer ${ctx.token}`;
-  if (ctx.tenantId) headers['X-Nexora-Tenant-Id'] = ctx.tenantId;
-  if (ctx.actorRole) headers['X-Nexora-Actor-Role'] = ctx.actorRole;
-  if (ctx.tenantClaim) headers['X-Nexora-Tenant-Claim'] = ctx.tenantClaim;
-  const opts = { method: 'POST', headers, credentials: 'same-origin' };
-  if (body !== undefined) opts.body = JSON.stringify(body);
-  const res = await fetch(url, opts);
-  if (res.status === 401) { showTokenPrompt(); throw new Error('Authentication required'); }
-  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json();
+  return requestWithAuth(url, function() {
+    const ctx = authContext();
+    const headers = {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-Nexora-Action': 'true'
+    };
+    if (ctx.token) {
+      headers.Authorization = `Bearer ${ctx.token}`;
+      headers['X-Nexora-Token'] = ctx.token;
+    }
+    if (ctx.tenantId) headers['X-Nexora-Tenant-Id'] = ctx.tenantId;
+    if (ctx.actorRole) headers['X-Nexora-Actor-Role'] = ctx.actorRole;
+    if (ctx.tenantClaim) headers['X-Nexora-Tenant-Claim'] = ctx.tenantClaim;
+    const opts = { method: 'POST', headers, credentials: 'same-origin' };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    return opts;
+  }, true);
 }
 
 export function showTokenPrompt(msg, onLoginSuccess) {
@@ -103,6 +130,7 @@ export function showTokenPrompt(msg, onLoginSuccess) {
   div.innerHTML = `<div class="nx-token-dialog">
     <h3 id="token-prompt-title">Authentification requise</h3>
     <p class="nx-helper">${msg || 'Entrez vos paramètres de session SaaS (token, tenant, rôle).'} </p>
+    <form id="nx-token-form">
     <label for="token-input" class="nx-label">Token API</label>
     <input id="token-input" class="nx-input nx-w-full nx-mb-md" placeholder="Token API" type="password" autocomplete="off"/>
     <label for="tenant-input" class="nx-label">Tenant ID (subscriber)</label>
@@ -114,7 +142,8 @@ export function showTokenPrompt(msg, onLoginSuccess) {
       <option value="architect">architect</option>
       <option value="subscriber">subscriber</option>
     </select>
-    <button class="nx-btn nx-w-full" id="token-submit-btn">Connexion</button>
+    <button class="nx-btn nx-w-full" id="token-submit-btn" type="submit">Connexion</button>
+    </form>
   </div>`;
   document.body.appendChild(div);
   const input = document.getElementById('token-input');
@@ -145,6 +174,8 @@ export function showTokenPrompt(msg, onLoginSuccess) {
       window.location.reload();
     }
   };
-  document.getElementById('token-submit-btn').addEventListener('click', function() { void submit(); });
-  input.addEventListener('keydown', function(e) { if (e.key === 'Enter') void submit(); });
+  document.getElementById('nx-token-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    void submit();
+  });
 }

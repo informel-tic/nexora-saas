@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import os
 import secrets
+import logging
+from datetime import datetime, timezone
 
 import uvicorn
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -17,9 +19,17 @@ from nexora_node_sdk.auth import (
     CSRFProtectionMiddleware,
     TokenAuthMiddleware,
     build_tenant_scope_claim,
+    create_owner_session,
     get_api_token,
+    has_passphrase_configured,
+    owner_tenant_id as _owner_tenant_id_from_session,
     resolve_actor_role_for_token,
+    revoke_owner_session,
+    set_owner_passphrase,
+    validate_owner_session,
+    verify_passphrase,
 )
+from nexora_node_sdk.auth._middleware import resolve_surface
 from nexora_node_sdk.logging_config import setup_logging
 from nexora_node_sdk.models import (
     EnrollmentAttestationRequest,
@@ -33,9 +43,12 @@ from nexora_saas.runtime_context import build_service
 
 REPO_ROOT = resolve_repo_root(__file__)
 CONSOLE_DIR = REPO_ROOT / "apps" / "console"
+OWNER_CONSOLE_DIR = REPO_ROOT / "apps" / "owner_console"
 PUBLIC_SITE_DIR = REPO_ROOT / "apps" / "public_site"
 PUBLIC_SITE_INDEX = PUBLIC_SITE_DIR / "index.html"
 service = build_service(__file__, os.environ.get("NEXORA_STATE_PATH"))
+logger = logging.getLogger("nexora.control_plane")
+OPERATOR_ROLES = frozenset({"operator", "admin", "architect", "owner"})
 OPERATOR_ONLY_ROUTES = frozenset(
     {
         "/api/persistence",
@@ -52,6 +65,7 @@ OPERATOR_ONLY_ROUTES = frozenset(
         "/api/hooks/presets",
         "/api/automation/templates",
         "/api/automation/checklists",
+        "/api/settings",
     }
 )
 SUBSCRIBER_DENIED_PREFIXES = (
@@ -65,6 +79,11 @@ SUBSCRIBER_DENIED_PREFIXES = (
     "/api/storage/ynh-map",
     "/api/notifications/templates",
     "/api/hooks",
+    "/api/subscriptions",
+    "/api/organizations",
+    "/api/tenants",
+    "/api/provisioning",
+    "/api/settings",
 )
 SUBSCRIBER_ALLOWED_MUTATIONS = frozenset(
     {
@@ -158,15 +177,7 @@ def _enforce_operator_only_surface(
             status_code=403,
             detail="Operator-only route: missing X-Nexora-Actor-Role header",
         )
-    if normalized_trusted_role in {
-        "operator",
-        "admin",
-        "architect",
-    } and normalized_requested_role in {
-        "operator",
-        "admin",
-        "architect",
-    }:
+    if normalized_trusted_role in OPERATOR_ROLES and normalized_requested_role in OPERATOR_ROLES:
         return
     raise HTTPException(
         status_code=403,
@@ -214,6 +225,128 @@ def _resolve_trusted_actor_role_from_request(request) -> str | None:
     return None
 
 
+def _is_operator_role(actor_role: str | None) -> bool:
+    return (actor_role or "").strip().lower() in OPERATOR_ROLES
+
+
+def _operator_tenant_id() -> str:
+    value = os.environ.get("NEXORA_OPERATOR_TENANT_ID", "nexora-operator").strip()
+    return value or "nexora-operator"
+
+
+def _operator_org_id() -> str:
+    value = os.environ.get("NEXORA_OPERATOR_ORG_ID", "org-nexora-operator").strip()
+    return value or "org-nexora-operator"
+
+
+def _ensure_operator_tenant_state() -> dict[str, object]:
+    """Ensure the SaaS provider has a dedicated operator tenant and host node binding."""
+
+    operator_tenant_id = _operator_tenant_id()
+    operator_org_id = _operator_org_id()
+    operator_org_name = os.environ.get("NEXORA_OPERATOR_ORG_NAME", "Nexora Operator").strip() or "Nexora Operator"
+    operator_contact_email = os.environ.get("NEXORA_OPERATOR_CONTACT_EMAIL", "operator@nexora.local").strip() or "operator@nexora.local"
+    operator_tier = os.environ.get("NEXORA_OPERATOR_TIER", "enterprise").strip().lower() or "enterprise"
+    if operator_tier not in {"free", "pro", "enterprise"}:
+        operator_tier = "enterprise"
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    state = service.state.load()
+    changed = False
+
+    organizations = state.setdefault("organizations", [])
+    org_record = next(
+        (
+            org
+            for org in organizations
+            if isinstance(org, dict) and str(org.get("org_id", "")).strip() == operator_org_id
+        ),
+        None,
+    )
+    if org_record is None:
+        organizations.append(
+            {
+                "org_id": operator_org_id,
+                "name": operator_org_name,
+                "contact_email": operator_contact_email,
+                "billing_address": "",
+                "created_at": now_iso,
+                "status": "active",
+            }
+        )
+        changed = True
+
+    tenants = state.setdefault("tenants", [])
+    tenant_record = next(
+        (
+            tenant
+            for tenant in tenants
+            if isinstance(tenant, dict) and str(tenant.get("tenant_id", "")).strip() == operator_tenant_id
+        ),
+        None,
+    )
+    if tenant_record is None:
+        tenant_record = {
+            "tenant_id": operator_tenant_id,
+            "org_id": operator_org_id,
+            "subscription_id": None,
+            "tier": operator_tier,
+            "label": operator_org_name,
+            "created_at": now_iso,
+            "status": "active",
+        }
+        tenants.append(tenant_record)
+        changed = True
+    else:
+        if not tenant_record.get("org_id"):
+            tenant_record["org_id"] = operator_org_id
+            changed = True
+        if not tenant_record.get("label"):
+            tenant_record["label"] = operator_org_name
+            changed = True
+
+    local_node_id: str | None = None
+    try:
+        local_node_id = service.local_node_summary().node_id
+    except Exception:
+        local_node_id = None
+
+    if local_node_id:
+        for node in state.get("nodes", []):
+            if not isinstance(node, dict) or str(node.get("node_id")) != str(local_node_id):
+                continue
+            if not node.get("tenant_id"):
+                node["tenant_id"] = operator_tenant_id
+                changed = True
+            if not node.get("organization_id"):
+                node["organization_id"] = operator_org_id
+                changed = True
+            break
+
+    if changed:
+        service.state.save(state)
+
+    return {
+        "tenant_id": operator_tenant_id,
+        "organization_id": operator_org_id,
+        "tenant": tenant_record,
+        "changed": changed,
+    }
+
+
+def _resolve_runtime_mode() -> str:
+    """Read runtime mode from the canonical mode manager state."""
+
+    try:
+        from nexora_saas.modes import get_mode_manager
+
+        mode = str(get_mode_manager().get_mode_info().get("mode", "observer")).strip().lower()
+        return mode or "observer"
+    except Exception:
+        state = service.state.load()
+        return str(state.get("runtime_mode", "observer")).strip().lower() or "observer"
+
+
 def _enforce_deployment_scope(path: str) -> None:
     """Enforce deployment scope restrictions based on NEXORA_DEPLOYMENT_SCOPE.
 
@@ -251,6 +384,54 @@ class NodeActionRequest(BaseModel):
 class NodeActionPayloadRequest(BaseModel):
     payload: dict[str, object] = Field(default_factory=dict)
     dry_run: bool = False
+
+
+class CreateOrgRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    contact_email: str = Field(..., min_length=3, max_length=200)
+    billing_address: str = ""
+
+
+class CreateSubscriptionRequest(BaseModel):
+    org_id: str = Field(..., min_length=1)
+    plan_tier: str = Field(..., pattern="^(free|pro|enterprise)$")
+    tenant_label: str = ""
+
+
+class UpgradeSubscriptionRequest(BaseModel):
+    new_tier: str = Field(..., pattern="^(free|pro|enterprise)$")
+
+
+class SuspendSubscriptionRequest(BaseModel):
+    reason: str = ""
+
+
+class OnboardTenantRequest(BaseModel):
+    tenant_id: str = Field(..., min_length=1)
+    organization_id: str = Field(..., min_length=1)
+    tier: str = "free"
+
+
+class ProvisionNodeRequest(BaseModel):
+    node_id: str = Field(..., min_length=1)
+    node_url: str = Field(..., min_length=1)
+    hmac_secret: str = Field(..., min_length=32)
+    api_token: str = ""
+    tenant_id: str | None = None
+
+
+class DeprovisionNodeRequest(BaseModel):
+    node_id: str = Field(..., min_length=1)
+    node_url: str = Field(..., min_length=1)
+    hmac_secret: str = ""
+
+
+class HeartbeatNodeRequest(BaseModel):
+    node_id: str = Field(..., min_length=1)
+    node_url: str = Field(..., min_length=1)
+    hmac_secret: str = Field(..., min_length=32)
+    api_token: str = ""
+    lease_seconds: int = 86400
 
 
 def _enforce_tenant_node_access(node_id: str, tenant_id: str | None) -> dict[str, object]:
@@ -312,6 +493,61 @@ def build_application() -> FastAPI:
             )
         return await call_next(request)
 
+    @app.middleware("http")
+    async def surface_isolation_middleware(request, call_next):
+        """Enforce subdomain-based surface isolation.
+
+        - saas.* surface: only owner sessions allowed (no subscriber tokens)
+        - console.* surface: only subscriber/operator tokens allowed (no owner sessions)
+        - public / www.*: only public endpoints
+        - '' (no subdomain): no restriction (single-domain / test / direct)
+        """
+        surface = resolve_surface(request)
+        request.state.nexora_surface = surface
+        path = request.url.path
+
+        # No recognized subdomain → no surface restriction
+        if not surface:
+            return await call_next(request)
+
+        # Public surface: only allow public endpoints and static assets
+        if surface == "public":
+            public_allowed = {"/", "/subscribe", "/api/health", "/health", "/api/public/offers", "/api/plans"}
+            if path in public_allowed or path.startswith("/public_site/"):
+                return await call_next(request)
+            # Allow API endpoints needed for subscription flow
+            if path.startswith("/api/public/"):
+                return await call_next(request)
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "This endpoint is not available on the public site."},
+            )
+
+        # SaaS owner surface: block subscriber token access
+        if surface == "saas":
+            trusted_role = (_resolve_trusted_actor_role_from_request(request) or "").strip().lower()
+            is_owner_session = getattr(request.state, "nexora_owner_session", False)
+            # Allow public auth endpoints and static assets
+            if path in {"/", "/api/auth/owner-login", "/api/health", "/owner-console", "/owner-console/"} or path.startswith("/owner-console/"):
+                return await call_next(request)
+            # For API endpoints, require owner session
+            if path.startswith("/api/") and not is_owner_session and trusted_role != "owner":
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Owner console requires owner authentication."},
+                )
+
+        # Console subscriber surface: block owner-only access
+        if surface == "console":
+            is_owner_session = getattr(request.state, "nexora_owner_session", False)
+            if is_owner_session:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Owner sessions are not valid on the subscriber console."},
+                )
+
+        return await call_next(request)
+
     register_public_routes(app)
     register_health_routes(app)
     register_inventory_routes(app)
@@ -325,6 +561,7 @@ def build_application() -> FastAPI:
     register_tenant_management_routes(app)
     register_provisioning_routes(app)
     register_console_routes(app)
+    register_owner_auth_routes(app)
 
     @app.on_event("startup")
     async def _register_host_node() -> None:
@@ -350,12 +587,15 @@ def build_application() -> FastAPI:
                     "health_score": local.health_score,
                     "registered_at": datetime.now(_tz.utc).isoformat(),
                     "role": "host",
+                    "tenant_id": _operator_tenant_id(),
+                    "organization_id": _operator_org_id(),
                 })
                 node_record = transition_node_status(node_record, local.status or "healthy")
                 state.setdefault("nodes", []).append(node_record)
                 if local.node_id not in state.get("fleet", {}).get("managed_nodes", []):
                     state.setdefault("fleet", {}).setdefault("managed_nodes", []).append(local.node_id)
                 service.state.save(state)
+            _ensure_operator_tenant_state()
         except Exception as exc:
             logger.warning("Host self-registration skipped: %s", exc)
 
@@ -426,20 +666,75 @@ def register_auth_routes(app: FastAPI) -> None:
         request: Request,
         x_nexora_tenant_id: str | None = Header(None),
     ) -> dict[str, object]:
-        trusted_role = (_resolve_trusted_actor_role_from_request(request) or "observer").strip().lower()
+        # Check for owner session first
+        is_owner_session = getattr(request.state, "nexora_owner_session", False)
+        if is_owner_session:
+            owner_tid = getattr(request.state, "nexora_tenant_id", None) or _owner_tenant_id_from_session()
+            trusted_role = "owner"
+        else:
+            trusted_role = (_resolve_trusted_actor_role_from_request(request) or "observer").strip().lower()
+            owner_tid = None
+
+        requested_tenant_id = (x_nexora_tenant_id or "").strip() or None
+        surface = getattr(request.state, "nexora_surface", "console")
+
+        # Determine if this is an operator-level role (SaaS provider)
+        is_operator = _is_operator_role(trusted_role)
+        operator_tenant_id = _operator_tenant_id()
+        tenant_source = "header" if requested_tenant_id else "none"
+
+        if is_operator or is_owner_session:
+            _ensure_operator_tenant_state()
+
+        effective_tenant_id = requested_tenant_id
+        if is_owner_session and not effective_tenant_id:
+            effective_tenant_id = owner_tid or operator_tenant_id
+            tenant_source = "owner-default"
+        elif is_operator and not effective_tenant_id:
+            effective_tenant_id = operator_tenant_id
+            tenant_source = "operator-default"
+
+        state = service.state.load()
         tenant_record: dict[str, object] | None = None
-        if x_nexora_tenant_id:
-            state = service.state.load()
+        if effective_tenant_id:
             tenant_record = next(
                 (
                     tenant
                     for tenant in state.get("tenants", [])
-                    if isinstance(tenant, dict) and tenant.get("tenant_id") == x_nexora_tenant_id
+                    if isinstance(tenant, dict) and tenant.get("tenant_id") == effective_tenant_id
                 ),
                 None,
             )
 
-        full_sections = [
+        # Resolve the runtime operating mode (observer/operator/architect/admin)
+        runtime_mode = _resolve_runtime_mode()
+
+        # Section definitions by access level
+        # Subscriber: monitoring & enrollment only
+        subscriber_sections = [
+            "dashboard",
+            "scores",
+            "apps",
+            "services",
+            "domains",
+            "security",
+            "pra",
+            "fleet",
+        ]
+        observer_sections = [
+            "dashboard",
+            "scores",
+            "apps",
+            "services",
+            "domains",
+            "security",
+            "pra",
+            "fleet",
+            "governance",
+            "sla-tracking",
+        ]
+        # Operator: all infrastructure + governance
+        operator_sections = [
             "dashboard",
             "scores",
             "apps",
@@ -458,24 +753,51 @@ def register_auth_routes(app: FastAPI) -> None:
             "hooks",
             "governance",
             "sla-tracking",
+            "subscription",
+            "provisioning",
+            "settings",
         ]
-        subscriber_sections = [
-            "dashboard",
-            "scores",
-            "apps",
-            "services",
-            "domains",
-            "security",
-            "pra",
-            "fleet",
-        ]
+
+        # Cross-tenant stats for operator dashboard
+        operator_stats: dict[str, object] | None = None
+        if is_operator:
+            tenants = [t for t in state.get("tenants", []) if isinstance(t, dict)]
+            orgs = [o for o in state.get("organizations", []) if isinstance(o, dict)]
+            subs = [s for s in state.get("subscriptions", []) if isinstance(s, dict)]
+            nodes = [n for n in state.get("nodes", []) if isinstance(n, dict)]
+            active_subs = [s for s in subs if s.get("status") == "active"]
+            operator_stats = {
+                "total_tenants": len(tenants),
+                "total_organizations": len(orgs),
+                "total_subscriptions": len(subs),
+                "active_subscriptions": len(active_subs),
+                "total_nodes": len(nodes),
+                "healthy_nodes": len([n for n in nodes if n.get("status") in ("healthy", "registered")]),
+            }
+
+        if trusted_role == "subscriber":
+            allowed_sections = subscriber_sections
+        elif is_operator:
+            allowed_sections = operator_sections
+        else:
+            allowed_sections = observer_sections
 
         return {
             "actor_role": trusted_role,
-            "tenant_id": x_nexora_tenant_id,
+            "runtime_mode": runtime_mode,
+            "runtime_mode_is_operator": _is_operator_role(runtime_mode),
+            "is_operator": is_operator,
+            "is_owner": is_owner_session or trusted_role == "owner",
+            "surface": surface,
+            "operator_tenant_id": operator_tenant_id if (is_operator or is_owner_session) else None,
+            "tenant_id": effective_tenant_id,
+            "requested_tenant_id": requested_tenant_id,
+            "tenant_source": tenant_source,
             "tenant": tenant_record,
-            "allowed_sections": subscriber_sections if trusted_role == "subscriber" else full_sections,
+            "allowed_sections": allowed_sections,
             "subscriber_mode": trusted_role == "subscriber",
+            "operator_stats": operator_stats,
+            "platform_version": NEXORA_VERSION,
         }
 
     app.add_api_route("/api/auth/tenant-claim", tenant_claim, methods=["GET"])
@@ -550,10 +872,10 @@ def register_fleet_routes(app: FastAPI) -> None:
             tenant_id=x_nexora_tenant_id,
         )
 
-    def fleet_enroll_attest(request: EnrollmentAttestationRequest) -> dict[str, object]:
+    def fleet_enroll_attest(request: EnrollmentAttestationRequest = Body(...)) -> dict[str, object]:
         return service.attest_enrollment(**request.model_dump())
 
-    def fleet_enroll_register(request: EnrollmentRegisterRequest) -> dict[str, object]:
+    def fleet_enroll_register(request: EnrollmentRegisterRequest = Body(...)) -> dict[str, object]:
         return service.register_enrolled_node(**request.model_dump())
 
     app.add_api_route("/api/fleet", fleet, methods=["GET"])
@@ -1130,6 +1452,56 @@ def register_operations_routes(app: FastAPI) -> None:
 
         return list_checklists()
 
+    def settings_overview(
+        request: Request,
+        x_nexora_tenant_id: str | None = Header(None),
+    ) -> dict[str, object]:
+        trusted_role = (_resolve_trusted_actor_role_from_request(request) or "observer").strip().lower()
+        is_operator = _is_operator_role(trusted_role)
+        effective_tenant_id = (x_nexora_tenant_id or "").strip() or None
+        if is_operator and not effective_tenant_id:
+            effective_tenant_id = _operator_tenant_id()
+
+        state = service.state.load()
+        tenant_record = None
+        if effective_tenant_id:
+            tenant_record = next(
+                (
+                    tenant
+                    for tenant in state.get("tenants", [])
+                    if isinstance(tenant, dict) and tenant.get("tenant_id") == effective_tenant_id
+                ),
+                None,
+            )
+
+        return {
+            "profile": {
+                "actor_role": trusted_role,
+                "runtime_mode": _resolve_runtime_mode(),
+                "is_operator": is_operator,
+            },
+            "operator": {
+                "tenant_id": _operator_tenant_id() if is_operator else None,
+                "organization_id": _operator_org_id() if is_operator else None,
+            },
+            "tenant": tenant_record,
+            "tenant_id": effective_tenant_id,
+            "state": {
+                "tenants_count": len([t for t in state.get("tenants", []) if isinstance(t, dict)]),
+                "organizations_count": len([o for o in state.get("organizations", []) if isinstance(o, dict)]),
+                "subscriptions_count": len([s for s in state.get("subscriptions", []) if isinstance(s, dict)]),
+                "nodes_count": len([n for n in state.get("nodes", []) if isinstance(n, dict)]),
+            },
+            "security": {
+                "operator_only_enforce": os.environ.get("NEXORA_OPERATOR_ONLY_ENFORCE", "1").strip().lower()
+                not in {"0", "false", "no", "off"},
+                "deployment_scope": os.environ.get("NEXORA_DEPLOYMENT_SCOPE", ""),
+                "token_scope_file_configured": bool(os.environ.get("NEXORA_API_TOKEN_SCOPE_FILE", "").strip()),
+                "token_role_file_configured": bool(os.environ.get("NEXORA_API_TOKEN_ROLE_FILE", "").strip()),
+            },
+            "version": NEXORA_VERSION,
+        }
+
     def tenant_quota_usage(
         x_nexora_tenant_id: str | None = Header(None),
     ) -> dict[str, object]:
@@ -1227,31 +1599,16 @@ def register_operations_routes(app: FastAPI) -> None:
     app.add_api_route("/api/hooks/presets", hook_presets, methods=["GET"])
     app.add_api_route("/api/automation/templates", automation_templates, methods=["GET"])
     app.add_api_route("/api/automation/checklists", automation_checklists, methods=["GET"])
+    app.add_api_route("/api/settings", settings_overview, methods=["GET"])
 
 
 def register_subscription_routes(app: FastAPI) -> None:
     """Subscription management API — organizations, plans, subscriptions."""
 
-    class CreateOrgRequest(BaseModel):
-        name: str = Field(..., min_length=1, max_length=200)
-        contact_email: str = Field(..., min_length=3, max_length=200)
-        billing_address: str = ""
-
-    class CreateSubscriptionRequest(BaseModel):
-        org_id: str = Field(..., min_length=1)
-        plan_tier: str = Field(..., pattern="^(free|pro|enterprise)$")
-        tenant_label: str = ""
-
-    class UpgradeSubscriptionRequest(BaseModel):
-        new_tier: str = Field(..., pattern="^(free|pro|enterprise)$")
-
-    class SuspendSubscriptionRequest(BaseModel):
-        reason: str = ""
-
     def list_plans_route() -> list[dict[str, object]]:
         return service.get_plans()
 
-    def create_org(request: CreateOrgRequest) -> dict[str, object]:
+    def create_org(request: CreateOrgRequest = Body(...)) -> dict[str, object]:
         return service.create_org(
             name=request.name,
             contact_email=request.contact_email,
@@ -1267,7 +1624,7 @@ def register_subscription_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=404, detail=f"Organization '{org_id}' not found")
         return org
 
-    def create_sub(request: CreateSubscriptionRequest) -> dict[str, object]:
+    def create_sub(request: CreateSubscriptionRequest = Body(...)) -> dict[str, object]:
         return service.subscribe(
             org_id=request.org_id,
             plan_tier=request.plan_tier,
@@ -1283,13 +1640,13 @@ def register_subscription_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=404, detail="Subscription not found")
         return sub
 
-    def suspend_sub(subscription_id: str, request: SuspendSubscriptionRequest) -> dict[str, object]:
+    def suspend_sub(subscription_id: str, request: SuspendSubscriptionRequest = Body(...)) -> dict[str, object]:
         return service.suspend_sub(subscription_id, reason=request.reason)
 
     def cancel_sub(subscription_id: str) -> dict[str, object]:
         return service.cancel_sub(subscription_id)
 
-    def upgrade_sub(subscription_id: str, request: UpgradeSubscriptionRequest) -> dict[str, object]:
+    def upgrade_sub(subscription_id: str, request: UpgradeSubscriptionRequest = Body(...)) -> dict[str, object]:
         return service.upgrade_sub(subscription_id, request.new_tier)
 
     # Public-facing plan catalog
@@ -1313,17 +1670,12 @@ def register_subscription_routes(app: FastAPI) -> None:
 def register_tenant_management_routes(app: FastAPI) -> None:
     """Tenant management API — CRUD, onboarding, purging."""
 
-    class OnboardTenantRequest(BaseModel):
-        tenant_id: str = Field(..., min_length=1)
-        organization_id: str = Field(..., min_length=1)
-        tier: str = "free"
-
     def list_tenants_route(
         organization_id: str | None = Query(None),
     ) -> list[dict[str, object]]:
         return service.list_tenants(organization_id=organization_id)
 
-    def onboard_tenant_route(request: OnboardTenantRequest) -> dict[str, object]:
+    def onboard_tenant_route(request: OnboardTenantRequest = Body(...)) -> dict[str, object]:
         return service.onboard_tenant(
             request.tenant_id,
             request.organization_id,
@@ -1348,26 +1700,7 @@ def register_tenant_management_routes(app: FastAPI) -> None:
 def register_provisioning_routes(app: FastAPI) -> None:
     """Feature provisioning API — SaaS pushes features down to enrolled nodes."""
 
-    class ProvisionNodeRequest(BaseModel):
-        node_id: str = Field(..., min_length=1)
-        node_url: str = Field(..., min_length=1)
-        hmac_secret: str = Field(..., min_length=32)
-        api_token: str = ""
-        tenant_id: str | None = None
-
-    class DeprovisionNodeRequest(BaseModel):
-        node_id: str = Field(..., min_length=1)
-        node_url: str = Field(..., min_length=1)
-        hmac_secret: str = ""
-
-    class HeartbeatNodeRequest(BaseModel):
-        node_id: str = Field(..., min_length=1)
-        node_url: str = Field(..., min_length=1)
-        hmac_secret: str = Field(..., min_length=32)
-        api_token: str = ""
-        lease_seconds: int = 86400
-
-    def provision_node(request: ProvisionNodeRequest) -> dict[str, object]:
+    def provision_node(request: ProvisionNodeRequest = Body(...)) -> dict[str, object]:
         return service.provision_node(
             node_id=request.node_id,
             node_url=request.node_url,
@@ -1376,14 +1709,14 @@ def register_provisioning_routes(app: FastAPI) -> None:
             tenant_id=request.tenant_id,
         )
 
-    def deprovision_node(request: DeprovisionNodeRequest) -> dict[str, object]:
+    def deprovision_node(request: DeprovisionNodeRequest = Body(...)) -> dict[str, object]:
         return service.deprovision_node_features(
             node_id=request.node_id,
             node_url=request.node_url,
             hmac_secret=request.hmac_secret,
         )
 
-    def heartbeat_node(request: HeartbeatNodeRequest) -> dict[str, object]:
+    def heartbeat_node(request: HeartbeatNodeRequest = Body(...)) -> dict[str, object]:
         return service.heartbeat_node(
             node_id=request.node_id,
             node_url=request.node_url,
@@ -1408,28 +1741,115 @@ def register_provisioning_routes(app: FastAPI) -> None:
 def register_console_routes(app: FastAPI) -> None:
     if CONSOLE_DIR.exists():
         app.mount("/console", StaticFiles(directory=CONSOLE_DIR, html=True), name="console")
+    if OWNER_CONSOLE_DIR.exists():
+        app.mount("/owner-console", StaticFiles(directory=OWNER_CONSOLE_DIR, html=True), name="owner-console")
+    if PUBLIC_SITE_DIR.exists():
+        app.mount("/public_site", StaticFiles(directory=PUBLIC_SITE_DIR, html=True), name="public_site")
 
-    def root():
+    def root(request: Request):
+        """Route root based on subdomain surface."""
+        surface = resolve_surface(request)
+        if surface == "saas":
+            # Owner console
+            if OWNER_CONSOLE_DIR.exists() and (OWNER_CONSOLE_DIR / "index.html").exists():
+                return RedirectResponse(url="/owner-console/")
+            return {"status": "ok", "surface": "saas", "hint": "Owner console not built yet"}
+        if surface == "console":
+            # Subscriber console
+            if (CONSOLE_DIR / "index.html").exists():
+                return RedirectResponse(url="/console/")
+            return {"status": "ok", "surface": "console", "hint": "Subscriber console not built yet"}
+        # Public site (www.* or bare domain)
         if PUBLIC_SITE_INDEX.exists():
             return HTMLResponse(content=_load_public_landing_html())
-        if (CONSOLE_DIR / "index.html").exists():
-            return RedirectResponse(url="admin")
-        return {"status": "ok", "hint": "Console not built yet"}
+        return {"status": "ok", "surface": "public", "hint": "Public site not built yet"}
 
     def subscribe():
-        """Redirect to the subscription onboarding flow."""
+        """Subscription landing page."""
         return HTMLResponse(content=_load_subscription_landing_html())
 
-    def admin_redirect():
-        return RedirectResponse(url="console/")
+    def admin_redirect(request: Request):
+        surface = resolve_surface(request)
+        if surface == "saas":
+            return RedirectResponse(url="/owner-console/")
+        return RedirectResponse(url="/console/")
 
     def console_redirect():
-        return RedirectResponse(url="console/")
+        return RedirectResponse(url="/console/")
 
     app.add_api_route("/", root, methods=["GET"])
     app.add_api_route("/subscribe", subscribe, methods=["GET"])
     app.add_api_route("/admin", admin_redirect, methods=["GET"])
     app.add_api_route("/console", console_redirect, methods=["GET"])
+
+
+class OwnerLoginRequest(BaseModel):
+    passphrase: str = Field(..., min_length=1)
+
+
+class SetPassphraseRequest(BaseModel):
+    passphrase: str = Field(..., min_length=8)
+
+
+def register_owner_auth_routes(app: FastAPI) -> None:
+    """Owner authentication endpoints (passphrase-based, separate from token auth)."""
+
+    def owner_login(body: OwnerLoginRequest) -> dict[str, object]:
+        if not has_passphrase_configured():
+            raise HTTPException(
+                status_code=503,
+                detail="Owner passphrase not configured. Run setup first.",
+            )
+        if not verify_passphrase(body.passphrase):
+            raise HTTPException(status_code=401, detail="Invalid passphrase.")
+        session = create_owner_session()
+        return {
+            "session_token": session["session_token"],
+            "tenant_id": session["tenant_id"],
+            "role": session["role"],
+            "expires_at": session["expires_at"],
+        }
+
+    def owner_logout(request: Request) -> dict[str, bool]:
+        session_token = request.headers.get("X-Nexora-Session", "").strip()
+        revoked = revoke_owner_session(session_token) if session_token else False
+        return {"revoked": revoked}
+
+    def owner_session_status(request: Request) -> dict[str, object]:
+        session_token = request.headers.get("X-Nexora-Session", "").strip()
+        session = validate_owner_session(session_token) if session_token else None
+        if session is None:
+            raise HTTPException(status_code=401, detail="No valid owner session.")
+        return {
+            "valid": True,
+            "tenant_id": session["tenant_id"],
+            "role": session["role"],
+            "expires_at": session["expires_at"],
+        }
+
+    def owner_set_passphrase(request: Request, body: SetPassphraseRequest) -> dict[str, object]:
+        """Set or update the owner passphrase. Only callable from saas surface or first-time setup."""
+        # Allow if no passphrase configured yet (first-time setup)
+        if has_passphrase_configured():
+            # Require existing owner session
+            session_token = request.headers.get("X-Nexora-Session", "").strip()
+            session = validate_owner_session(session_token) if session_token else None
+            if session is None:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Must be authenticated as owner to change passphrase.",
+                )
+        result = set_owner_passphrase(body.passphrase)
+        return {"updated": result.get("stored", False), "path": result.get("path", "")}
+
+    def owner_passphrase_status() -> dict[str, bool]:
+        return {"configured": has_passphrase_configured()}
+
+    app.add_api_route("/api/auth/owner-login", owner_login, methods=["POST"])
+    app.add_api_route("/api/auth/owner-logout", owner_logout, methods=["POST"])
+    app.add_api_route("/api/auth/owner-session", owner_session_status, methods=["GET"])
+    app.add_api_route("/api/auth/owner-passphrase", owner_set_passphrase, methods=["POST"])
+    app.add_api_route("/api/auth/owner-passphrase-status", owner_passphrase_status, methods=["GET"])
 
 
 app = build_application()

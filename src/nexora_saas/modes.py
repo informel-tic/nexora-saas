@@ -10,6 +10,7 @@ import datetime
 import hashlib
 import json
 import logging
+import os
 import secrets
 import time
 from pathlib import Path
@@ -461,8 +462,11 @@ _mode_manager: ModeManager | None = None
 
 def get_mode_manager(state_path: str | Path | None = None) -> ModeManager:
     global _mode_manager
+    resolved_state_path = Path(state_path or os.environ.get("NEXORA_STATE_PATH", "/opt/nexora/var/state.json"))
     if _mode_manager is None:
-        _mode_manager = ModeManager(state_path or "/opt/nexora/var/state.json")
+        _mode_manager = ModeManager(resolved_state_path)
+    elif state_path is not None and Path(_mode_manager._state_path) != resolved_state_path:
+        _mode_manager = ModeManager(resolved_state_path)
     return _mode_manager
 
 

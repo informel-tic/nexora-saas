@@ -4,7 +4,53 @@ La Nexora Console est l'interface web d'exploitation de la plateforme Nexora.
 Elle offre une vue unifiée sur l'ensemble des capacités métier exposées par le
 control plane REST, en s'appuyant sur un design system cohérent et accessible.
 
-## Architecture front-end
+## Première connexion
+
+### Instance de test
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **URL console** | `https://srv2testrchon.nohost.me/nexora/console` |
+| **Token opérateur** | `9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E=` |
+| **Tenant ID** | `nexora-operator` |
+| **Tier** | `enterprise` |
+| **Rôle** | `operator` |
+
+### Comment se connecter
+
+1. Ouvrir `https://srv2testrchon.nohost.me/nexora/console` dans un navigateur.
+2. Un champ de saisie du token apparaît automatiquement.
+3. Coller le token opérateur et valider.
+4. La console charge le Dashboard avec la vue d'ensemble de la flotte.
+
+> Le token est stocké en **sessionStorage** (effacé à la fermeture de l'onglet).
+> Pour vérifier le token actif côté serveur :
+> ```bash
+> sudo cat /home/yunohost.app/nexora/api-token
+> ```
+
+### Vérification API depuis le terminal
+
+```bash
+TOKEN="9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E="
+BASE="https://srv2testrchon.nohost.me/nexora/console"
+
+# Santé
+curl -sk -H "Authorization: Bearer $TOKEN" $BASE/api/v1/health
+
+# Flotte (nœuds)
+curl -sk -H "Authorization: Bearer $TOKEN" $BASE/api/v1/fleet
+
+# Tenants
+curl -sk -H "Authorization: Bearer $TOKEN" $BASE/api/v1/tenants
+
+# Contexte d'accès
+curl -sk -H "Authorization: Bearer $TOKEN" $BASE/api/console/access-context
+```
+
+---
+
+
 
 ```
 apps/console/

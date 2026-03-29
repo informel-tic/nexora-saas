@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed (sprint 2026-03-29 — déploiement & console opérateur)
+- **[AUTH FIX] Rate-limit scope** — `TokenAuthMiddleware` (`src/nexora_node_sdk/auth/_middleware.py`) : le compteur de rate-limit ne s'applique désormais qu'aux tentatives avec token invalide, pas aux requêtes sans token. Corrige le bug "Trop de tentatives" qui verrouillait les clients non encore authentifiés après quelques accès à la console.
+- **[CONSOLE FIX] Appels API conditionnels** — `apps/console/app.js` et `apps/console/api.js` : tous les appels REST sont désormais bloqués tant que le token n'est pas renseigné en `sessionStorage`, éliminant les rafales de 401 à l'ouverture de la console.
+- **[CONSOLE FIX] Sanitisation erreurs backend** — `apps/console/views.js` : les traces d'erreur backend et les séquences ANSI sont filtrées avant affichage, empêchant les artefacts `undefined`/`\x1b[` dans l'UI.
+- **[CONSOLE FIX] Conformité DOM** — `apps/console/api.js` : le prompt de saisie du token est maintenant encapsulé dans un `<form>` avec `action="#"` et `autocomplete="current-password"`, éliminant l'avertissement navigateur "password fields should be inside a form".
+- **[CONSOLE FIX] Retry tenant-claim** — `apps/console/api.js` : `/api/auth/tenant-claim` est retentée avant tout appel chargement du contexte (`access-context`), évitant les échecs 401 en cascade lors du premier chargement post-login.
+
+### Validated (sprint 2026-03-29)
+- **Déploiement opérateur réel validé** sur `srv2testrchon.nohost.me` (YunoHost Debian 12, single-node) :
+  - URL console : `https://srv2testrchon.nohost.me/nexora/`
+  - API health : 200 OK, version 2.0.0
+  - Fleet/tenants/access-context : réponses correctes avec token opérateur
+  - Zéro erreur/warning browser après validation Playwright end-to-end
+
 ### Added (sprint 2026-03-27 — finalisation complète v2.1)
 - **auth.py modularisation (NEXT-22)** — `src/nexora_core/auth.py` (1038 lignes) découpé en package `auth/` avec 5 sous-modules dédiés : `_token` (gestion tokens, rotation, session), `_scopes` (tenant/rôle, validators), `_rate_limit` (rate-limiting avec persistance fichier), `_middleware` (TokenAuth, SecurityHeaders, CSRF), `_secret_store` (SecretStore, VALID_SCOPES). `__init__.py` rétro-compatible — les 20+ sites d'import existants fonctionnent sans modification. Les globaux mutables (`_api_token`, `_AUTH_FAILURES`) accessibles via `auth._token._api_token` et `auth._rate_limit._AUTH_FAILURES`.
 - **SQL/RLS J2-J3** — Scripts de migration Postgres créés sous `deploy/sql_rls/init/` : `001_base_schema.sql` (tables canoniques), `002_rls_policies.sql` (policies `tenant_isolation` + `platform_admin_read` sur `tenant_artifacts`), `003_rls_operator_bypass.sql` (rôles `nexora_app`/`nexora_owner`/`nexora_service`, fonctions `nexora_set_tenant`, vue `v_control_plane_state` J2). Runbook dans `deploy/sql_rls/README.md`.

@@ -1,6 +1,25 @@
 import { api, apiPost } from './api.js';
 import { scoreColor, nxStatCard, nxGauge, nxAlert, nxTable, nxLoader, nxEmpty, nxBadge } from './components.js';
 
+function stripAnsi(value) {
+  return String(value || '').replace(/\u001b\[[0-9;]*m/g, '').trim();
+}
+
+function inventoryEntries(payload) {
+  return Object.entries(payload || {}).filter(function(entry) {
+    return entry[0] && entry[0].charAt(0) !== '_';
+  });
+}
+
+function inventoryError(payload, fallback) {
+  const raw = stripAnsi(payload && payload._error);
+  if (!raw) return '';
+  if (raw.toLowerCase().indexOf('must be run as root') >= 0) {
+    return fallback;
+  }
+  return raw;
+}
+
 export async function loadDashboard(sec) {
   const [dash, health, identity] = await Promise.all([api('dashboard'), api('health'), api('identity').catch(function() { return {}; })]);
   document.getElementById('health-badge').textContent = health.status === 'ok' ? 'online' : 'offline';
@@ -98,28 +117,41 @@ export async function loadApps(sec) {
 
 export async function loadServices(sec) {
   const data = await api('inventory/services');
-  const svcs = Object.entries(data || {});
-  if (!svcs.length) { sec.innerHTML = nxEmpty('Aucun service'); return; }
-  sec.innerHTML = `<div class="nx-card"><div class="nx-card-header"><h3>État des services</h3></div>
-    <ul class="item-list">${svcs.map(function([name, info]) {
+  const svcs = inventoryEntries(data);
+  const error = inventoryError(data, 'Inventaire des services indisponible sur cet hôte sans privilèges YunoHost.');
+  if (!svcs.length && !error) { sec.innerHTML = nxEmpty('Aucun service'); return; }
+  let html = `<div class="nx-card"><div class="nx-card-header"><h3>État des services</h3></div>`;
+  if (error) {
+    html += nxAlert(error, 'warning');
+  }
+  html += `<ul class="item-list">${svcs.map(function([name, info]) {
       const st = (typeof info === 'object' ? info.status || info.active : info) || '?';
       const dot = st === 'running' ? 'status-running' : st === 'inactive' || st === 'dead' ? 'status-stopped' : 'status-warning';
       return '<li><span><span class="status-dot ' + dot + '"></span>' + name + '</span><span style="color:var(--muted)">' + st + '</span></li>';
     }).join('')}</ul></div>`;
+  sec.innerHTML = html;
 }
 
 export async function loadDomains(sec) {
   const [domains, certs] = await Promise.all([api('inventory/domains'), api('inventory/certs')]);
-  const domList = domains.domains || [];
+  const domainError = inventoryError(domains, 'Inventaire des domaines indisponible sur cet hôte sans privilèges YunoHost.');
+  const certError = inventoryError(certs, 'Inventaire des certificats indisponible sur cet hôte sans privilèges YunoHost.');
+  const domList = Array.isArray(domains.domains) ? domains.domains : [];
   const certMap = (certs || {}).certificates || certs || {};
-  const certEntries = Object.entries(certMap);
+  const certEntries = inventoryEntries(certMap);
 
   let html = `<div class="nx-grid nx-grid-2">
     <div class="nx-card"><div class="nx-card-header"><h3>Domaines</h3></div>`;
+  if (domainError) {
+    html += nxAlert(domainError, 'warning');
+  }
   html += domList.length
     ? '<ul class="item-list">' + domList.map(function(d) { return '<li>' + d + '</li>'; }).join('') + '</ul>'
     : nxEmpty('Aucun domaine');
   html += `</div><div class="nx-card"><div class="nx-card-header"><h3>Certificats</h3></div>`;
+  if (certError) {
+    html += nxAlert(certError, 'warning');
+  }
   html += certEntries.length
     ? nxTable(['Domaine', 'Validité', 'Style'], certEntries.map(function([d, info]) {
         const v = typeof info === 'object' ? info.validity || '-' : info;
@@ -368,8 +400,8 @@ export async function loadModes(sec, NexoraConsoleObj) {
     if (sel) sel.value = mode.mode;
   }, 0);
 
-  const badge = document.getElementById('profile-badge');
-  if (badge) badge.textContent = mode.mode;
+  const runtimeBadge = document.getElementById('runtime-mode-badge');
+  if (runtimeBadge) runtimeBadge.textContent = 'mode: ' + (mode.mode || 'observer');
 
   html += `<div class="nx-card mb"><div class="nx-card-header"><h3>Escalations actives</h3></div>`;
   html += (escalations && escalations.length)
@@ -458,7 +490,8 @@ export async function loadStorage(sec) {
     ? nxTable(['Point de montage', 'Total', 'Utilisé', 'Libre', 'Usage %'], mounts.map(function(m) {
         const pct = m.percent || 0;
         const color = pct > 90 ? 'var(--red)' : pct > 75 ? 'var(--warning)' : 'var(--success)';
-        return [m.mountpoint || m.device, m.total_human || '—', m.used_human || '—', m.free_human || '—',
+        const mountLabel = m.mountpoint || m.device || m.path || '—';
+        return [mountLabel, m.total_human || '—', m.used_human || '—', m.free_human || '—',
           '<span style="color:' + color + ';font-weight:600">' + pct + '%</span>'];
       }))
     : nxEmpty('Aucune donnée de disque disponible');
@@ -711,6 +744,85 @@ export async function loadProvisioning(sec) {
     html += nxEmpty('Aucun n\u0153ud dans la flotte. Enrollez d\'abord un n\u0153ud via Fleet.');
   }
   html += '</div>';
+
+  sec.innerHTML = html;
+}
+
+export async function loadSettings(sec) {
+  const [settings, accessContext] = await Promise.all([
+    api('settings').catch(function() { return {}; }),
+    api('console/access-context').catch(function() { return {}; })
+  ]);
+
+  const profile = settings.profile || {};
+  const tenant = settings.tenant || accessContext.tenant || {};
+  const operator = settings.operator || {};
+  const state = settings.state || {};
+  const security = settings.security || {};
+  const allowed = accessContext.allowed_sections || [];
+
+  let html = `<div class="nx-grid nx-grid-3 mb">
+    ${nxStatCard(profile.actor_role || 'observer', 'Rôle d\'accès', 'var(--accent)')}
+    ${nxStatCard(profile.runtime_mode || 'observer', 'Mode runtime', 'var(--blue)')}
+    ${nxStatCard(accessContext.tenant_id || 'aucun', 'Tenant effectif', 'var(--purple)')}
+  </div>`;
+
+  html += `<div class="nx-card mb"><div class="nx-card-header"><h3>Contexte opérateur</h3></div>`;
+  html += nxTable(
+    ['Clé', 'Valeur'],
+    [
+      ['is_operator', String(!!profile.is_operator)],
+      ['operator_tenant_id', operator.tenant_id || accessContext.operator_tenant_id || '-'],
+      ['operator_org_id', operator.organization_id || '-'],
+      ['tenant_source', accessContext.tenant_source || '-'],
+      ['platform_version', accessContext.platform_version || settings.version || '-']
+    ]
+  );
+  html += '</div>';
+
+  html += `<div class="nx-card mb"><div class="nx-card-header"><h3>Tenant courant</h3></div>`;
+  html += nxTable(
+    ['Champ', 'Valeur'],
+    [
+      ['tenant_id', tenant.tenant_id || accessContext.tenant_id || '-'],
+      ['org_id', tenant.org_id || '-'],
+      ['tier', tenant.tier || '-'],
+      ['status', tenant.status || '-'],
+      ['label', tenant.label || '-']
+    ]
+  );
+  html += '</div>';
+
+  html += `<div class="nx-card mb"><div class="nx-card-header"><h3>Surfaces autorisées</h3></div>`;
+  html += allowed.length
+    ? '<div class="p-md">' + allowed.map(function(section) { return nxBadge(section, 'info'); }).join(' ') + '</div>'
+    : nxEmpty('Aucune section autorisée détectée');
+  html += '</div>';
+
+  html += `<div class="nx-grid nx-grid-2">
+    <div class="nx-card"><div class="nx-card-header"><h3>État plateforme</h3></div>
+      ${nxTable(
+        ['Indicateur', 'Valeur'],
+        [
+          ['tenants_count', String(state.tenants_count || 0)],
+          ['organizations_count', String(state.organizations_count || 0)],
+          ['subscriptions_count', String(state.subscriptions_count || 0)],
+          ['nodes_count', String(state.nodes_count || 0)]
+        ]
+      )}
+    </div>
+    <div class="nx-card"><div class="nx-card-header"><h3>Guardrails sécurité</h3></div>
+      ${nxTable(
+        ['Contrôle', 'État'],
+        [
+          ['operator_only_enforce', security.operator_only_enforce ? nxBadge('enabled', 'success') : nxBadge('disabled', 'warning')],
+          ['token_scope_file_configured', security.token_scope_file_configured ? nxBadge('yes', 'success') : nxBadge('no', 'warning')],
+          ['token_role_file_configured', security.token_role_file_configured ? nxBadge('yes', 'success') : nxBadge('no', 'warning')],
+          ['deployment_scope', security.deployment_scope || 'non défini']
+        ]
+      )}
+    </div>
+  </div>`;
 
   sec.innerHTML = html;
 }

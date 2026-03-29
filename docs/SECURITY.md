@@ -23,12 +23,17 @@ Nexora expose trois surfaces d'attaque principales :
 
 ### 2.1 Token API principal (`src/nexora_core/auth.py`)
 
-- Chargé depuis fichier (`/etc/nexora/api-token`, `/opt/nexora/var/api-token`) ou généré à la volée via `secrets.token_urlsafe(32)`.
-- Stocké avec permissions `0o600`.
+- Chargé depuis fichier selon profil de déploiement :
+  - Installation YunoHost app : `/home/yunohost.app/nexora/api-token` (via `NEXORA_API_TOKEN_FILE` dans `nexora.service`)
+  - Installation standalone : `/opt/nexora/var/api-token` (via `NEXORA_API_TOKEN_FILE` dans `nexora-control-plane.service`)
+  - Fallback : `/etc/nexora/api-token`
+  - Ou généré à la volée via `secrets.token_urlsafe(32)`.
+- Stocké avec permissions `0o600`, propriétaire `nexora`.
 - Accepté via `Authorization: Bearer <token>` ou `X-Nexora-Token: <token>`.
 - Comparé en temps constant via `secrets.compare_digest` (protection timing attacks).
 - Rotation supportée via `rotate_api_token()` avec métadonnées persistées.
 - Rotation automatique optionnelle via `NEXORA_API_TOKEN_AUTO_ROTATE_DAYS`.
+- **Rate-limiting** : ne s'applique qu'aux tentatives avec token invalide (non aux requêtes sans token), évitant les verrouillages des clients non encore authentifiés.
 
 ### 2.2 Scoped secrets per-nœud/service/opérateur (`SecretStore`)
 

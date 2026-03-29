@@ -22,7 +22,7 @@ Mutable globals used by tests live in the submodules:
 from __future__ import annotations
 
 # ── Make submodules accessible as attributes (auth._token, etc.) ──────
-from . import _middleware, _rate_limit, _scopes, _secret_store, _token  # noqa: F401
+from . import _middleware, _owner_session, _rate_limit, _scopes, _secret_store, _token  # noqa: F401
 
 # ── HTTP middlewares ───────────────────────────────────────────────────
 from ._middleware import (
@@ -57,6 +57,17 @@ from ._scopes import (
     validate_operator_surface_role,
     validate_trusted_actor_role,
     validate_scope,
+)
+
+# ── Owner session ─────────────────────────────────────────────────────
+from ._owner_session import (
+    create_owner_session,
+    has_passphrase_configured,
+    owner_tenant_id,
+    revoke_owner_session,
+    set_owner_passphrase,
+    validate_owner_session,
+    verify_passphrase,
 )
 
 # ── SecretStore ───────────────────────────────────────────────────────
@@ -130,4 +141,12 @@ __all__ = [
     "VALID_SCOPES",
     "SCOPE_PERMISSIONS",
     "SecretStore",
+    # owner_session
+    "verify_passphrase",
+    "set_owner_passphrase",
+    "create_owner_session",
+    "validate_owner_session",
+    "revoke_owner_session",
+    "has_passphrase_configured",
+    "owner_tenant_id",
 ]

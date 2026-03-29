@@ -2,7 +2,10 @@
 
 Ce document détaille les procédures opérationnelles pour maintenir et réparer une flotte Nexora.
 
-## Runbook : Récupération d'un Enrollment Échoué
+> **Instance de test** : `https://srv2testrchon.nohost.me/nexora/`
+> Voir aussi [DEPLOYMENT.md](DEPLOYMENT.md) pour les détails complets de l'instance de référence.
+
+
 **Symptôme :** Un nœud reste en statut `attested` ou `degraded` après une tentative d'ajout.
 
 ### Procédure de diagnostic

@@ -447,6 +447,68 @@ class P8BehavioralTests(unittest.TestCase):
         )
         self.assertEqual(allowed.status_code, 200)
 
+    def test_access_context_operator_defaults_to_operator_tenant_and_keeps_role_mode_separated(self):
+        role_file = Path(self.tmp_dir.name) / "token-roles-operator-context.json"
+        role_file.write_text(json.dumps({get_api_token(): "admin"}), encoding="utf-8")
+        os.environ["NEXORA_API_TOKEN_ROLE_FILE"] = str(role_file)
+
+        response = self.client.get(
+            "/api/console/access-context",
+            headers={**self.headers, "X-Nexora-Actor-Role": "admin"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload.get("actor_role"), "admin")
+        self.assertTrue(payload.get("is_operator"))
+        self.assertEqual(payload.get("tenant_source"), "operator-default")
+        self.assertEqual(payload.get("tenant_id"), payload.get("operator_tenant_id"))
+        self.assertIn("settings", payload.get("allowed_sections", []))
+        # runtime_mode remains an independent control-plane setting
+        self.assertIn(payload.get("runtime_mode"), {"observer", "operator", "architect", "admin"})
+
+        state = api_module.service.state.load()
+        tenant_id = payload.get("tenant_id")
+        self.assertTrue(any(t.get("tenant_id") == tenant_id for t in state.get("tenants", [])))
+
+        local_node_id = api_module.service.local_node_summary().node_id
+        local_node = next(
+            (n for n in state.get("nodes", []) if n.get("node_id") == local_node_id),
+            None,
+        )
+        if local_node is not None:
+            self.assertEqual(local_node.get("tenant_id"), tenant_id)
+
+    def test_access_context_subscriber_exposes_restricted_surface_only(self):
+        role_file = Path(self.tmp_dir.name) / "token-roles-subscriber-context.json"
+        role_file.write_text(json.dumps({get_api_token(): "subscriber"}), encoding="utf-8")
+        os.environ["NEXORA_API_TOKEN_ROLE_FILE"] = str(role_file)
+
+        response = self.client.get(
+            "/api/console/access-context",
+            headers={**self.headers, "X-Nexora-Actor-Role": "subscriber", "X-Nexora-Tenant-Id": "tenant-a"},
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+
+        self.assertEqual(payload.get("actor_role"), "subscriber")
+        self.assertTrue(payload.get("subscriber_mode"))
+        self.assertFalse(payload.get("is_operator"))
+        self.assertNotIn("settings", payload.get("allowed_sections", []))
+        self.assertNotIn("subscription", payload.get("allowed_sections", []))
+
+    def test_subscriber_cannot_access_operator_settings_endpoint(self):
+        role_file = Path(self.tmp_dir.name) / "token-roles-subscriber-settings.json"
+        role_file.write_text(json.dumps({get_api_token(): "subscriber"}), encoding="utf-8")
+        os.environ["NEXORA_API_TOKEN_ROLE_FILE"] = str(role_file)
+
+        denied = self.client.get(
+            "/api/settings",
+            headers={**self.headers, "X-Nexora-Actor-Role": "subscriber"},
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertIn("Subscriber profile is restricted", denied.text)
+
 
 class PackagingBlockP8ContractTests(unittest.TestCase):
     def test_remove_script_supports_purge_mode_and_audit_report(self):

@@ -261,8 +261,8 @@
         <div class="muted">Control-plane multi-tenant pour masquer les noeuds YunoHost derriere une offre SaaS unifiee</div>
       </div>
       <div class="btns">
-        <a class="btn secondary" href="api/plans">Voir les offres</a>
-        <a class="btn primary" href="subscribe">Souscrire</a>
+        <a class="btn secondary" href="/subscribe">Voir les offres</a>
+        <a class="btn primary" href="/subscribe">Souscrire</a>
       </div>
     </header>
 
@@ -322,19 +322,19 @@
 
     <section class="split" aria-label="Zones d'usage">
       <div class="zone admin">
-        <div class="state">Zone interne SaaS</div>
-        <h4>Administration operateur</h4>
+        <div class="state">Zone propriétaire SaaS</div>
+        <h4>Console Owner</h4>
         <p>
-          Via <strong>/admin</strong> puis <strong>/console</strong>, vous pilotez les tenants, policies,
-          actions de flotte et surfaces operator-only.
+          Le propriétaire SaaS accède via <strong>saas.&lt;domaine&gt;</strong> avec sa passphrase pour
+          piloter les tenants, policies, actions de flotte et toutes les surfaces d'administration.
         </p>
       </div>
       <div class="zone sub">
         <div class="state">Zone subscribers</div>
-        <h4>Portail clients</h4>
+        <h4>Console Subscriber</h4>
         <p>
-          Les subscribers se connectent avec un token scope + tenant pour enroler leurs propres noeuds,
-          sans acces aux surfaces internes operateur.
+          Les subscribers se connectent via <strong>console.&lt;domaine&gt;</strong> avec un token
+          scopé + tenant pour gérer leurs propres noeuds, sans accès aux surfaces propriétaire.
         </p>
       </div>
     </section>
@@ -343,8 +343,7 @@
       En API, consultez <strong>/api/public/offers</strong> pour récupérer les offres, et utilisez
       les endpoints d'enrollment pour onboarder des nœuds dans un tenant dédié selon l'offre.
       <br/><br/>
-      <a class="btn primary" href="subscribe">Souscrire maintenant</a>
-      <a class="btn secondary" href="admin" style="margin-left:.5rem">Accès console admin</a>
+      <a class="btn primary" href="/subscribe">Souscrire maintenant</a>
     </div>
   </div>
 </body>

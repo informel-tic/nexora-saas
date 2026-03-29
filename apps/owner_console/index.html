@@ -4,22 +4,52 @@
   <meta charset="utf-8"/>
   <meta http-equiv="X-UA-Compatible" content="IE=edge"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <link rel="icon" type="image/svg+xml" href="./assets/favicon.svg"/>
-  <title>Nexora Console — Subscriber</title>
-  <link rel="stylesheet" href="./styles.css"/>
+  <link rel="icon" type="image/svg+xml" href="../console/assets/favicon.svg"/>
+  <title>Nexora SaaS — Owner Console</title>
+  <link rel="stylesheet" href="../console/styles.css"/>
+  <style>
+    /* Owner-specific branding overrides */
+    :root {
+      --brand-owner: #7c3aed;
+      --brand-owner-dark: #5b21b6;
+    }
+    header {
+      background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%) !important;
+    }
+    header .brand h1 { color: #e0e7ff !important; }
+    header .brand p { color: #a5b4fc !important; }
+    #main-nav { border-bottom-color: #4c1d95; }
+    #main-nav a.active { border-bottom-color: var(--brand-owner); color: var(--brand-owner); }
+    .nx-owner-surface-badge {
+      display: inline-block;
+      background: linear-gradient(90deg, #7c3aed, #a78bfa);
+      color: #fff;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+  </style>
 </head>
 <body>
   <a class="nx-skip-link" href="#main-content" tabindex="0">Aller au contenu principal</a>
 
   <header>
     <div class="brand">
-      <img src="./assets/nexora-mark.svg" alt="Nexora" class="logo"/>
-      <div><h1>Nexora Console</h1><p>Espace Subscriber — Gestion de votre infrastructure YunoHost</p></div>
+      <img src="../console/assets/nexora-mark.svg" alt="Nexora" class="logo"/>
+      <div>
+        <h1>Nexora Owner Console</h1>
+        <p>Administration SaaS — Espace propriétaire</p>
+      </div>
     </div>
     <div class="header-right">
-      <span class="nx-badge nx-badge-info" id="profile-badge" role="status" aria-label="Mode actuel">…</span>
+      <span class="nx-owner-surface-badge">OWNER</span>
+      <span class="nx-badge nx-badge-info" id="profile-badge" role="status" aria-label="Profil">owner</span>
       <span class="nx-badge nx-badge-neutral" id="runtime-mode-badge" role="status" aria-label="Mode runtime">mode: …</span>
-      <span class="nx-badge nx-badge-success" id="health-badge" role="status" aria-label="Statut de sant&eacute;">…</span>
+      <span class="nx-badge nx-badge-success" id="health-badge" role="status" aria-label="Statut de santé">…</span>
+      <button id="logout-btn" class="nx-badge nx-badge-neutral" style="cursor:pointer;border:none" title="Déconnexion">⏻</button>
     </div>
   </header>
 
@@ -29,7 +59,7 @@
     <a href="#apps" data-section="apps" role="link" tabindex="0">Applications</a>
     <a href="#services" data-section="services" role="link" tabindex="0">Services</a>
     <a href="#domains" data-section="domains" role="link" tabindex="0">Domaines</a>
-    <a href="#security" data-section="security" role="link" tabindex="0">S&eacute;curit&eacute;</a>
+    <a href="#security" data-section="security" role="link" tabindex="0">Sécurité</a>
     <a href="#pra" data-section="pra" role="link" tabindex="0">PRA</a>
     <a href="#fleet" data-section="fleet" role="link" tabindex="0">Fleet</a>
     <a href="#blueprints" data-section="blueprints" role="link" tabindex="0">Blueprints</a>
@@ -44,11 +74,12 @@
     <a href="#sla-tracking" data-section="sla-tracking" role="link" tabindex="0">SLA</a>
     <a href="#subscription" data-section="subscription" role="link" tabindex="0">Souscription</a>
     <a href="#provisioning" data-section="provisioning" role="link" tabindex="0">Provisioning</a>
+    <a href="#tenants" data-section="tenants" role="link" tabindex="0">Tenants</a>
     <a href="#settings" data-section="settings" role="link" tabindex="0">Settings</a>
   </nav>
 
   <main id="main-content" role="main" aria-live="polite">
-    <!-- Sections are rendered dynamically by the NexoraConsole controller -->
+    <!-- Sections rendered dynamically by OwnerConsole controller -->
   </main>
 
   <!-- Modal container -->

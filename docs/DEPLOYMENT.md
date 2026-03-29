@@ -1,5 +1,36 @@
 # Guide de Déploiement Nexora
 
+## Instance de test active
+
+> Déploiement de référence validé le 2026-03-28 sur `srv2testrchon.nohost.me`.
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **Domaine** | `srv2testrchon.nohost.me` (YunoHost nohost.me) |
+| **Chemin** | `/nexora` |
+| **URL console** | `https://srv2testrchon.nohost.me/nexora/` |
+| **Mode** | `fresh` |
+| **Profil** | `control-plane+node-agent` |
+| **Enrollment** | `pull` |
+| **Debian** | 12 (Bookworm) |
+| **YunoHost** | 12.1.39 |
+| **Node ID** | `node-fc416f4a84b0` |
+| **Token** | `/home/yunohost.app/nexora/api-token` |
+| **State** | `/home/yunohost.app/nexora/state.json` |
+| **Control Plane** | `127.0.0.1:38120` (proxied by nginx) |
+| **Node Agent** | `127.0.0.1:38121` (internal) |
+
+Commande utilisée :
+```bash
+MODE=fresh \
+PROFILE=control-plane+node-agent \
+ENROLLMENT_MODE=pull \
+DOMAIN=srv2testrchon.nohost.me \
+PATH_URL=/nexora \
+./deploy/bootstrap-full-platform.sh
+```
+
+---
 
 ## Deploy From Fresh Yunohost
 

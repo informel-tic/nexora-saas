@@ -104,6 +104,75 @@ Auth: `Authorization: Bearer <token>` or `X-Nexora-Token: <token>`
 | [docs/CHANGELOG.md](docs/CHANGELOG.md) | Release notes |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Feature roadmap |
 
+## Instance de test — Accès opérateur
+
+> Environnement de validation hébergé sur `srv2testrchon.nohost.me`
+> (YunoHost Debian 12, mode `fresh`, profil `control-plane+node-agent`, single-node).
+
+| Paramètre | Valeur |
+|-----------|--------|
+| **Console** | `https://srv2testrchon.nohost.me/nexora/` |
+| **API base** | `https://srv2testrchon.nohost.me/nexora/api/v1` |
+| **Token opérateur** | `9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E=` |
+| **Tenant ID** | `nexora-operator` |
+| **Tier** | `enterprise` |
+| **Rôle** | `operator` |
+| **Node ID** | `node-fc416f4a84b0` |
+| **Domaine YunoHost** | `srv2testrchon.nohost.me` |
+| **Path YunoHost** | `/nexora` |
+
+### Connexion à la console
+
+1. Ouvrir `https://srv2testrchon.nohost.me/nexora/` dans un navigateur.
+2. Coller le token opérateur ci-dessus dans le champ d'authentification.
+3. Valider — la console charge la vue Dashboard avec le tenant `nexora-operator`.
+
+### Authentification API rapide
+
+```bash
+# Santé du control plane
+curl -sk \
+  -H "Authorization: Bearer 9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E=" \
+  https://srv2testrchon.nohost.me/nexora/api/v1/health
+
+# Flotte (nodes)
+curl -sk \
+  -H "X-Nexora-Token: 9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E=" \
+  https://srv2testrchon.nohost.me/nexora/api/v1/fleet
+
+# Tenants actifs
+curl -sk \
+  -H "Authorization: Bearer 9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E=" \
+  https://srv2testrchon.nohost.me/nexora/api/v1/tenants
+
+# Contexte d'accès opérateur
+curl -sk \
+  -H "Authorization: Bearer 9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E=" \
+  https://srv2testrchon.nohost.me/nexora/api/console/access-context
+```
+
+> **Token file** (sur le serveur) : `/home/yunohost.app/nexora/api-token`
+> Permissions `0o600`, propriétaire `nexora`.
+
+### Ports et services internes
+
+| Service | Port interne | Proxy externe |
+|---------|-------------|---------------|
+| Control Plane | `127.0.0.1:38120` | `https://srv2testrchon.nohost.me/nexora/` |
+| Node Agent | `127.0.0.1:38121` | non exposé publiquement |
+
+### Unités systemd
+
+```bash
+# Status
+sudo systemctl status nexora nexora-node-agent
+
+# Logs en direct
+sudo journalctl -u nexora -f
+```
+
+---
+
 ## License
 
 AGPL-3.0-or-later

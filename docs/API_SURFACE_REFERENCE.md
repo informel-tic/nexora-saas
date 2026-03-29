@@ -3,6 +3,16 @@
 > Auto-generated overview of all Nexora capabilities and their surface coverage.
 > WS5 — REST / MCP / Console Convergence
 
+## Base URL (instance de test)
+
+```
+https://srv2testrchon.nohost.me/nexora/api/v1
+```
+
+Auth : `Authorization: Bearer <token>` ou `X-Nexora-Token: <token>`
+
+Token opérateur (instance de test) : `9s2mGHS+YDuds1tG3b1o6TqS1uwMfRjMf642M0F0q/E=`
+
 ## Coverage Summary
 
 | Metric | Value |

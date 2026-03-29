@@ -279,6 +279,8 @@ if ! id nexora >/dev/null 2>&1; then
 fi
 mkdir -p /opt/nexora "$STATE_DIR" /tmp/nexora-export /var/log/yunohost-mcp-server "$CERTS_DIR"
 chown -R nexora:nexora /opt/nexora /tmp/nexora-export /var/log/yunohost-mcp-server
+# Ensure /tmp/nexora-export is recreated on reboot via tmpfiles.d
+echo "d /tmp/nexora-export 0755 nexora nexora -" > /etc/tmpfiles.d/nexora.conf
 mkdir -p /etc/nexora
 if [[ ! -f /etc/nexora/api-token-roles.json ]]; then
   printf '{}\n' > /etc/nexora/api-token-roles.json

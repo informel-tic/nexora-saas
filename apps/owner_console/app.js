@@ -1,11 +1,15 @@
-import { initToken, api, apiPost, loadAccessContext, refreshTenantClaim, showTokenPrompt } from './api.js';
-import { nxAlert, nxLoader } from './components.js';
-import * as views from './views.js';
+/**
+ * Nexora Owner Console — Application Controller
+ *
+ * The owner console provides full SaaS management with passphrase-based auth.
+ * All sections are available — no access restrictions.
+ */
 
-// Init token
-initToken();
+import { isAuthenticated, api, apiPost, loadAccessContext, ownerLogout, showPassphrasePrompt } from './api.js';
+import { nxAlert, nxLoader } from '../console/components.js';
+import * as views from '../console/views.js';
 
-// Toast notification helper
+// Toast helper
 window.nxToast = function(message, level) {
   const container = document.getElementById('nx-toast-container') || (function() {
     const div = document.createElement('div');
@@ -15,7 +19,7 @@ window.nxToast = function(message, level) {
     return div;
   })();
   const toast = document.createElement('div');
-  const colors = { success: '#059669', warning: '#d97706', danger: '#dc2626', info: '#2563eb' };
+  const colors = { success: '#059669', warning: '#d97706', danger: '#dc2626', info: '#7c3aed' };
   const bg = colors[level] || colors.info;
   toast.style.cssText = 'padding:.75rem 1rem;border-radius:8px;color:#fff;font-size:.9rem;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:fade-in .3s ease;background:' + bg;
   toast.textContent = message;
@@ -23,11 +27,11 @@ window.nxToast = function(message, level) {
   setTimeout(function() { toast.style.opacity = '0'; toast.style.transition = 'opacity .3s'; setTimeout(function() { toast.remove(); }, 300); }, 5000);
 };
 
-// Make API helpers globally available for onclick handlers in views
+// Make API helpers globally available for onclick handlers
 window.api = api;
 window.apiPost = apiPost;
 
-// Define specific actions from views that need to be global for onclick
+// Re-export action handlers used by views with onclick
 window.praAction = async function(action) {
   const result = document.getElementById('pra-action-result');
   result.innerHTML = nxLoader('Exécution…');
@@ -52,10 +56,7 @@ window.runAdoption = async function() {
   result.innerHTML = nxLoader('Analyse…');
   try {
     const data = await api('adoption/report?domain=' + encodeURIComponent(domain) + '&path=' + encodeURIComponent(path));
-    result.innerHTML = nxAlert('Mode recommandé: <strong>' + data.recommended_mode + '</strong>' +
-      (data.suggested_path ? ' — Chemin: <strong>' + data.suggested_path + '</strong>' : ''),
-      data.safe_to_install ? 'success' : 'warning') +
-      '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+    result.innerHTML = nxAlert('Mode recommandé: <strong>' + data.recommended_mode + '</strong>', data.safe_to_install ? 'success' : 'warning') + '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
   } catch (e) { result.innerHTML = nxAlert('Erreur: ' + e.message, 'critical'); }
 };
 
@@ -81,13 +82,11 @@ window.switchMode = async function() {
       result.innerHTML = nxAlert('Mode changé: ' + data.previous_mode + ' → ' + data.current_mode, 'success');
       const runtimeBadge = document.getElementById('runtime-mode-badge');
       if (runtimeBadge) runtimeBadge.textContent = 'mode: ' + (data.current_mode || 'observer');
-      setTimeout(function() { NexoraConsole.navigate('modes'); }, 800);
+      setTimeout(function() { OwnerConsole.navigate('modes'); }, 800);
     } else {
       result.innerHTML = nxAlert(data.error || 'Erreur', 'critical');
     }
-  } catch (e) {
-    result.innerHTML = nxAlert('Erreur: ' + e.message, 'critical');
-  }
+  } catch (e) { result.innerHTML = nxAlert('Erreur: ' + e.message, 'critical'); }
 };
 
 window.createOrg = async function() {
@@ -98,11 +97,9 @@ window.createOrg = async function() {
   try {
     const data = await apiPost('organizations', { name: name, contact_email: email, billing_address: '' });
     if (data && data.org_id) {
-      alert('Organisation créée : ' + data.org_id);
-      NexoraConsole.navigate('subscription');
-    } else {
-      alert('Erreur : ' + JSON.stringify(data));
-    }
+      window.nxToast('Organisation créée : ' + data.org_id, 'success');
+      OwnerConsole.navigate('subscription');
+    } else { alert('Erreur : ' + JSON.stringify(data)); }
   } catch (e) { alert('Erreur : ' + e.message); }
 };
 
@@ -111,85 +108,107 @@ window.createSubscription = async function() {
   if (!orgId) return;
   const tier = prompt('Tier (free / pro / enterprise) :', 'free');
   if (!tier) return;
-  const label = prompt('Label tenant (optionnel) :', '');
+  const label = prompt('Label tenant :', '');
   try {
     const data = await apiPost('subscriptions', { org_id: orgId, plan_tier: tier, tenant_label: label || '' });
     if (data && data.subscription_id) {
-      alert('Souscription créée : ' + data.subscription_id + ' (tenant: ' + (data.tenant_id || '-') + ')');
-      NexoraConsole.navigate('subscription');
-    } else {
-      alert('Erreur : ' + JSON.stringify(data));
-    }
+      window.nxToast('Souscription créée : ' + data.subscription_id, 'success');
+      OwnerConsole.navigate('subscription');
+    } else { alert('Erreur : ' + JSON.stringify(data)); }
   } catch (e) { alert('Erreur : ' + e.message); }
 };
 
 window.suspendSubscription = async function(subId) {
   if (!confirm('Suspendre la souscription ' + subId + ' ?')) return;
-  const reason = prompt('Raison de la suspension :', 'impayé');
+  const reason = prompt('Raison :', 'impayé');
   try {
-    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/suspend', { reason: reason || 'manual' });
+    await apiPost('subscriptions/' + encodeURIComponent(subId) + '/suspend', { reason: reason || 'manual' });
     window.nxToast('Souscription suspendue', 'success');
-    NexoraConsole.navigate('subscription');
+    OwnerConsole.navigate('subscription');
   } catch (e) { alert('Erreur : ' + e.message); }
 };
 
 window.cancelSubscription = async function(subId) {
-  if (!confirm('Résilier définitivement la souscription ' + subId + ' ?')) return;
+  if (!confirm('Résilier la souscription ' + subId + ' ?')) return;
   try {
-    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/cancel', {});
+    await apiPost('subscriptions/' + encodeURIComponent(subId) + '/cancel', {});
     window.nxToast('Souscription résiliée', 'success');
-    NexoraConsole.navigate('subscription');
+    OwnerConsole.navigate('subscription');
   } catch (e) { alert('Erreur : ' + e.message); }
 };
 
 window.reactivateSubscription = async function(subId) {
   if (!confirm('Réactiver la souscription ' + subId + ' ?')) return;
   try {
-    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/suspend', { reason: '', reactivate: true });
+    await apiPost('subscriptions/' + encodeURIComponent(subId) + '/suspend', { reason: '', reactivate: true });
     window.nxToast('Souscription réactivée', 'success');
-    NexoraConsole.navigate('subscription');
+    OwnerConsole.navigate('subscription');
   } catch (e) { alert('Erreur : ' + e.message); }
 };
 
 window.provisionNode = async function(nodeId) {
-  const url = prompt('URL du nœud (ex: https://node.example.tld:38121) :');
+  const url = prompt('URL du nœud :');
   if (!url) return;
-  const secret = prompt('HMAC secret (min 32 caractères) :');
-  if (!secret || secret.length < 32) { alert('Secret HMAC trop court (min 32 caractères)'); return; }
+  const secret = prompt('HMAC secret (min 32 car) :');
+  if (!secret || secret.length < 32) { alert('Secret HMAC trop court'); return; }
   try {
     const data = await apiPost('provisioning/provision', {
-      node_id: nodeId, node_url: url, hmac_secret: secret, api_token: '', tenant_id: (sessionStorage.getItem('nexora_tenant_id') || '')
+      node_id: nodeId, node_url: url, hmac_secret: secret, api_token: '', tenant_id: sessionStorage.getItem('nexora_owner_tenant') || ''
     });
-    alert('Provisioning ' + (data.status || 'effectué') + ' pour ' + nodeId);
-    NexoraConsole.navigate('provisioning');
+    window.nxToast('Provisioning effectué pour ' + nodeId, 'success');
+    OwnerConsole.navigate('provisioning');
   } catch (e) { alert('Erreur : ' + e.message); }
 };
 
 window.deprovisionNode = async function(nodeId) {
-  if (!confirm('Déprovisionner le nœud ' + nodeId + ' ?')) return;
+  if (!confirm('Déprovisionner ' + nodeId + ' ?')) return;
   const url = prompt('URL du nœud :');
   if (!url) return;
   try {
-    const data = await apiPost('provisioning/deprovision', { node_id: nodeId, node_url: url, hmac_secret: '' });
-    alert('Déprovisionnement ' + (data.status || 'effectué') + ' pour ' + nodeId);
-    NexoraConsole.navigate('provisioning');
+    await apiPost('provisioning/deprovision', { node_id: nodeId, node_url: url, hmac_secret: '' });
+    window.nxToast('Déprovisionnement effectué', 'success');
+    OwnerConsole.navigate('provisioning');
   } catch (e) { alert('Erreur : ' + e.message); }
 };
 
 window.enrollNode = async function() {
-  const hostname = prompt('Hostname ou adresse du nœud à enrôler :');
+  const hostname = prompt('Hostname du nœud à enrôler :');
   if (!hostname) return;
   try {
-    const data = await apiPost('fleet/enroll/request', { hostname: hostname, requested_by: 'console' });
+    const data = await apiPost('fleet/enroll/request', { hostname: hostname, requested_by: 'owner-console' });
     if (data && data.token) {
-      alert('Token d\'enrollment généré : ' + data.token + '\nCopiez ce token sur le nœud cible.');
-    } else {
-      alert('Enrollment initié : ' + JSON.stringify(data));
+      alert('Token d\'enrollment : ' + data.token + '\nCopiez-le sur le nœud cible.');
     }
     window.nxToast('Enrollment initié pour ' + hostname, 'success');
-    NexoraConsole.navigate('fleet');
+    OwnerConsole.navigate('fleet');
   } catch (e) { alert('Erreur : ' + e.message); }
 };
+
+/* ── Owner-specific section: Tenants management ── */
+async function loadTenants(sec) {
+  try {
+    const data = await api('tenants');
+    const tenants = data.tenants || [];
+    let html = '<div class="nx-card-header"><h2>Gestion des Tenants</h2></div>';
+    html += '<p>Vue propriétaire de tous les tenants enregistrés sur la plateforme.</p>';
+    if (tenants.length === 0) {
+      html += nxAlert('Aucun tenant enregistré.', 'info');
+    } else {
+      html += '<table class="nx-table"><thead><tr><th>Tenant ID</th><th>Org</th><th>Tier</th><th>Status</th><th>Label</th></tr></thead><tbody>';
+      for (const t of tenants) {
+        html += '<tr><td><strong>' + (t.tenant_id || '-') + '</strong></td>' +
+          '<td>' + (t.org_id || '-') + '</td>' +
+          '<td>' + (t.tier || '-') + '</td>' +
+          '<td>' + (t.status || '-') + '</td>' +
+          '<td>' + (t.label || '-') + '</td></tr>';
+      }
+      html += '</tbody></table>';
+    }
+    sec.innerHTML = html;
+  } catch (e) {
+    sec.innerHTML = nxAlert('Erreur chargement tenants: ' + e.message, 'critical');
+  }
+}
 
 /* ── Section renderers map ── */
 const sectionRenderers = {
@@ -214,11 +233,12 @@ const sectionRenderers = {
   'sla-tracking': views.loadSlaTracking,
   subscription: views.loadSubscription,
   provisioning: views.loadProvisioning,
-  settings: views.loadSettings
+  settings: views.loadSettings,
+  tenants: loadTenants,
 };
 
-/* ── NexoraConsole controller ── */
-const NexoraConsole = {
+/* ── OwnerConsole controller ── */
+const OwnerConsole = {
   loaded: new Set(),
   currentSection: null,
   main: null,
@@ -226,87 +246,63 @@ const NexoraConsole = {
 
   init: async function() {
     this.main = document.getElementById('main-content');
-    const token = (sessionStorage.getItem('nexora_token') || '').trim();
-    if (!token) {
-      if (this.main) {
-        this.main.innerHTML = nxAlert('Authentification requise. Entrez un token pour continuer.', 'warning');
-      }
-      showTokenPrompt();
-      return;
-    }
-    await this.loadAccessContext();
-    if (!this.accessContext) {
-      return;
-    }
-    this.bindNav();
-    this.navigate(this.defaultSection());
-    this.loadModeBadge();
-  },
 
-  defaultSection: function() {
-    const allowed = (this.accessContext && this.accessContext.allowed_sections) || [];
-    if (allowed.length > 0) {
-      if (allowed.indexOf('dashboard') >= 0) {
-        return 'dashboard';
-      }
-      return allowed[0];
+    // Bind logout button
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', async function() {
+        await ownerLogout();
+        window.location.reload();
+      });
     }
-    return 'dashboard';
+
+    if (!isAuthenticated()) {
+      if (this.main) {
+        this.main.innerHTML = nxAlert('Authentification propriétaire requise.', 'warning');
+      }
+      showPassphrasePrompt(null, function() {
+        void OwnerConsole.init();
+      });
+      return;
+    }
+
+    await this.loadAccessContext();
+    if (!this.accessContext) return;
+
+    this.bindNav();
+    this.navigate('dashboard');
+    this.loadModeBadge();
   },
 
   loadAccessContext: async function() {
     try {
-      const storedTenant = (sessionStorage.getItem('nexora_tenant_id') || '').trim();
-      const storedToken = (sessionStorage.getItem('nexora_token') || '').trim();
-      if (storedToken && storedTenant) {
-        try { await refreshTenantClaim(); } catch (e) { /* noop */ }
-      }
       const context = await loadAccessContext();
       this.accessContext = context;
       if (context && context.actor_role) {
         sessionStorage.setItem('nexora_actor_role', context.actor_role);
       }
-      if (context && context.tenant_id) {
-        sessionStorage.setItem('nexora_tenant_id', context.tenant_id);
-      } else {
-        sessionStorage.removeItem('nexora_tenant_id');
-      }
-      try { await refreshTenantClaim(); } catch (e) { /* noop */ }
       this.applyAccessContext();
     } catch (e) {
       this.accessContext = null;
+      showPassphrasePrompt('Session invalide. Reconnectez-vous.', function() {
+        void OwnerConsole.init();
+      });
     }
   },
 
   applyAccessContext: function() {
     const badge = document.getElementById('profile-badge');
-    const actorRole = (this.accessContext && this.accessContext.actor_role) || 'observer';
-    if (badge) {
-      badge.textContent = actorRole;
-    }
-    this.setRuntimeBadge((this.accessContext && this.accessContext.runtime_mode) || 'observer');
-
-    const allowed = new Set((this.accessContext && this.accessContext.allowed_sections) || []);
-    const enforceAllowed = allowed.size > 0;
-
+    if (badge) badge.textContent = 'owner';
+    this.setRuntimeBadge((this.accessContext && this.accessContext.runtime_mode) || 'operator');
+    // Owner sees everything — show all nav items
     document.querySelectorAll('#main-nav a[data-section]').forEach(function(link) {
-      const section = link.dataset.section;
-      const visible = !enforceAllowed || allowed.has(section);
-      link.style.display = visible ? '' : 'none';
+      link.style.display = '';
     });
-  },
-
-  isSectionAllowed: function(name) {
-    const allowed = (this.accessContext && this.accessContext.allowed_sections) || [];
-    if (!allowed.length) return true;
-    return allowed.indexOf(name) >= 0;
   },
 
   setRuntimeBadge: function(mode) {
     const runtimeBadge = document.getElementById('runtime-mode-badge');
-    if (runtimeBadge) {
-      runtimeBadge.textContent = 'mode: ' + (mode || 'observer');
-    }
+    if (runtimeBadge) runtimeBadge.textContent = 'mode: ' + (mode || 'operator');
   },
 
   bindNav: function() {
@@ -317,24 +313,12 @@ const NexoraConsole = {
         self.navigate(link.dataset.section);
       });
       link.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          self.navigate(link.dataset.section);
-        }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); self.navigate(link.dataset.section); }
       });
     });
   },
 
   navigate: function(name) {
-    if (!this.isSectionAllowed(name)) {
-      window.nxToast('Section non autorisée pour ce profil: ' + name, 'warning');
-      const fallback = this.defaultSection();
-      if (!this.isSectionAllowed(fallback)) {
-        this.main.innerHTML = nxAlert('Aucune section autorisée pour ce profil.', 'warning');
-        return;
-      }
-      name = fallback;
-    }
     document.querySelectorAll('#main-nav a[data-section]').forEach(function(a) {
       a.classList.toggle('active', a.dataset.section === name);
       a.setAttribute('aria-current', a.dataset.section === name ? 'page' : 'false');
@@ -349,7 +333,7 @@ const NexoraConsole = {
       this.main.innerHTML = nxAlert('Section inconnue: ' + name, 'danger');
       return;
     }
-    this.main.innerHTML = `<div class="section active" id="sec-${name}">${nxLoader()}</div>`;
+    this.main.innerHTML = '<div class="section active" id="sec-' + name + '">' + nxLoader() + '</div>';
     this.loaded.delete(name);
     renderer(document.getElementById('sec-' + name), this).catch(function(e) {
       const sec = document.getElementById('sec-' + name);
@@ -362,18 +346,17 @@ const NexoraConsole = {
     if (this.accessContext && this.accessContext.runtime_mode) {
       this.setRuntimeBadge(this.accessContext.runtime_mode);
     }
-    if (this.accessContext && this.accessContext.subscriber_mode) {
-      return;
-    }
     try {
       const mode = await api('mode');
-      this.setRuntimeBadge(mode.mode || 'observer');
+      this.setRuntimeBadge(mode.mode || 'operator');
     } catch(e) { /* silent */ }
   }
 };
 
-window.NexoraConsole = NexoraConsole;
+window.OwnerConsole = OwnerConsole;
+// Also expose as NexoraConsole for view compatibility
+window.NexoraConsole = OwnerConsole;
 
 document.addEventListener('DOMContentLoaded', function() {
-  void NexoraConsole.init();
+  void OwnerConsole.init();
 });

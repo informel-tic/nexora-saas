@@ -13,6 +13,8 @@ Environment=NEXORA_API_TOKEN_FILE=/opt/nexora/var/api-token
 Environment=NEXORA_API_TOKEN_ROLE_FILE=/etc/nexora/api-token-roles.json
 Environment=NEXORA_OPERATOR_ONLY_ENFORCE=1
 Environment=NEXORA_DEPLOYMENT_SCOPE=operator
+ExecStartPre=+/bin/mkdir -p /tmp/nexora-export
+ExecStartPre=+/bin/chown nexora:nexora /tmp/nexora-export
 ExecStart=/opt/nexora/venv/bin/nexora-control-plane
 Restart=on-failure
 RestartSec=5
