@@ -562,6 +562,12 @@ def build_application() -> FastAPI:
     register_provisioning_routes(app)
     register_console_routes(app)
     register_owner_auth_routes(app)
+    register_docker_extended_routes(app)
+    register_blueprint_deploy_routes(app)
+    register_ynh_catalog_routes(app)
+    register_ynh_service_mgmt_routes(app)
+    register_failover_execution_routes(app)
+    register_app_migration_routes(app)
 
     @app.on_event("startup")
     async def _register_host_node() -> None:
@@ -756,7 +762,12 @@ def register_auth_routes(app: FastAPI) -> None:
             "subscription",
             "provisioning",
             "settings",
+            "catalog",
+            "failover",
+            "migration",
         ]
+        # Owner: full SaaS administration — everything including tenant management
+        owner_sections = operator_sections + ["tenants"]
 
         # Cross-tenant stats for operator dashboard
         operator_stats: dict[str, object] | None = None
@@ -777,6 +788,8 @@ def register_auth_routes(app: FastAPI) -> None:
 
         if trusted_role == "subscriber":
             allowed_sections = subscriber_sections
+        elif is_owner_session or trusted_role == "owner":
+            allowed_sections = owner_sections
         elif is_operator:
             allowed_sections = operator_sections
         else:
@@ -825,6 +838,9 @@ def register_inventory_routes(app: FastAPI) -> None:
         return service.local_inventory()
 
     def inventory_section(section: str) -> dict[str, object]:
+        if section == "services":
+            from nexora_node_sdk.yh_adapter import services_with_fallback
+            return services_with_fallback()
         return service.inventory_slice(section)
 
     app.add_api_route("/api/dashboard", dashboard, methods=["GET"])
@@ -1850,6 +1866,513 @@ def register_owner_auth_routes(app: FastAPI) -> None:
     app.add_api_route("/api/auth/owner-session", owner_session_status, methods=["GET"])
     app.add_api_route("/api/auth/owner-passphrase", owner_set_passphrase, methods=["POST"])
     app.add_api_route("/api/auth/owner-passphrase-status", owner_passphrase_status, methods=["GET"])
+
+
+# ── Request models for new routes ─────────────────────────────────────────
+
+
+class DockerDeployRequest(BaseModel):
+    image: str = Field(..., min_length=1, description="Docker image name[:tag]")
+    name: str = Field(..., min_length=1, description="Container name")
+    ports: list[str] = Field(default_factory=list, description="Port bindings e.g. ['8080:80']")
+    env: dict[str, str] = Field(default_factory=dict)
+    volumes: list[str] = Field(default_factory=list)
+    restart: str = "unless-stopped"
+    network: str = ""
+    labels: dict[str, str] = Field(default_factory=dict)
+
+
+class DockerTemplateDeployRequest(BaseModel):
+    template_name: str = Field(..., min_length=1)
+    overrides: dict[str, object] = Field(default_factory=dict)
+
+
+class DockerComposeApplyRequest(BaseModel):
+    content: str = Field(..., min_length=1, description="Docker Compose YAML content")
+    path: str = ""
+    project_name: str = ""
+
+
+class DockerComposeDownRequest(BaseModel):
+    path: str = ""
+    project_name: str = ""
+    remove_volumes: bool = False
+
+
+class DockerConfigSaveRequest(BaseModel):
+    config: dict[str, object] = Field(default_factory=dict)
+
+
+class BlueprintDeployRequest(BaseModel):
+    slug: str = Field(..., min_length=1)
+    target_node_id: str = ""
+    domain: str = ""
+    parameters: dict[str, object] = Field(default_factory=dict)
+    dry_run: bool = False
+
+
+class YnhInstallAppRequest(BaseModel):
+    app_id: str = Field(..., min_length=1)
+    domain: str = Field(..., min_length=1)
+    path: str = "/"
+    label: str = ""
+    args: dict[str, str] = Field(default_factory=dict)
+
+
+class YnhRemoveAppRequest(BaseModel):
+    app_id: str = Field(..., min_length=1)
+    purge: bool = False
+
+
+class FailoverConfigureRequest(BaseModel):
+    app_id: str = Field(..., min_length=1)
+    domain: str = Field(..., min_length=1)
+    primary_host: str = Field(..., min_length=1)
+    secondary_host: str = Field(..., min_length=1)
+    primary_node_id: str = "primary"
+    secondary_node_id: str = "secondary"
+    health_strategy: str = "combined"
+
+
+class FailoverExecuteRequest(BaseModel):
+    app_id: str = Field(..., min_length=1)
+    target_node: str = "secondary"
+    reason: str = "manual"
+
+
+class MigrationCreateRequest(BaseModel):
+    app_id: str = Field(..., min_length=1)
+    source_node_id: str = Field(..., min_length=1)
+    target_node_id: str = Field(..., min_length=1)
+    target_domain: str = ""
+    target_ssh_host: str = ""
+    options: dict[str, object] = Field(default_factory=dict)
+
+
+# ── Extended Docker routes ─────────────────────────────────────────────────
+
+
+def register_docker_extended_routes(app: FastAPI) -> None:
+    """Full Docker lifecycle: Hub search, deploy, start/stop/restart, logs, compose, images, config."""
+
+    def docker_hub_search(q: str = Query("", alias="q"), limit: int = Query(10)) -> list[dict[str, object]]:
+        from nexora_node_sdk.docker import docker_hub_search as _hub_search
+        return _hub_search(q, limit=limit)
+
+    def docker_hub_tags(image: str, limit: int = Query(20)) -> list[dict[str, object]]:
+        from nexora_node_sdk.docker import docker_hub_tags as _hub_tags
+        return _hub_tags(image, limit=limit)
+
+    def docker_deploy(body: DockerDeployRequest) -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_run
+        result = docker_run(
+            image=body.image,
+            name=body.name,
+            ports=body.ports,
+            env=body.env,
+            volumes=body.volumes,
+            restart=body.restart,
+            network=body.network,
+            labels=body.labels,
+        )
+        return result
+
+    def docker_template_deploy(body: DockerTemplateDeployRequest) -> dict[str, object]:
+        from nexora_node_sdk.docker import deploy_from_template
+        return deploy_from_template(body.template_name, overrides=body.overrides)
+
+    def docker_container_start(name: str) -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_start
+        return docker_start(name)
+
+    def docker_container_stop(name: str) -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_stop
+        return docker_stop(name)
+
+    def docker_container_restart(name: str) -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_restart
+        return docker_restart(name)
+
+    def docker_container_remove(name: str, force: bool = Query(False)) -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_remove
+        return docker_remove(name, force=force)
+
+    def docker_container_logs(name: str, lines: int = Query(100)) -> dict[str, object]:
+        from nexora_node_sdk.docker import container_logs
+        return {"container": name, "logs": container_logs(name, lines=lines)}
+
+    def docker_container_inspect(name: str) -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_inspect
+        return docker_inspect(name)
+
+    def docker_container_stats_single(name: str) -> dict[str, object]:
+        from nexora_node_sdk.docker import container_stats
+        stats = container_stats()
+        # Find the specific container in stats
+        if isinstance(stats, list):
+            for s in stats:
+                if isinstance(s, dict) and s.get("name", "").lstrip("/") == name.lstrip("/"):
+                    return s
+        return {"container": name, "error": "Stats not available"}
+
+    def docker_compose_status() -> list[dict[str, object]]:
+        from nexora_node_sdk.docker import list_compose_stacks
+        return list_compose_stacks()
+
+    def docker_compose_apply(body: DockerComposeApplyRequest) -> dict[str, object]:
+        from nexora_node_sdk.docker import apply_compose
+        return apply_compose(body.content, path=body.path or None, project_name=body.project_name or None)
+
+    def docker_compose_down(body: DockerComposeDownRequest) -> dict[str, object]:
+        from nexora_node_sdk.docker import destroy_compose
+        return destroy_compose(path=body.path or None, remove_volumes=body.remove_volumes)
+
+    def docker_images_list() -> list[dict[str, object]]:
+        from nexora_node_sdk.docker import docker_images
+        return docker_images()
+
+    def docker_volumes_list() -> list[dict[str, object]]:
+        from nexora_node_sdk.docker import docker_volume_list
+        return docker_volume_list()
+
+    def docker_networks_list() -> list[dict[str, object]]:
+        from nexora_node_sdk.docker import docker_network_list
+        return docker_network_list()
+
+    def docker_config_get() -> dict[str, object]:
+        from nexora_node_sdk.docker import get_docker_config
+        return get_docker_config()
+
+    def docker_config_save(body: DockerConfigSaveRequest) -> dict[str, object]:
+        from nexora_node_sdk.docker import save_docker_config
+        return save_docker_config(body.config)
+
+    def docker_system_prune_dry() -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_system_prune
+        return docker_system_prune(dry_run=True)
+
+    def docker_system_prune_exec() -> dict[str, object]:
+        from nexora_node_sdk.docker import docker_system_prune
+        return docker_system_prune(dry_run=False)
+
+    app.add_api_route("/api/docker/hub/search", docker_hub_search, methods=["GET"])
+    app.add_api_route("/api/docker/hub/tags/{image:path}", docker_hub_tags, methods=["GET"])
+    app.add_api_route("/api/docker/deploy", docker_deploy, methods=["POST"])
+    app.add_api_route("/api/docker/templates/deploy", docker_template_deploy, methods=["POST"])
+    app.add_api_route("/api/docker/containers/{name}/start", docker_container_start, methods=["POST"])
+    app.add_api_route("/api/docker/containers/{name}/stop", docker_container_stop, methods=["POST"])
+    app.add_api_route("/api/docker/containers/{name}/restart", docker_container_restart, methods=["POST"])
+    app.add_api_route("/api/docker/containers/{name}/remove", docker_container_remove, methods=["DELETE"])
+    app.add_api_route("/api/docker/containers/{name}/logs", docker_container_logs, methods=["GET"])
+    app.add_api_route("/api/docker/containers/{name}/inspect", docker_container_inspect, methods=["GET"])
+    app.add_api_route("/api/docker/containers/{name}/stats", docker_container_stats_single, methods=["GET"])
+    app.add_api_route("/api/docker/compose/status", docker_compose_status, methods=["GET"])
+    app.add_api_route("/api/docker/compose/apply", docker_compose_apply, methods=["POST"])
+    app.add_api_route("/api/docker/compose/down", docker_compose_down, methods=["POST"])
+    app.add_api_route("/api/docker/images", docker_images_list, methods=["GET"])
+    app.add_api_route("/api/docker/volumes", docker_volumes_list, methods=["GET"])
+    app.add_api_route("/api/docker/networks", docker_networks_list, methods=["GET"])
+    app.add_api_route("/api/docker/config", docker_config_get, methods=["GET"])
+    app.add_api_route("/api/docker/config", docker_config_save, methods=["PUT"])
+    app.add_api_route("/api/docker/system/prune/dry", docker_system_prune_dry, methods=["GET"])
+    app.add_api_route("/api/docker/system/prune", docker_system_prune_exec, methods=["POST"])
+
+
+# ── Blueprint deployment routes ────────────────────────────────────────────
+
+
+def register_blueprint_deploy_routes(app: FastAPI) -> None:
+    """Blueprint deployment: deploy blueprint to node, get parameters form."""
+
+    def blueprint_parameters(slug: str) -> dict[str, object]:
+        """Return the parameters schema for a blueprint deployment form."""
+        bp = next((b for b in service.list_blueprints() if b.slug == slug), None)
+        if not bp:
+            raise HTTPException(status_code=404, detail=f"Blueprint '{slug}' not found")
+        raw = bp.model_dump()
+        # Extract parameter definitions from blueprint data
+        params: list[dict[str, object]] = raw.get("parameters", [])
+        if not params:
+            # Build default parameters from blueprint fields
+            params = [
+                {"name": "domain", "label": "Domain", "type": "text", "required": True,
+                 "placeholder": "example.com", "description": "Target domain for the deployment"},
+                {"name": "admin_email", "label": "Admin Email", "type": "email", "required": True,
+                 "placeholder": "admin@example.com"},
+                {"name": "target_node", "label": "Target Node", "type": "node_selector", "required": False,
+                 "description": "Node to deploy to (leave empty for local)"},
+            ]
+            # Add app-specific params
+            for app_item in raw.get("apps", []):
+                if isinstance(app_item, dict):
+                    params.append({
+                        "name": f"{app_item.get('id', 'app')}_enabled",
+                        "label": f"Install {app_item.get('id', 'app')}",
+                        "type": "bool",
+                        "default": True,
+                    })
+        return {
+            "slug": slug,
+            "name": raw.get("name", slug),
+            "description": raw.get("description", ""),
+            "parameters": params,
+        }
+
+    def blueprint_deploy(slug: str, body: BlueprintDeployRequest = Body(...)) -> dict[str, object]:
+        """Deploy a blueprint — install configured apps via YunoHost."""
+        bp = next((b for b in service.list_blueprints() if b.slug == slug), None)
+        if not bp:
+            raise HTTPException(status_code=404, detail=f"Blueprint '{slug}' not found")
+        raw = bp.model_dump()
+        domain = body.parameters.get("domain", body.domain) or ""
+        dry_run = body.dry_run
+
+        results: list[dict[str, object]] = []
+        apps_to_install = raw.get("apps", [])
+
+        if dry_run:
+            return {
+                "dry_run": True,
+                "slug": slug,
+                "domain": domain,
+                "apps_planned": [
+                    a.get("id") if isinstance(a, dict) else a
+                    for a in apps_to_install
+                ],
+                "parameters": body.parameters,
+                "message": "Dry run — no changes made",
+            }
+
+        from nexora_node_sdk.yh_adapter import ynh_install_app
+
+        for app_item in apps_to_install:
+            if isinstance(app_item, str):
+                app_id = app_item
+                app_path = "/"
+            elif isinstance(app_item, dict):
+                app_id = app_item.get("id", "")
+                app_path = app_item.get("path", "/")
+                # Check if the user explicitly disabled this app
+                enabled = body.parameters.get(f"{app_id}_enabled", True)
+                if not enabled:
+                    results.append({"app_id": app_id, "status": "skipped", "reason": "disabled by parameter"})
+                    continue
+            else:
+                continue
+
+            if not app_id or not domain:
+                results.append({"app_id": app_id, "status": "skipped", "reason": "missing domain"})
+                continue
+
+            install_result = ynh_install_app(
+                app_id=app_id,
+                domain=domain,
+                path=app_path,
+                label=str(body.parameters.get(f"{app_id}_label", "")),
+                args={k: str(v) for k, v in body.parameters.items() if k.startswith(f"{app_id}_") and k != f"{app_id}_enabled"},
+            )
+            results.append({"app_id": app_id, **install_result})
+
+        success_count = sum(1 for r in results if r.get("success"))
+        return {
+            "slug": slug,
+            "domain": domain,
+            "deployed": success_count,
+            "total": len(results),
+            "results": results,
+        }
+
+    app.add_api_route("/api/blueprints/{slug}/parameters", blueprint_parameters, methods=["GET"])
+    app.add_api_route("/api/blueprints/{slug}/deploy", blueprint_deploy, methods=["POST"])
+
+
+# ── YunoHost app catalog routes ────────────────────────────────────────────
+
+
+def register_ynh_catalog_routes(app: FastAPI) -> None:
+    """YunoHost application catalog: browse, install, upgrade, remove."""
+
+    def ynh_catalog(
+        category: str | None = Query(None),
+        q: str | None = Query(None),
+    ) -> list[dict[str, object]]:
+        from nexora_node_sdk.yh_adapter import ynh_app_catalog_filtered
+        return ynh_app_catalog_filtered(category=category, query=q)
+
+    def ynh_catalog_app(app_id: str) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_app_info
+        return ynh_app_info(app_id)
+
+    def ynh_installed_apps() -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_apps
+        return ynh_apps()
+
+    def ynh_install(body: YnhInstallAppRequest) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_install_app
+        return ynh_install_app(
+            app_id=body.app_id,
+            domain=body.domain,
+            path=body.path,
+            label=body.label or None,
+            args=body.args,
+        )
+
+    def ynh_upgrade(app_id: str) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_upgrade_app
+        return ynh_upgrade_app(app_id)
+
+    def ynh_remove(body: YnhRemoveAppRequest) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_remove_app
+        return ynh_remove_app(body.app_id, purge=body.purge)
+
+    app.add_api_route("/api/ynh/catalog", ynh_catalog, methods=["GET"])
+    app.add_api_route("/api/ynh/catalog/{app_id}", ynh_catalog_app, methods=["GET"])
+    app.add_api_route("/api/ynh/apps", ynh_installed_apps, methods=["GET"])
+    app.add_api_route("/api/ynh/apps/install", ynh_install, methods=["POST"])
+    app.add_api_route("/api/ynh/apps/{app_id}/upgrade", ynh_upgrade, methods=["POST"])
+    app.add_api_route("/api/ynh/apps/remove", ynh_remove, methods=["POST"])
+
+
+# ── YunoHost service management routes ───────────────────────────────────
+
+
+def register_ynh_service_mgmt_routes(app: FastAPI) -> None:
+    """YunoHost service management with systemctl fallback."""
+
+    def services_list() -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import services_with_fallback
+        return services_with_fallback()
+
+    def service_action_route(service_name: str, action: str) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_service_action
+        return ynh_service_action(service_name, action)
+
+    def service_start(service_name: str) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_service_action
+        return ynh_service_action(service_name, "start")
+
+    def service_stop(service_name: str) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_service_action
+        return ynh_service_action(service_name, "stop")
+
+    def service_restart(service_name: str) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_service_action
+        return ynh_service_action(service_name, "restart")
+
+    def service_logs(service_name: str, lines: int = Query(100)) -> dict[str, object]:
+        from nexora_node_sdk.yh_adapter import ynh_service_logs
+        return {"service": service_name, "logs": ynh_service_logs(service_name, lines=lines)}
+
+    # Override existing inventory services endpoint with fallback version
+    app.add_api_route("/api/inventory/services", services_list, methods=["GET"])
+    app.add_api_route("/api/services/{service_name}/start", service_start, methods=["POST"])
+    app.add_api_route("/api/services/{service_name}/stop", service_stop, methods=["POST"])
+    app.add_api_route("/api/services/{service_name}/restart", service_restart, methods=["POST"])
+    app.add_api_route("/api/services/{service_name}/logs", service_logs, methods=["GET"])
+
+
+# ── Failover execution routes ─────────────────────────────────────────────
+
+
+def register_failover_execution_routes(app: FastAPI) -> None:
+    """Failover: configure pairs, execute, status, maintenance."""
+
+    def failover_status() -> dict[str, object]:
+        from nexora_saas.failover import get_failover_status
+        return get_failover_status()
+
+    def failover_pairs_list() -> list[dict[str, object]]:
+        from nexora_saas.failover import get_failover_pairs
+        return get_failover_pairs()
+
+    def failover_configure(body: FailoverConfigureRequest) -> dict[str, object]:
+        from nexora_saas.failover import configure_failover_pair, generate_health_check_config
+        pair = {
+            "app_id": body.app_id,
+            "domain": body.domain,
+            "primary": {"node_id": body.primary_node_id, "host": body.primary_host, "port": 443},
+            "secondary": {"node_id": body.secondary_node_id, "host": body.secondary_host, "port": 443},
+            "health_check": generate_health_check_config(body.app_id, body.health_strategy),
+            "mode": "active_passive",
+        }
+        return configure_failover_pair(pair)
+
+    def failover_execute(body: FailoverExecuteRequest) -> dict[str, object]:
+        from nexora_saas.failover import execute_failover
+        return execute_failover(body.app_id, target_node=body.target_node, reason=body.reason)
+
+    def failover_failback(app_id: str) -> dict[str, object]:
+        from nexora_saas.failover import execute_failback
+        return execute_failback(app_id)
+
+    def failover_maintenance_enable(domain: str) -> dict[str, object]:
+        from nexora_saas.failover import apply_maintenance_mode
+        return apply_maintenance_mode(domain)
+
+    def failover_maintenance_disable(domain: str) -> dict[str, object]:
+        from nexora_saas.failover import remove_maintenance_mode
+        return remove_maintenance_mode(domain)
+
+    def failover_nginx_apply(body: FailoverConfigureRequest) -> dict[str, object]:
+        from nexora_saas.failover import apply_failover_nginx
+        return apply_failover_nginx(
+            body.app_id,
+            primary_host=body.primary_host,
+            secondary_host=body.secondary_host,
+            domain=body.domain,
+        )
+
+    app.add_api_route("/api/failover/status", failover_status, methods=["GET"])
+    app.add_api_route("/api/failover/pairs", failover_pairs_list, methods=["GET"])
+    app.add_api_route("/api/failover/configure", failover_configure, methods=["POST"])
+    app.add_api_route("/api/failover/execute", failover_execute, methods=["POST"])
+    app.add_api_route("/api/failover/apps/{app_id}/failback", failover_failback, methods=["POST"])
+    app.add_api_route("/api/failover/maintenance/{domain}/enable", failover_maintenance_enable, methods=["POST"])
+    app.add_api_route("/api/failover/maintenance/{domain}/disable", failover_maintenance_disable, methods=["POST"])
+    app.add_api_route("/api/failover/nginx/apply", failover_nginx_apply, methods=["POST"])
+
+
+# ── App migration routes ──────────────────────────────────────────────────
+
+
+def register_app_migration_routes(app: FastAPI) -> None:
+    """App migration: create job, execute, status."""
+
+    def migratable_apps() -> list[dict[str, object]]:
+        from nexora_saas.app_migration import list_migratable_apps
+        return list_migratable_apps()
+
+    def migration_jobs_list() -> list[dict[str, object]]:
+        from nexora_saas.app_migration import list_migration_jobs
+        return list_migration_jobs()
+
+    def migration_create(body: MigrationCreateRequest) -> dict[str, object]:
+        from nexora_saas.app_migration import create_migration_job
+        return create_migration_job(
+            app_id=body.app_id,
+            source_node_id=body.source_node_id,
+            target_node_id=body.target_node_id,
+            target_domain=body.target_domain or None,
+            options=body.options,
+        )
+
+    def migration_execute(job_id: str, body: dict[str, object] = Body(default_factory=dict)) -> dict[str, object]:
+        from nexora_saas.app_migration import execute_migration
+        target_ssh = body.get("target_ssh_host", "") if isinstance(body, dict) else ""
+        return execute_migration(job_id, target_ssh_host=target_ssh or None)
+
+    def migration_status(job_id: str) -> dict[str, object]:
+        from nexora_saas.app_migration import get_migration_status
+        result = get_migration_status(job_id)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"Migration job '{job_id}' not found")
+        return result
+
+    app.add_api_route("/api/fleet/apps/migratable", migratable_apps, methods=["GET"])
+    app.add_api_route("/api/fleet/apps/migration", migration_jobs_list, methods=["GET"])
+    app.add_api_route("/api/fleet/apps/migrate", migration_create, methods=["POST"])
+    app.add_api_route("/api/fleet/apps/migration/{job_id}/execute", migration_execute, methods=["POST"])
+    app.add_api_route("/api/fleet/apps/migration/{job_id}/status", migration_status, methods=["GET"])
 
 
 app = build_application()

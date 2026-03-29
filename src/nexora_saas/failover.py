@@ -268,3 +268,139 @@ def remove_maintenance_mode(domain: str) -> dict[str, Any]:
         return {"success": True, "domain": domain}
     except Exception as e:
         return {"success": False, "error": str(e)}
+
+
+# ── Failover pair state persistence ──────────────────────────────────────
+
+import json as _json  # noqa: E402
+from pathlib import Path as _Path
+
+_FAILOVER_STATE_FILE = _Path("/opt/nexora/var/failover_state.json")
+
+
+def _load_failover_state() -> dict[str, Any]:
+    """Load persistent failover state."""
+    try:
+        if _FAILOVER_STATE_FILE.exists():
+            return _json.loads(_FAILOVER_STATE_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {"pairs": {}, "events": []}
+
+
+def _save_failover_state(state: dict[str, Any]) -> None:
+    """Persist failover state to disk."""
+    _FAILOVER_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _FAILOVER_STATE_FILE.write_text(_json.dumps(state, indent=2, default=str), encoding="utf-8")
+
+
+def get_failover_pairs() -> list[dict[str, Any]]:
+    """Return all configured failover pairs."""
+    state = _load_failover_state()
+    return list(state.get("pairs", {}).values())
+
+
+def get_failover_pair(app_id: str) -> dict[str, Any] | None:
+    """Return failover config for one app."""
+    state = _load_failover_state()
+    return state.get("pairs", {}).get(app_id)
+
+
+def configure_failover_pair(pair: dict[str, Any]) -> dict[str, Any]:
+    """Save or update a failover pair config."""
+    app_id = pair.get("app_id")
+    if not app_id or not _RE_SAFE_APP_ID.fullmatch(str(app_id)):
+        return {"success": False, "error": "Missing or invalid app_id"}
+    state = _load_failover_state()
+    if "pairs" not in state:
+        state["pairs"] = {}
+    pair["configured_at"] = datetime.datetime.now().isoformat()
+    pair["active_node"] = pair.get("active_node", "primary")
+    pair["failover_status"] = "standby"
+    state["pairs"][app_id] = pair
+    _save_failover_state(state)
+    return {"success": True, "app_id": app_id, "pair": pair}
+
+
+def execute_failover(app_id: str, target_node: str = "secondary", reason: str = "manual") -> dict[str, Any]:
+    """
+    Execute failover for an app:
+    1. Update nginx upstream to route to secondary
+    2. Record failover event
+    3. Update pair state
+    """
+    state = _load_failover_state()
+    pair = state.get("pairs", {}).get(app_id)
+    if not pair:
+        return {"success": False, "error": f"No failover pair configured for app_id={app_id!r}"}
+
+    primary = pair.get("primary", {})
+    secondary = pair.get("secondary", {})
+    domain = pair.get("domain", "")
+
+    if target_node == "secondary":
+        new_primary_host = secondary.get("host", "")
+        old_primary_host = primary.get("host", "")
+    else:
+        new_primary_host = primary.get("host", "")
+        old_primary_host = secondary.get("host", "")
+
+    if not new_primary_host or not domain:
+        return {"success": False, "error": "Missing host or domain in failover pair config"}
+
+    # Attempt nginx reconfiguration
+    nginx_result = apply_failover_nginx(
+        app_id,
+        primary_host=new_primary_host,
+        secondary_host=old_primary_host,
+        domain=domain,
+    )
+
+    now = datetime.datetime.now().isoformat()
+    event = {
+        "app_id": app_id,
+        "action": "failover",
+        "target_node": target_node,
+        "reason": reason,
+        "nginx": nginx_result.get("success", False),
+        "timestamp": now,
+    }
+
+    if "events" not in state:
+        state["events"] = []
+    state["events"].append(event)
+
+    # Update pair state
+    state["pairs"][app_id]["active_node"] = target_node
+    state["pairs"][app_id]["failover_status"] = "active" if nginx_result.get("success") else "error"
+    state["pairs"][app_id]["last_failover"] = now
+    state["pairs"][app_id]["last_failover_reason"] = reason
+
+    _save_failover_state(state)
+    return {
+        "success": nginx_result.get("success", False),
+        "app_id": app_id,
+        "active_node": target_node,
+        "nginx": nginx_result,
+        "event": event,
+    }
+
+
+def execute_failback(app_id: str) -> dict[str, Any]:
+    """Fail back to primary node."""
+    return execute_failover(app_id, target_node="primary", reason="failback")
+
+
+def get_failover_status() -> dict[str, Any]:
+    """Return overall failover platform status."""
+    state = _load_failover_state()
+    pairs = state.get("pairs", {})
+    events = state.get("events", [])
+    return {
+        "pairs": list(pairs.values()),
+        "total_protected_apps": len(pairs),
+        "active_failovers": sum(1 for p in pairs.values() if p.get("active_node") == "secondary"),
+        "recent_events": events[-10:] if events else [],
+        "state_file": str(_FAILOVER_STATE_FILE),
+        "state_exists": _FAILOVER_STATE_FILE.exists(),
+    }

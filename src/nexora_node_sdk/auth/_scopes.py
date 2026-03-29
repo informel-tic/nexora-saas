@@ -216,7 +216,7 @@ def validate_operator_surface_role(value: str) -> str:
 def validate_trusted_actor_role(value: str) -> str:
     """Validate roles that can be bound to API tokens in role mapping files."""
 
-    allowed = {"operator", "admin", "architect", "subscriber", "owner"}
+    allowed = {"operator", "admin", "architect", "subscriber", "owner", "observer"}
     normalized = value.strip().lower()
     if normalized not in allowed:
         raise ValueError(f"Unsupported trusted actor role: {value}")

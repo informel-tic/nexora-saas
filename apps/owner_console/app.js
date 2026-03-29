@@ -235,6 +235,10 @@ const sectionRenderers = {
   provisioning: views.loadProvisioning,
   settings: views.loadSettings,
   tenants: loadTenants,
+  catalog: views.loadCatalog,
+  'ynh-catalog': views.loadCatalog,
+  failover: views.loadFailover,
+  migration: views.loadMigration,
 };
 
 /* ── OwnerConsole controller ── */
