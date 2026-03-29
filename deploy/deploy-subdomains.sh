@@ -30,11 +30,15 @@ echo "Base domain: ${DOMAIN}"
 echo "Backend port: ${PORT}"
 echo ""
 
-# Check templates exist
+# Check templates exist (check both sets — we'll select later based on YunoHost detection)
+for tpl in ynh-www.conf ynh-console.conf ynh-saas.conf; do
+    if [ ! -f "${TEMPLATE_DIR}/${tpl}" ]; then
+        echo "WARNING: YunoHost template not found: ${TEMPLATE_DIR}/${tpl}"
+    fi
+done
 for tpl in nginx-www.conf nginx-console.conf nginx-saas.conf; do
     if [ ! -f "${TEMPLATE_DIR}/${tpl}" ]; then
-        echo "ERROR: Template not found: ${TEMPLATE_DIR}/${tpl}"
-        exit 1
+        echo "WARNING: Standalone template not found: ${TEMPLATE_DIR}/${tpl}"
     fi
 done
 
@@ -57,18 +61,41 @@ setup_subdomain() {
     yunohost domain cert install "${fqdn}" --no-checks 2>/dev/null || echo "  (cert may already be installed)"
 }
 
+# Detect if running on YunoHost (location-only templates) or standalone (full server blocks)
+if command -v yunohost >/dev/null 2>&1; then
+    TPL_PREFIX="ynh"
+    echo "Detected YunoHost — using location-only nginx templates (ynh-*.conf)"
+else
+    TPL_PREFIX="nginx"
+    echo "Standalone mode — using full server-block nginx templates (nginx-*.conf)"
+fi
+
 # Function to install nginx config from template
 install_nginx_config() {
-    local tpl_name="$1"
-    local output_name="$2"
-    local target="${NGINX_DIR}/${DOMAIN}.d/${output_name}"
+    local sub="$1"
+    local fqdn="${sub}.${DOMAIN}"
 
-    echo "  Installing nginx config: ${output_name}"
-    mkdir -p "${NGINX_DIR}/${DOMAIN}.d"
-
-    sed -e "s/__DOMAIN__/${DOMAIN}/g" \
-        -e "s/__PORT__/${PORT}/g" \
-        "${TEMPLATE_DIR}/${tpl_name}" > "${target}"
+    if [ "${TPL_PREFIX}" = "ynh" ]; then
+        # YunoHost mode: install as location blocks inside YunoHost's auto-generated server{}
+        local tpl_name="${TPL_PREFIX}-${sub}.conf"
+        local output_name="nexora-${sub}.conf"
+        local target="${NGINX_DIR}/${fqdn}.d/${output_name}"
+        echo "  Installing nginx config: ${output_name} → ${fqdn}.d/"
+        mkdir -p "${NGINX_DIR}/${fqdn}.d"
+        sed -e "s/__DOMAIN__/${DOMAIN}/g" \
+            -e "s/__PORT__/${PORT}/g" \
+            "${TEMPLATE_DIR}/${tpl_name}" > "${target}"
+    else
+        # Standalone mode: install full server-block as separate conf file
+        local tpl_name="nginx-${sub}.conf"
+        local output_name="nexora-${sub}.conf"
+        local target="${NGINX_DIR}/${fqdn}.d/${output_name}"
+        echo "  Installing nginx config: ${output_name} → ${fqdn}.d/"
+        mkdir -p "${NGINX_DIR}/${fqdn}.d"
+        sed -e "s/__DOMAIN__/${DOMAIN}/g" \
+            -e "s/__PORT__/${PORT}/g" \
+            "${TEMPLATE_DIR}/${tpl_name}" > "${target}"
+    fi
 
     echo "  -> ${target}"
 }
@@ -83,9 +110,9 @@ done
 # Step 2: Install nginx configs
 echo ""
 echo "=== Step 2: Installing nginx configurations ==="
-install_nginx_config "nginx-www.conf" "nexora-www.conf"
-install_nginx_config "nginx-console.conf" "nexora-console.conf"
-install_nginx_config "nginx-saas.conf" "nexora-saas.conf"
+install_nginx_config "www"
+install_nginx_config "console"
+install_nginx_config "saas"
 
 # Step 3: Test and reload nginx
 echo ""

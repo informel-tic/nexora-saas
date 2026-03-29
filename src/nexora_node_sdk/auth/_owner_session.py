@@ -30,11 +30,24 @@ _DEFAULT_OWNER_TENANT = "nexora-owner"
 
 
 def _passphrase_path_candidates() -> list[str]:
-    return [
-        os.environ.get("NEXORA_OWNER_PASSPHRASE_FILE", ""),
+    explicit = os.environ.get("NEXORA_OWNER_PASSPHRASE_FILE", "").strip()
+    state_hint = os.environ.get("NEXORA_STATE_PATH", "").strip()
+
+    candidates: list[str] = []
+    if explicit:
+        candidates.append(explicit)
+
+    # In state-scoped runs (tests, local isolated instances), keep owner auth
+    # material next to the active state file to avoid cross-environment leaks.
+    if state_hint:
+        candidates.append(str(Path(state_hint).with_name("owner-passphrase")))
+        return candidates
+
+    candidates.extend([
         "/etc/nexora/owner-passphrase",
         "/opt/nexora/var/owner-passphrase",
-    ]
+    ])
+    return candidates
 
 
 def _load_passphrase_hash() -> str | None:
@@ -70,6 +83,9 @@ def set_owner_passphrase(passphrase: str) -> dict[str, str]:
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text(hashed, encoding="utf-8")
             p.chmod(0o600)
+            # Any passphrase rotation invalidates prior sessions.
+            with _sessions_lock:
+                _sessions.clear()
             return {"path": str(p), "stored": True}
         except (OSError, PermissionError):
             continue
@@ -105,7 +121,7 @@ def create_owner_session() -> dict[str, Any]:
         for k in expired:
             del _sessions[k]
         _sessions[token] = session
-    return {"session_token": token, **session}
+    return {"session_token": token, "token": token, **session}
 
 
 def validate_owner_session(session_token: str) -> dict[str, Any] | None:

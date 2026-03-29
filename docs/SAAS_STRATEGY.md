@@ -68,3 +68,68 @@ Operator self-hosting remains internal and is not a client product offering.
 - **Audit**: Every action is recorded in a tenant-scoped security journal with HMAC integrity.
 - **Encryption**: Secrets are isolated per tenant in the `SecretStore` and encrypted at rest.
 - **GDPR**: Data deletion (offboarding) is guaranteed via tenant-scoped purging logic.
+
+---
+
+## 6. Distribution Model
+
+### Private Operator Repo
+
+- Contains the full platform (control-plane + console + operator packaging).
+- Used by the Nexora team for SaaS exploitation and internal dogfooding.
+
+### Client Repo (agent-only)
+
+- Contains the client-facing "agent-only" perimeter.
+- Excludes control-plane/console artifacts.
+- Used solely to connect client nodes to the Nexora SaaS.
+
+## 7. Commercial Model
+
+### Offering
+
+1. **SaaS subscription** (monthly/annual) per tenant.
+2. **Options**: node/app/storage quotas, enhanced SLA, priority support, advanced compliance.
+
+### What is sold
+
+- Managed exploitation,
+- Centralized governance,
+- Multi-tenant security and audit,
+- Fleet orchestration at scale.
+
+### What is not sold
+
+- Full self-hosting of the control-plane by clients.
+
+## 8. Marketing & GTM
+
+### Target ICP
+
+- MSPs / managed service providers,
+- IT teams in SMBs / mid-market,
+- Multi-site YunoHost infrastructure operators.
+
+### Key Messages
+
+1. **Operated sovereignty**: you keep your nodes, Nexora operates the control layer.
+2. **Lower risk**: critical surface centralized, clients in agent-only mode.
+3. **Rapid onboarding**: secure node enrollment via lightweight runtime.
+
+### Recommended Funnel
+
+1. SaaS control-plane demo,
+2. POC with 1–3 client nodes,
+3. Progressive scale-up + SLA/compliance upsell.
+
+## 9. Commercial KPIs
+
+- MRR / ARR per tenant,
+- Acquisition cost and POC→prod lead time,
+- Logo churn & revenue churn,
+- Active nodes per tenant,
+- SLA/compliance option adoption rate.
+
+## 10. Non-Negotiable Governance Rule
+
+> **The full SaaS control-plane stays operator-side. Clients receive only an enrollment/execution agent.**

@@ -3,27 +3,42 @@
 from __future__ import annotations
 
 import datetime
+import os
 import json
 import subprocess
 import uuid
 from pathlib import Path
 from typing import Any
 
-_MIGRATION_STATE_FILE = Path("/opt/nexora/var/migration_state.json")
+_DEFAULT_MIGRATION_STATE_FILE = Path("/opt/nexora/var/migration_state.json")
+
+
+def _resolve_migration_state_file() -> Path:
+    override = os.environ.get("NEXORA_MIGRATION_STATE_PATH", "").strip()
+    if override:
+        return Path(override)
+    state_hint = os.environ.get("NEXORA_STATE_PATH", "").strip()
+    if state_hint:
+        hint_path = Path(state_hint)
+        base_dir = hint_path.parent if hint_path.suffix else hint_path
+        return base_dir / "migration_state.json"
+    return _DEFAULT_MIGRATION_STATE_FILE
 
 
 def _load_state() -> dict[str, Any]:
     try:
-        if _MIGRATION_STATE_FILE.exists():
-            return json.loads(_MIGRATION_STATE_FILE.read_text(encoding="utf-8"))
+        state_file = _resolve_migration_state_file()
+        if state_file.exists():
+            return json.loads(state_file.read_text(encoding="utf-8"))
     except Exception:
         pass
     return {"jobs": {}}
 
 
 def _save_state(state: dict[str, Any]) -> None:
-    _MIGRATION_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _MIGRATION_STATE_FILE.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+    state_file = _resolve_migration_state_file()
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
 
 
 def _run(cmd: list[str], timeout: int = 300) -> subprocess.CompletedProcess[str]:

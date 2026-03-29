@@ -1,6 +1,6 @@
 # Architecture documentaire Nexora
 
-_Dernière mise à jour : 2026-03-24._
+_Dernière mise à jour : 2026-03-29._
 
 ## 1) Objectif
 
@@ -17,17 +17,13 @@ Ce document définit la structure professionnelle de la documentation Nexora:
 ## Niveau A — Direction produit & exécution
 
 - `docs/IMPLEMENTATION_MASTER_PLAN.md` (source de pilotage WS/Phases)
-- `docs/CHECKPOINTS.md` (état opérationnel synthétique)
 - `docs/ROADMAP.md` (cadence et trajectoire)
 - `docs/CHANGELOG.md` (traçabilité des livraisons)
 
 ## Niveau B — Architecture & contrats
 
 - `docs/ARCHITECTURE.md`
-- `docs/RUNTIME_BOUNDARIES.md`
-- `docs/API_REFERENCE.md`
 - `docs/API_SURFACE_REFERENCE.md`
-- `docs/SURFACE_NAMING_CONVENTIONS.md`
 - `docs/adr/*.md`
 
 ## Niveau C — Opérations & sécurité
@@ -35,9 +31,6 @@ Ce document définit la structure professionnelle de la documentation Nexora:
 - `docs/DEPLOYMENT.md`
 - `docs/RUNBOOKS.md`
 - `docs/SECURITY.md`
-- `docs/CONTROL_PLANE_PERSISTENCE.md`
-- `docs/PACKAGING.md`
-- `docs/UNINSTALL.md`
 
 ## Niveau D — Audits & snapshots datés
 

@@ -27,6 +27,26 @@ window.nxToast = function(message, level) {
 window.api = api;
 window.apiPost = apiPost;
 
+window.closeServiceLogsPanel = function() {
+  const panel = document.getElementById('service-logs-panel');
+  if (panel) panel.style.display = 'none';
+};
+
+window.closeBlueprintModal = function() {
+  const modal = document.getElementById('blueprint-deploy-modal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.closeDockerLogsPanel = function() {
+  const panel = document.getElementById('docker-logs-panel');
+  if (panel) panel.style.display = 'none';
+};
+
+window.closeCatalogInstallModal = function() {
+  const modal = document.getElementById('catalog-install-modal');
+  if (modal) modal.style.display = 'none';
+};
+
 // Define specific actions from views that need to be global for onclick
 window.praAction = async function(action) {
   const result = document.getElementById('pra-action-result');
@@ -145,7 +165,7 @@ window.cancelSubscription = async function(subId) {
 window.reactivateSubscription = async function(subId) {
   if (!confirm('Réactiver la souscription ' + subId + ' ?')) return;
   try {
-    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/suspend', { reason: '', reactivate: true });
+    const data = await apiPost('subscriptions/' + encodeURIComponent(subId) + '/reactivate', {});
     window.nxToast('Souscription réactivée', 'success');
     NexoraConsole.navigate('subscription');
   } catch (e) { alert('Erreur : ' + e.message); }
@@ -359,8 +379,7 @@ window.dockerContainerAction = async function(name, action) {
   try {
     let data;
     if (action === 'remove') {
-      data = await api('docker/containers/' + encodeURIComponent(name) + '/remove', {method:'DELETE'})
-             .catch(function() { return apiPost('docker/containers/' + encodeURIComponent(name) + '/remove', {}); });
+      data = await api('docker/containers/' + encodeURIComponent(name) + '/remove', { method: 'DELETE' });
     } else {
       data = await apiPost('docker/containers/' + encodeURIComponent(name) + '/' + action, {});
     }

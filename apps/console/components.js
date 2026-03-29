@@ -38,7 +38,7 @@ export function nxAlert(text, level) {
 
 export function nxTable(headers, rows, opts) {
   const caption = (opts && opts.caption) ? `<caption>${opts.caption}</caption>` : '';
-  let h = `<table class="nx-table">${caption}<thead><tr>` + headers.map(function(h) { return '<th>' + h + '</th>'; }).join('') + '</tr></thead><tbody>';
+  let h = `<table class="nx-table">${caption}<thead><tr>` + headers.map(function(h) { return '<th scope="col">' + h + '</th>'; }).join('') + '</tr></thead><tbody>';
   for (const row of rows) h += '<tr>' + row.map(function(c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
   return h + '</tbody></table>';
 }

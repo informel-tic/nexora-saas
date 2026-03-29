@@ -64,11 +64,12 @@ _PUBLIC_PATHS = {
     "/subscribe",
     "/admin",
     "/api/auth/owner-login",
+    "/api/auth/owner-passphrase-status",
     "/api/plans",
 }
 
-# Static file prefixes
-_STATIC_PREFIXES = ("/console/", "/owner-console/")
+# Static file prefixes — also allows public_site assets
+_STATIC_PREFIXES = ("/console/", "/owner-console/", "/public_site/")
 
 
 def _iter_known_tokens() -> list[str]:
@@ -202,6 +203,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next) -> Response:
         response: Response = await call_next(request)
+        path = request.url.path or "/"
+        # Console UIs currently rely on inline onclick handlers in rendered templates.
+        # Keep CSP strict elsewhere while allowing inline handlers only for console pages.
+        script_src = "script-src 'self'; "
+        if path.startswith(("/console/", "/owner-console/")):
+            script_src = "script-src 'self' 'unsafe-inline'; "
+
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -210,7 +219,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "script-src 'self'; "
+            + script_src
+            +
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "
             "font-src 'self'; "
@@ -225,6 +235,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 # ── CSRF protection middleware ────────────────────────────────────────
 
 _SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+_CSRF_EXEMPT_PATHS = {
+    "/api/auth/owner-login",
+    "/api/auth/owner-logout",
+    "/api/auth/owner-passphrase",
+}
 
 
 class CSRFProtectionMiddleware(BaseHTTPMiddleware):
@@ -237,6 +252,9 @@ class CSRFProtectionMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         if request.method in _SAFE_METHODS:
+            return await call_next(request)
+
+        if request.url.path in _CSRF_EXEMPT_PATHS:
             return await call_next(request)
 
         # Require X-Nexora-Action header on all mutating requests

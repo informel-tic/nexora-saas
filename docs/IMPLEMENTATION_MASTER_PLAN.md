@@ -603,12 +603,12 @@ Voici l’ordre recommandé **dès maintenant** pour les prochains cycles :
 15. [ ] **NEXT-15** — appliquer quotas runtime complets (`max_apps_per_node`, `max_storage_gb`).
 16. [ ] **NEXT-16** — exposer reporting `usage vs quota` par tenant.
 17. [ ] **NEXT-17** — formaliser le plan SQL/RLS de migration de persistance.
-18. [ ] **NEXT-18** — corriger le bug `validate_scoped_secret` (logique post-match hors boucle `for`, risque de bypass auth — S1 audit sécurité 2026-03-26). **[CORRIGÉ dans ce sprint]**
-19. [ ] **NEXT-19** — corriger le crash silencieux `purge_tenant_secrets` (`logger` non importé — S2 audit sécurité 2026-03-26). **[CORRIGÉ dans ce sprint]**
-20. [ ] **NEXT-20** — ajouter `Content-Security-Policy` dans `SecurityHeadersMiddleware` (S6 audit sécurité 2026-03-26). **[CORRIGÉ dans ce sprint]**
-21. [ ] **NEXT-21** — persister le rate-limiting (`_AUTH_FAILURES`) et la replay-detection (`_consumed_tokens`) en base (S3, S4 audit sécurité).
-22. [ ] **NEXT-22** — éclater `auth.py` (748 LOC) en sous-modules dédiés : `auth/token.py`, `auth/middleware.py`, `auth/secret_store.py`, `auth/rate_limit.py`.
-23. [ ] **NEXT-23** — ajouter jobs linting (`ruff`, `mypy`) et scan de sécurité (`bandit`, `pip-audit`) dans CI.
+18. [x] **NEXT-18** — corriger le bug `validate_scoped_secret` (logique post-match hors boucle `for`, risque de bypass auth — S1 audit sécurité 2026-03-26). **[CORRIGÉ dans ce sprint]**
+19. [x] **NEXT-19** — corriger le crash silencieux `purge_tenant_secrets` (`logger` non importé — S2 audit sécurité 2026-03-26). **[CORRIGÉ dans ce sprint]**
+20. [x] **NEXT-20** — ajouter `Content-Security-Policy` dans `SecurityHeadersMiddleware` (S6 audit sécurité 2026-03-26). **[CORRIGÉ dans ce sprint]**
+21. [x] **NEXT-21** — persister le rate-limiting (`_AUTH_FAILURES`) et la replay-detection (`_consumed_tokens`) en base (S3, S4 audit sécurité).
+22. [x] **NEXT-22** — éclater `auth.py` (748 LOC) en sous-modules dédiés : `auth/token.py`, `auth/middleware.py`, `auth/secret_store.py`, `auth/rate_limit.py`.
+23. [x] **NEXT-23** — ajouter jobs linting (`ruff`, `mypy`) et scan de sécurité (`bandit`, `pip-audit`) dans CI.
 25. [ ] **NEXT-25** — implémentation RLS réelle pour isolation multi-tenant (A1 — multitenant.py stub 68 LOC).
 
 ### Artefacts déjà produits pour le backlog immédiat
@@ -653,6 +653,6 @@ Nexora évolue par checkpoints explicites. Chaque item coché `[x]` a été vér
 1. choisir la **première tâche non faite** de la phase active ;
 2. implémenter complètement le lot ;
 3. mettre à jour les tests ;
-4. mettre à jour `docs/CHECKPOINTS.md` ;
+4. mettre à jour `docs/CHANGELOG.md` ;
 5. mettre à jour ce plan si l’ordre, la portée ou les dépendances changent ;
 6. créer/mettre à jour un ADR si les frontières d’architecture évoluent.

@@ -161,9 +161,40 @@ Restauration automatique au démarrage.
 
 ---
 
-## 7. Console opérateur (apps/console/)
+## 7. Architecture 3 domaines (surfaces)
 
-SPA vanilla JS (aucun framework) servie depuis le control plane (`/console`).
+Nexora expose 3 surfaces distinctes via des sous-domaines nginx, toutes proxiées vers le même backend FastAPI :
+
+| Sous-domaine | Surface | Rôle | Auth |
+|---|---|---|---|
+| `saas.<domain>` | saas | Owner Console — administration complète | Passphrase |
+| `www.<domain>` | public | Site public — offres et souscription | Aucune |
+| `console.<domain>` | console | Console subscriber — gestion tenant | Token + tenant_id |
+
+**Isolation** :
+- nginx injecte `X-Nexora-Surface` dans chaque vhost
+- `surface_isolation_middleware` (api.py) filtre les endpoints autorisés par surface
+- Les sessions owner sont bloquées sur `console.*`, les tokens subscriber sont bloqués sur `saas.*`
+- `www.*` n'expose que les endpoints publics (/subscribe, /api/public/*, /api/health)
+
+**Déploiement** : `deploy/bootstrap-full-platform.sh` orchestre en 3 phases :
+1. `bootstrap-node.sh` — services, venv, systemd
+2. `deploy-subdomains.sh` — création sous-domaines YunoHost + nginx vhosts + SSL
+3. Post-install — passphrase owner + état tenant
+
+---
+
+## 8. Console opérateur — Owner (apps/owner_console/)
+
+SPA vanilla JS servie sur `saas.<domain>/owner-console/`. Authentification par passphrase propriétaire → session token en `sessionStorage`.
+
+**Auth** : `X-Nexora-Session` + `X-Nexora-Actor-Role: owner`.
+
+---
+
+## 9. Console subscriber (apps/console/)
+
+SPA vanilla JS (aucun framework) servie sur `console.<domain>/console/`.
 
 **Fichiers** : `index.html`, `app.js` (contrôleur), `api.js` (auth + fetch), `views.js` (20 vues), `components.js` (primitives), `styles.css`.
 
@@ -184,14 +215,14 @@ Prompt automatique si pas de token. Rôle abonné masque les sections admin.
 
 ---
 
-## 8. MCP Adapter (src/yunohost_mcp/)
+## 10. MCP Adapter (src/yunohost_mcp/)
 
 Adaptateur Model Context Protocol exposant les capacités Nexora vers des agents IA.
 Consomme les mêmes services Python que l'API REST (parité garantie).
 
 ---
 
-## 9. Flux d'enrollment (séquence)
+## 11. Flux d'enrollment (séquence)
 
 ```
 Opérateur            Control Plane           Node Agent
@@ -209,7 +240,7 @@ Opérateur            Control Plane           Node Agent
 
 ---
 
-## 10. Flux réseau
+## 12. Flux réseau
 
 ```
 Internet / Opérateur
@@ -225,17 +256,17 @@ Internet / Opérateur
 
 ---
 
-## 11. Persistance et Durabilité
+## 13. Persistance et Durabilité
 
 Le control plane Nexora utilise un backend configurable via `NEXORA_PERSISTENCE_BACKEND`.
 
-### 11.1 Garanties du backend JSON (Par défaut)
+### 13.1 Garanties du backend JSON (Par défaut)
 - **Atomicité** : Écritures via fichiers temporaires + `replace()`.
 - **Journalisation** : `state.json.journal` écrit avant chaque commit pour reprise après crash.
 - **Backups** : Rotation de 10 sauvegardes locales dans `var/backups/`.
 - **Récupération** : Ordre automatique : Journal > Dernier Backup > Migration legacy.
 
-### 11.2 Plan d'industrialisation SQL + RLS (Phase 9/10)
+### 13.2 Plan d'industrialisation SQL + RLS (Phase 9/10)
 Migration vers PostgreSQL avec **Row Level Security** (Isolation stricte par `tenant_id`) :
 1. **J0 (Shadow)** : Dual-write JSON + SQL avec rapport de cohérence.
 2. **J1 (Read Switch)** : Lecture SQL activable via flag, fallback JSON autorisé.
@@ -244,12 +275,12 @@ Migration vers PostgreSQL avec **Row Level Security** (Isolation stricte par `te
 
 ---
 
-## 12. Conventions de Nommage
+## 14. Conventions de Nommage
 
-### 12.1 Capacités métier (CapIDs)
+### 14.1 Capacités métier (CapIDs)
 Format : `<domaine>.<verbe>` (ex: `fleet.enrollment`, `node.actions`). Lowercase snake-free.
 
-### 12.2 Surfaces API et UI
+### 14.2 Surfaces API et UI
 - **REST** : `/api/` + ressources en `kebab-case` (ex: `GET /api/fleet/nodes`).
 - **Node Agent** : Verbes explicites finaux (`/apply`, `/sync`, `/run`).
 - **MCP** : Préfixe `ynh_` (ex: `ynh_fleet_lifecycle`).
@@ -258,7 +289,7 @@ Format : `<domaine>.<verbe>` (ex: `fleet.enrollment`, `node.actions`). Lowercase
 
 ---
 
-## 13. Règles architecturales
+## 15. Règles architecturales
 
 1. **Le core (nexora_core) possède les règles métier** — ni la console, ni le MCP, ni le bootstrap shell ne réimplémentent de logique métier.
 2. **Le control plane est l'autorité d'orchestration** — il est la seule source de vérité pour l'état de la flotte.
@@ -268,7 +299,7 @@ Format : `<domaine>.<verbe>` (ex: `fleet.enrollment`, `node.actions`). Lowercase
 
 ---
 
-## 14. Dettes architecturales connues
+## 16. Dettes architecturales connues
 
 | ID | Description | Impact | Ticket |
 |----|-------------|--------|--------|
@@ -279,6 +310,6 @@ Format : `<domaine>.<verbe>` (ex: `fleet.enrollment`, `node.actions`). Lowercase
 
 ---
 
-## 15. ADRs de référence
+## 17. ADRs de référence
 
 Voir docs/adr/ pour les décisions architecturales enregistrées.

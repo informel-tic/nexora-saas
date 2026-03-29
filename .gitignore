@@ -15,3 +15,6 @@ var/
 .ruff_cache/
 .mypy_cache/
 .pytest_cache/
+.venvaudit/
+.playwright-mcp/
+artifacts/

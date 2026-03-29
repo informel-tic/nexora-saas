@@ -103,10 +103,24 @@ export async function loadAccessContext() {
   return api('console/access-context');
 }
 
-export async function api(path) {
+export async function api(path, init) {
   const url = BASE + '/api/' + path;
   return requestWithAuth(url, function() {
-    return { headers: buildHeaders(), credentials: 'same-origin' };
+    const method = init && init.method ? String(init.method).toUpperCase() : 'GET';
+    const headers = Object.assign({}, buildHeaders(), init && init.headers ? init.headers : {});
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS' && !headers['X-Nexora-Action']) {
+      headers['X-Nexora-Action'] = 'true';
+    }
+    const opts = { method: method, headers: headers, credentials: 'same-origin' };
+    if (init && init.body !== undefined) {
+      if (typeof init.body === 'string') {
+        opts.body = init.body;
+      } else {
+        if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(init.body);
+      }
+    }
+    return opts;
   });
 }
 

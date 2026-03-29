@@ -109,6 +109,22 @@ class ConsoleAppHandlerTests(unittest.TestCase):
             self.assertIn(endpoint, self.views_source,
                           f"loadSecurity missing fetch for {endpoint}")
 
+    def test_governance_view_includes_changelog(self):
+        self.assertIn("governance/changelog", self.views_source)
+
+    # ── Automation / notifications / SLA views ──
+
+    def test_automation_view_fetches_templates_and_checklists(self):
+        for endpoint in ["automation/templates", "automation/checklists"]:
+            self.assertIn(endpoint, self.views_source,
+                          f"loadAutomation missing fetch for {endpoint}")
+
+    def test_notifications_view_fetches_templates(self):
+        self.assertIn("notifications/templates", self.views_source)
+
+    def test_sla_tracking_fetches_tiers(self):
+        self.assertIn("sla/tiers", self.views_source)
+
     # ── Subscription actions ──
 
     def test_subscription_view_has_action_buttons(self):

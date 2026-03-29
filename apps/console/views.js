@@ -1,5 +1,20 @@
-import { api, apiPost } from './api.js';
 import { scoreColor, nxStatCard, nxGauge, nxAlert, nxTable, nxLoader, nxEmpty, nxBadge } from './components.js';
+
+// Use window.api / window.apiPost set by the hosting console (owner or subscriber)
+// so the shared views never depend on a specific API module path.
+function api(path) {
+  if (typeof window.api !== 'function') {
+    throw new Error('API client not initialized by host console.');
+  }
+  return window.api(path);
+}
+
+function apiPost(path, body) {
+  if (typeof window.apiPost !== 'function') {
+    throw new Error('API client not initialized by host console.');
+  }
+  return window.apiPost(path, body);
+}
 
 function stripAnsi(value) {
   return String(value || '').replace(/\u001b\[[0-9;]*m/g, '').trim();
@@ -146,7 +161,7 @@ export async function loadServices(sec) {
   <div id="service-logs-panel" class="nx-card mt" style="display:none">
     <div class="nx-card-header">
       <h3 id="service-logs-title">Logs</h3>
-      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="document.getElementById('service-logs-panel').style.display='none'">✕</button>
+      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="window.closeServiceLogsPanel()">✕</button>
     </div>
     <pre id="service-logs-content" style="max-height:400px;overflow:auto;font-size:var(--text-xs);color:var(--fg);padding:var(--sp-md)"></pre>
   </div>`;
@@ -359,7 +374,7 @@ export async function loadBlueprints(sec) {
   <div id="blueprint-deploy-modal" style="display:none" class="nx-card mt">
     <div class="nx-card-header">
       <h3 id="blueprint-modal-title">Déployer un blueprint</h3>
-      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="document.getElementById('blueprint-deploy-modal').style.display='none'">✕</button>
+      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="window.closeBlueprintModal()">✕</button>
     </div>
     <div class="nx-form-row"><label class="nx-label">Domaine cible</label>
       <input id="bp-domain" class="nx-input nx-input-grow" placeholder="example.com"/></div>
@@ -376,18 +391,22 @@ export async function loadBlueprints(sec) {
 }
 
 export async function loadAutomation(sec) {
-  const [templates, checklists] = await Promise.all([api('automation/templates'), api('automation/checklists')]);
-  let html = `<div class="nx-card mb"><div class="nx-card-header"><h3>Templates d'automatisation</h3></div>`;
-  html += (templates || []).length
-    ? nxTable(['Job', 'Schedule', 'Risque'], (templates || []).map(function(t) { return [t.name, '<code>' + t.schedule + '</code>', t.risk]; }))
-    : nxEmpty('Aucun template');
-  html += '</div>';
+  try {
+    const [templates, checklists] = await Promise.all([api('automation/templates'), api('automation/checklists')]);
+    let html = `<div class="nx-card mb"><div class="nx-card-header"><h3>Templates d'automatisation</h3></div>`;
+    html += (templates || []).length
+      ? nxTable(['Job', 'Schedule', 'Risque'], (templates || []).map(function(t) { return [t.name, '<code>' + t.schedule + '</code>', t.risk]; }))
+      : nxEmpty('Aucun template');
+    html += '</div>';
 
-  html += `<div class="nx-card"><div class="nx-card-header"><h3>Checklists</h3></div>
-    <ul class="item-list">${(checklists || []).map(function(c) {
-      return '<li><strong>' + c.name + '</strong><span class="nx-text-muted">' + (c.items || []).length + ' items</span></li>';
-    }).join('')}</ul></div>`;
-  sec.innerHTML = html;
+    html += `<div class="nx-card"><div class="nx-card-header"><h3>Checklists</h3></div>
+      <ul class="item-list">${(checklists || []).map(function(c) {
+        return '<li><strong>' + c.name + '</strong><span class="nx-text-muted">' + (c.items || []).length + ' items</span></li>';
+      }).join('')}</ul></div>`;
+    sec.innerHTML = html;
+  } catch (e) {
+    sec.innerHTML = nxAlert('Erreur de chargement Automation: ' + e.message, 'warning');
+  }
 }
 
 export async function loadAdoption(sec, NexoraConsoleObj) {
@@ -568,7 +587,7 @@ export async function loadDocker(sec) {
   html += `<div id="docker-logs-panel" class="nx-card mb" style="display:none">
     <div class="nx-card-header">
       <h3 id="docker-logs-title">Logs conteneur</h3>
-      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="document.getElementById('docker-logs-panel').style.display='none'">✕</button>
+      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="window.closeDockerLogsPanel()">✕</button>
     </div>
     <pre id="docker-logs-content" style="max-height:400px;overflow:auto;font-size:var(--text-xs);white-space:pre-wrap;padding:var(--sp-md)"></pre>
   </div>`;
@@ -682,8 +701,12 @@ export async function loadHooks(sec) {
 }
 
 export async function loadGovernanceRisks(sec) {
-  const risks = await api('governance/risks').catch(function() { return { risks: [] }; });
+  const [risks, changelog] = await Promise.all([
+    api('governance/risks').catch(function() { return { risks: [] }; }),
+    api('governance/changelog').catch(function() { return { entries: [] }; })
+  ]);
   const items = risks.risks || risks.items || [];
+  const entries = changelog.entries || changelog.items || [];
   const riskColor = { critical: 'danger', high: 'danger', medium: 'warning', low: 'success', info: 'info' };
 
   let html = '';
@@ -711,6 +734,24 @@ export async function loadGovernanceRisks(sec) {
         })
       )
     : nxEmpty('Aucun risque détecté');
+  html += '</div>';
+
+  html += `<div class="nx-card"><div class="nx-card-header"><h3>Journal des changements</h3></div>`;
+  html += entries.length
+    ? nxTable(
+        ['Période', 'Changements'],
+        entries.map(function(entry) {
+          const from = (entry.from_timestamp || '').replace('T', ' ').slice(0, 19);
+          const to = (entry.to_timestamp || '').replace('T', ' ').slice(0, 19);
+          const period = (from || to) ? (from + (to ? ' -> ' + to : '')) : '—';
+          const changes = (entry.changes || []).map(function(change) {
+            const label = [change.section, change.type, change.item].filter(Boolean).join(' / ');
+            return '<span style="font-size:var(--text-xs)">' + (label || '—') + '</span>';
+          }).join('<br>');
+          return [period, changes || '—'];
+        })
+      )
+    : nxEmpty('Aucun changement detecte');
   html += '</div>';
 
   sec.innerHTML = html;
@@ -955,41 +996,45 @@ export async function loadSettings(sec) {
 // ── YunoHost App Catalog ──────────────────────────────────────────────────
 
 export async function loadYnhCatalog(sec) {
-  sec.innerHTML = `<div class="nx-card mb"><div class="nx-card-header"><h3>📦 Catalogue d'applications YunoHost</h3></div>
-    <div class="nx-form-row" style="align-items:center">
-      <input id="catalog-query" class="nx-input nx-input-grow" placeholder="Rechercher: wordpress, nextcloud, gitea…" onkeydown="if(event.key==='Enter')window.catalogSearch()"/>
-      <button class="nx-btn" onclick="window.catalogSearch()">Rechercher</button>
+  try {
+    sec.innerHTML = `<div class="nx-card mb"><div class="nx-card-header"><h3>📦 Catalogue d'applications YunoHost</h3></div>
+      <div class="nx-form-row" style="align-items:center">
+        <input id="catalog-query" class="nx-input nx-input-grow" placeholder="Rechercher: wordpress, nextcloud, gitea…" onkeydown="if(event.key==='Enter')window.catalogSearch()"/>
+        <button class="nx-btn" onclick="window.catalogSearch()">Rechercher</button>
+      </div>
+      <div id="catalog-action-result" class="mt"></div>
+      <div id="catalog-results" class="mt"></div>
     </div>
-    <div id="catalog-action-result" class="mt"></div>
-    <div id="catalog-results" class="mt"></div>
-  </div>
-  <!-- Install modal -->
-  <div id="catalog-install-modal" style="display:none" class="nx-card mt">
-    <div class="nx-card-header">
-      <h3 id="catalog-install-title">Installer une application</h3>
-      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="document.getElementById('catalog-install-modal').style.display='none'">✕</button>
+    <!-- Install modal -->
+    <div id="catalog-install-modal" style="display:none" class="nx-card mt">
+      <div class="nx-card-header">
+        <h3 id="catalog-install-title">Installer une application</h3>
+        <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="window.closeCatalogInstallModal()">✕</button>
+      </div>
+      <div class="nx-form-row"><label class="nx-label">App ID</label>
+        <input id="catalog-install-appid" class="nx-input nx-input-grow" readonly/></div>
+      <div class="nx-form-row"><label class="nx-label">Domaine</label>
+        <input id="catalog-install-domain" class="nx-input nx-input-grow" placeholder="mondomaine.tld"/></div>
+      <div class="nx-form-row"><label class="nx-label">Chemin</label>
+        <input id="catalog-install-path" class="nx-input" value="/"/></div>
+      <div class="nx-form-row"><label class="nx-label">Label (optionnel)</label>
+        <input id="catalog-install-label" class="nx-input nx-input-grow" placeholder="Mon app"/></div>
+      <div class="nx-actions mt">
+        <button class="nx-btn" onclick="window.catalogInstallConfirm()">Installer</button>
+      </div>
+      <div id="catalog-install-result" class="mt"></div>
     </div>
-    <div class="nx-form-row"><label class="nx-label">App ID</label>
-      <input id="catalog-install-appid" class="nx-input nx-input-grow" readonly/></div>
-    <div class="nx-form-row"><label class="nx-label">Domaine</label>
-      <input id="catalog-install-domain" class="nx-input nx-input-grow" placeholder="mondomaine.tld"/></div>
-    <div class="nx-form-row"><label class="nx-label">Chemin</label>
-      <input id="catalog-install-path" class="nx-input" value="/"/></div>
-    <div class="nx-form-row"><label class="nx-label">Label (optionnel)</label>
-      <input id="catalog-install-label" class="nx-input nx-input-grow" placeholder="Mon app"/></div>
-    <div class="nx-actions mt">
-      <button class="nx-btn" onclick="window.catalogInstallConfirm()">Installer</button>
+    <!-- Installed apps management -->
+    <div class="nx-card mt"><div class="nx-card-header"><h3>Applications installées</h3>
+      <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="window.ynhAppsRefresh()">↻ Rafraîchir</button>
     </div>
-    <div id="catalog-install-result" class="mt"></div>
-  </div>
-  <!-- Installed apps management -->
-  <div class="nx-card mt"><div class="nx-card-header"><h3>Applications installées</h3>
-    <button class="nx-btn nx-btn-xs nx-btn-ghost" onclick="window.ynhAppsRefresh()">↻ Rafraîchir</button>
-  </div>
-  <div id="ynh-apps-list" class="mt">${nxLoader('Chargement…')}</div>
-  </div>`;
-  // Load installed apps right away
-  window.ynhAppsRefresh();
+    <div id="ynh-apps-list" class="mt">${nxLoader('Chargement…')}</div>
+    </div>`;
+    // Load installed apps right away
+    await window.ynhAppsRefresh();
+  } catch (e) {
+    sec.innerHTML = nxAlert('Erreur de chargement du catalogue YunoHost: ' + e.message, 'warning');
+  }
 }
 
 // ── Failover ──────────────────────────────────────────────────────────────

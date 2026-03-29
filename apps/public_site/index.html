@@ -279,6 +279,10 @@
           <span class="chip">PRA & backups quotidiens</span>
           <span class="chip">Docker overlay optionnel</span>
         </div>
+        <div class="btns" style="margin-top:1rem">
+          <a class="btn secondary" id="link-console" href="/console/">Accès subscriber</a>
+          <a class="btn secondary" id="link-owner" href="/owner-console/">Accès propriétaire</a>
+        </div>
       </div>
       <aside class="hero-side">
         <h3>Acces differencies</h3>
@@ -346,5 +350,17 @@
       <a class="btn primary" href="/subscribe">Souscrire maintenant</a>
     </div>
   </div>
+  <script>
+    // Build cross-domain links from current hostname
+    (function() {
+      var host = window.location.hostname;
+      var base = host.replace(/^www\./, '');
+      var proto = window.location.protocol;
+      var consoleLink = document.getElementById('link-console');
+      var ownerLink = document.getElementById('link-owner');
+      if (consoleLink) consoleLink.href = proto + '//console.' + base + '/console/';
+      if (ownerLink) ownerLink.href = proto + '//saas.' + base + '/owner-console/';
+    })();
+  </script>
 </body>
 </html>

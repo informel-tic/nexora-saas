@@ -7,28 +7,57 @@
 | Paramètre | Valeur |
 |-----------|--------|
 | **Domaine** | `srv2testrchon.nohost.me` (YunoHost nohost.me) |
-| **Chemin** | `/nexora` |
-| **URL console** | `https://srv2testrchon.nohost.me/nexora/` |
+| **Architecture** | 3 sous-domaines (saas / www / console) |
+| **URL propriétaire** | `https://saas.srv2testrchon.nohost.me/` |
+| **URL publique** | `https://www.srv2testrchon.nohost.me/` |
+| **URL subscriber** | `https://console.srv2testrchon.nohost.me/` |
 | **Mode** | `fresh` |
 | **Profil** | `control-plane+node-agent` |
 | **Enrollment** | `pull` |
 | **Debian** | 12 (Bookworm) |
 | **YunoHost** | 12.1.39 |
 | **Node ID** | `node-fc416f4a84b0` |
-| **Token** | `/home/yunohost.app/nexora/api-token` |
-| **State** | `/home/yunohost.app/nexora/state.json` |
-| **Control Plane** | `127.0.0.1:38120` (proxied by nginx) |
+| **Token** | `/opt/nexora/var/api-token` |
+| **State** | `/opt/nexora/var/state.json` |
+| **Control Plane** | `127.0.0.1:38120` (proxied by nginx on 3 vhosts) |
 | **Node Agent** | `127.0.0.1:38121` (internal) |
 
 Commande utilisée :
 ```bash
+DOMAIN=srv2testrchon.nohost.me \
 MODE=fresh \
 PROFILE=control-plane+node-agent \
 ENROLLMENT_MODE=pull \
-DOMAIN=srv2testrchon.nohost.me \
-PATH_URL=/nexora \
-./deploy/bootstrap-full-platform.sh
+bash deploy/bootstrap-full-platform.sh
 ```
+
+---
+
+## Architecture 3 domaines
+
+Nexora expose **trois surfaces** sur des sous-domaines dédiés, toutes proxiées vers le même backend FastAPI (port 38120) :
+
+| Sous-domaine | Surface | Authentification | Accès |
+|---|---|---|---|
+| `saas.<domaine>` | Owner Console | Passphrase propriétaire | Administration complète SaaS |
+| `www.<domaine>` | Site public | Aucune | Offres, souscription |
+| `console.<domaine>` | Console subscriber | Token + tenant_id | Gestion infrastructure tenant |
+
+Le routage est assuré par :
+1. **nginx** : chaque vhost injecte `X-Nexora-Surface: saas|public|console`
+2. **Middleware FastAPI** (`surface_isolation_middleware`) : filtrage des endpoints par surface
+3. **Resolve surface** : fallback sur le préfixe `Host` si pas de header
+
+### Certificats SSL
+
+`deploy-subdomains.sh` crée chaque sous-domaine dans YunoHost et installe un certificat Let's Encrypt dédié :
+- `/etc/yunohost/certs/saas.<domaine>/`
+- `/etc/yunohost/certs/www.<domaine>/`
+- `/etc/yunohost/certs/console.<domaine>/`
+
+### DNS
+
+Les 3 sous-domaines doivent pointer (CNAME ou A) vers le serveur YunoHost.
 
 ---
 
@@ -49,12 +78,11 @@ For a YunoHost node on Debian (11.x, 12.x, 13.x target track), Nexora enforces t
 ## Recommended command
 
 ```bash
+DOMAIN=example.org \
 MODE=fresh \
 PROFILE=control-plane+node-agent \
 ENROLLMENT_MODE=pull \
-DOMAIN=example.org \
-PATH_URL=/nexora \
-./deploy/bootstrap-full-platform.sh
+bash deploy/bootstrap-full-platform.sh
 ```
 
 ## Alternative profiles
@@ -62,13 +90,13 @@ PATH_URL=/nexora \
 ### Control plane only
 
 ```bash
-MODE=fresh PROFILE=control-plane ENROLLMENT_MODE=pull DOMAIN=example.org PATH_URL=/nexora ./deploy/bootstrap-full-platform.sh
+DOMAIN=example.org MODE=fresh PROFILE=control-plane ENROLLMENT_MODE=pull bash deploy/bootstrap-full-platform.sh
 ```
 
 ### Node agent only
 
 ```bash
-MODE=fresh PROFILE=node-agent-only ENROLLMENT_MODE=pull TARGET_HOST=node-01.internal ./deploy/bootstrap-full-platform.sh
+MODE=fresh PROFILE=node-agent-only ENROLLMENT_MODE=pull TARGET_HOST=node-01.internal bash deploy/bootstrap-full-platform.sh
 ```
 
 ## What happens
@@ -79,7 +107,7 @@ MODE=fresh PROFILE=node-agent-only ENROLLMENT_MODE=pull TARGET_HOST=node-01.inte
 4. A node coherence audit report (`/opt/nexora/var/node-coherence-report.json`) is generated to inventory package versions, node constraints, scope/profile alignment, blockers and adaptation hints.
 5. Nexora creates its system user, virtualenv, state directories, and node identity material.
 6. Systemd units are enabled according to the selected profile.
-7. For profiles exposing the control plane, the local YunoHost package is installed on the requested `domain + path`.
+7. For profiles exposing the control plane, the 3-domain nginx vhosts are deployed via `deploy-subdomains.sh`.
 
 ## Logs
 
@@ -145,7 +173,7 @@ MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull TARGET_HOST=n
 ```bash
 NEXORA_BOOTSTRAP_RETRY_ATTEMPTS=5 \
 NEXORA_BOOTSTRAP_RETRY_DELAY_SECONDS=8 \
-MODE=fresh PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=example.org PATH_URL=/nexora \
+MODE=fresh PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=example.org \
 ./deploy/bootstrap-full-platform.sh
 ```
 
@@ -190,7 +218,6 @@ MODE=adopt \
 PROFILE=control-plane+node-agent \
 ENROLLMENT_MODE=pull \
 DOMAIN=example.org \
-PATH_URL=/nexora \
 ./deploy/bootstrap-full-platform.sh
 ```
 
@@ -206,13 +233,13 @@ bootstrap exits with a failure and suggests a safe alternative path.
 ## Apply adoption
 
 ```bash
-MODE=adopt PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=example.org PATH_URL=/nexora CONFIRM_ADOPT=yes ./deploy/bootstrap-full-platform.sh
+MODE=adopt PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=example.org CONFIRM_ADOPT=yes bash deploy/bootstrap-full-platform.sh
 ```
 
 ## Augment an already adopted node
 
 ```bash
-MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=example.org PATH_URL=/nexora CONFIRM_AUGMENT=yes ./deploy/bootstrap-full-platform.sh
+MODE=augment PROFILE=control-plane+node-agent ENROLLMENT_MODE=pull DOMAIN=example.org CONFIRM_AUGMENT=yes bash deploy/bootstrap-full-platform.sh
 ```
 
 ## Agent-only enrollment on an existing node
@@ -239,7 +266,7 @@ Nexora peut être installé sans accès Internet en préparant un bundle de whee
 
 ```bash
 ./scripts/build_offline_bundle.sh
-NEXORA_WHEEL_BUNDLE_DIR=./dist/offline-bundle MODE=augment PROFILE=control-plane+node-agent DOMAIN=example.org PATH_URL=/nexora ./deploy/bootstrap-full-platform.sh
+NEXORA_WHEEL_BUNDLE_DIR=./dist/offline-bundle MODE=augment PROFILE=control-plane+node-agent DOMAIN=example.org bash deploy/bootstrap-full-platform.sh
 ```
 
 Le package YunoHost utilise aussi ce bundle si `NEXORA_WHEEL_BUNDLE_DIR` est défini (ou si `$install_dir/offline-bundle/wheels` existe).
@@ -292,8 +319,7 @@ Cas visé : VM YunoHost (track 11/12/13) accessible uniquement depuis votre rés
    PROFILE=control-plane+node-agent \
    ENROLLMENT_MODE=pull \
    DOMAIN=example.org \
-   PATH_URL=/nexora \
-   ./deploy/bootstrap-full-platform.sh
+   bash deploy/bootstrap-full-platform.sh
    ```
    Variante VM interne sans domaine public/externe: omettre `DOMAIN` pour installer seulement les services systemd (control-plane + node-agent) sans exposition YunoHost/nginx.
    ```bash
@@ -342,9 +368,13 @@ Cette checklist sert à valider rapidement si une VM de test est prête pour un 
 ### 4) Validation post-install (go/no-go)
 
 - Services systemd Nexora actifs.
-- Endpoint nginx accessible sur le `domain + path` choisi.
+- Les 3 sous-domaines nginx accessibles (`saas.*`, `www.*`, `console.*`).
+- Certificats SSL valides sur chaque sous-domaine.
 - Nœud visible dans la flotte et attestation fonctionnelle.
 - Actions non destructives exécutables depuis API/Console (`inventory`, `healthcheck`).
+- Console owner accessible sur `saas.*` avec passphrase.
+- Console subscriber accessible sur `console.*` avec token.
+- Site public accessible sur `www.*` sans authentification.
 - Exécution d’un `package_check` (install/remove/upgrade/backup_restore) avant diffusion plus large.
 
 ### 5) Points encore à faire avant une diffusion SaaS élargie

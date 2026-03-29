@@ -5,13 +5,14 @@ from __future__ import annotations
 import os
 import secrets
 import logging
+import re
 from datetime import datetime, timezone
 
 import uvicorn
 from fastapi import Body, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.responses import Response
 
 from nexora_node_sdk.auth import (
@@ -30,6 +31,7 @@ from nexora_node_sdk.auth import (
     verify_passphrase,
 )
 from nexora_node_sdk.auth._middleware import resolve_surface
+from nexora_node_sdk.auth._middleware import SecurityHeadersMiddleware
 from nexora_node_sdk.logging_config import setup_logging
 from nexora_node_sdk.models import (
     EnrollmentAttestationRequest,
@@ -93,6 +95,7 @@ SUBSCRIBER_ALLOWED_MUTATIONS = frozenset(
     }
 )
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+TENANT_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,63}$")
 
 
 def _load_public_landing_html() -> str:
@@ -200,6 +203,17 @@ def _is_subscriber_blocked(path: str, method: str) -> bool:
         if normalized.startswith(prefix):
             return True
     return False
+
+
+def _validate_tenant_header(tenant_id: str | None) -> None:
+    if not tenant_id:
+        return
+    normalized = tenant_id.strip()
+    if not TENANT_ID_PATTERN.match(normalized):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid X-Nexora-Tenant-Id format. Allowed: alphanumeric and hyphen.",
+        )
 
 
 def _resolve_trusted_actor_role_from_request(request) -> str | None:
@@ -391,6 +405,25 @@ class CreateOrgRequest(BaseModel):
     contact_email: str = Field(..., min_length=3, max_length=200)
     billing_address: str = ""
 
+    @field_validator("name")
+    @classmethod
+    def name_no_html(cls, v: str) -> str:
+        import re as _re
+        if _re.search(r"<[^>]+>", v):
+            cleaned = _re.sub(r"<[^>]+>", "", v).strip()
+            if not cleaned:
+                raise ValueError("Organization name must not contain HTML tags")
+            return cleaned
+        return v
+
+    @field_validator("contact_email")
+    @classmethod
+    def email_format(cls, v: str) -> str:
+        import re as _re
+        if not _re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
+            raise ValueError("Invalid email format")
+        return v
+
 
 class CreateSubscriptionRequest(BaseModel):
     org_id: str = Field(..., min_length=1)
@@ -404,6 +437,7 @@ class UpgradeSubscriptionRequest(BaseModel):
 
 class SuspendSubscriptionRequest(BaseModel):
     reason: str = ""
+    reactivate: bool = False
 
 
 class OnboardTenantRequest(BaseModel):
@@ -458,13 +492,19 @@ def build_application() -> FastAPI:
         openapi_url="/api/v1/openapi.json",
         docs_url="/api/v1/docs",
     )
-    app.add_middleware(TokenAuthMiddleware)
-    app.add_middleware(CSRFProtectionMiddleware)
 
     @app.middleware("http")
     async def deployment_scope_middleware(request, call_next):
         try:
             _enforce_deployment_scope(request.url.path)
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def tenant_header_validation_middleware(request, call_next):
+        try:
+            _validate_tenant_header(request.headers.get("X-Nexora-Tenant-Id"))
         except HTTPException as exc:
             return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
         return await call_next(request)
@@ -484,6 +524,11 @@ def build_application() -> FastAPI:
     @app.middleware("http")
     async def subscriber_surface_middleware(request, call_next):
         trusted_role = (_resolve_trusted_actor_role_from_request(request) or "").strip().lower()
+        if trusted_role == "observer" and request.method not in SAFE_METHODS and request.url.path.startswith("/api/"):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Observer profile is read-only and cannot execute mutating operations."},
+            )
         if trusted_role == "subscriber" and _is_subscriber_blocked(request.url.path, request.method):
             return JSONResponse(
                 status_code=403,
@@ -512,11 +557,12 @@ def build_application() -> FastAPI:
 
         # Public surface: only allow public endpoints and static assets
         if surface == "public":
-            public_allowed = {"/", "/subscribe", "/api/health", "/health", "/api/public/offers", "/api/plans"}
-            if path in public_allowed or path.startswith("/public_site/"):
-                return await call_next(request)
-            # Allow API endpoints needed for subscription flow
-            if path.startswith("/api/public/"):
+            public_allowed = {
+                "/", "/subscribe", "/api/health", "/health",
+                "/api/public/offers", "/api/plans", "/api/v1/openapi.json",
+                "/favicon.ico",
+            }
+            if path in public_allowed or path.startswith(("/public_site/", "/api/public/")):
                 return await call_next(request)
             return JSONResponse(
                 status_code=403,
@@ -527,17 +573,24 @@ def build_application() -> FastAPI:
         if surface == "saas":
             trusted_role = (_resolve_trusted_actor_role_from_request(request) or "").strip().lower()
             is_owner_session = getattr(request.state, "nexora_owner_session", False)
-            # Allow public auth endpoints and static assets
-            if path in {"/", "/api/auth/owner-login", "/api/health", "/owner-console", "/owner-console/"} or path.startswith("/owner-console/"):
+            # Allow public auth endpoints, owner console static assets, and health
+            saas_public = {
+                "/", "/api/auth/owner-login", "/api/auth/owner-passphrase",
+                "/api/auth/owner-passphrase-status", "/api/auth/owner-logout",
+                "/api/auth/owner-session",
+                "/api/health", "/health", "/owner-console", "/owner-console/",
+                "/api/console/access-context",
+            }
+            if path in saas_public or path.startswith(("/owner-console/", "/console/")):
                 return await call_next(request)
-            # For API endpoints, require owner session
-            if path.startswith("/api/") and not is_owner_session and trusted_role != "owner":
+            # For API endpoints, require owner session or operator role
+            if path.startswith("/api/") and not is_owner_session and trusted_role not in OPERATOR_ROLES:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Owner console requires owner authentication."},
                 )
 
-        # Console subscriber surface: block owner-only access
+        # Console subscriber surface: block owner-only access, allow subscriber paths
         if surface == "console":
             is_owner_session = getattr(request.state, "nexora_owner_session", False)
             if is_owner_session:
@@ -545,8 +598,22 @@ def build_application() -> FastAPI:
                     status_code=403,
                     content={"detail": "Owner sessions are not valid on the subscriber console."},
                 )
+            # Block owner-console paths on subscriber surface
+            if path.startswith("/owner-console"):
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Owner console is not available on this surface. Use saas." + (request.headers.get("Host", "").split(".", 1)[-1] if "." in request.headers.get("Host", "") else "domain")},
+                )
 
         return await call_next(request)
+
+    # Auth & CSRF middlewares must be added AFTER @app.middleware decorators
+    # so they become outermost (Starlette insert(0) ordering). This ensures
+    # TokenAuthMiddleware sets request.state.nexora_owner_session BEFORE
+    # surface_isolation_middleware checks it.
+    app.add_middleware(CSRFProtectionMiddleware)
+    app.add_middleware(TokenAuthMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     register_public_routes(app)
     register_health_routes(app)
@@ -823,6 +890,7 @@ def register_health_routes(app: FastAPI) -> None:
             "status": "ok",
             "service": "nexora-control-plane",
             "version": NEXORA_VERSION,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "compatibility": service.compatibility_report()["assessment"],
         }
 
@@ -880,19 +948,29 @@ def register_fleet_routes(app: FastAPI) -> None:
     def fleet_enroll_request(
         request: EnrollmentTokenRequest, x_nexora_tenant_id: str | None = Header(None)
     ) -> dict[str, object]:
-        return service.request_enrollment_token(
+        result = service.request_enrollment_token(
             requested_by=request.requested_by,
             mode=request.mode,
             ttl_minutes=request.ttl_minutes,
             node_id=request.node_id,
             tenant_id=x_nexora_tenant_id,
         )
+        if not result.get("success", True):
+            reason = str(result.get("reason", "")).lower()
+            status = 403 if reason.startswith("quota") or reason.startswith("subscription_") else 400
+            raise HTTPException(status_code=status, detail=str(result.get("error") or "Enrollment request rejected"))
+        return result
 
     def fleet_enroll_attest(request: EnrollmentAttestationRequest = Body(...)) -> dict[str, object]:
-        return service.attest_enrollment(**request.model_dump())
+        payload = request.model_dump()
+        payload["observed_at"] = payload.get("observed_at") or datetime.now(timezone.utc).isoformat()
+        return service.attest_enrollment(**payload)
 
     def fleet_enroll_register(request: EnrollmentRegisterRequest = Body(...)) -> dict[str, object]:
-        return service.register_enrolled_node(**request.model_dump())
+        payload = request.model_dump()
+        payload["hostname"] = payload.get("hostname") or payload.get("node_id")
+        payload["enrollment_mode"] = payload.get("enrollment_mode") or "pull"
+        return service.register_enrolled_node(**payload)
 
     app.add_api_route("/api/fleet", fleet, methods=["GET"])
     app.add_api_route("/api/v1/fleet", fleet, methods=["GET"])
@@ -1021,7 +1099,15 @@ def register_catalog_routes(app: FastAPI) -> None:
         return bp.model_dump()
 
     def branding(slug: str | None = None) -> dict[str, object]:
-        return service.branding_profile(slug)
+        profile = service.branding_profile(slug)
+        if not isinstance(profile, dict):
+            profile = {}
+        accent = str(profile.get("primary_color") or profile.get("accent") or "#2563eb")
+        payload = dict(profile)
+        payload.setdefault("primary_color", accent)
+        payload.setdefault("accent", accent)
+        payload.setdefault("logo_url", "")
+        return payload
 
     def identity() -> dict[str, object]:
         return service.identity()
@@ -1145,6 +1231,77 @@ def register_governance_routes(app: FastAPI) -> None:
             payload["tenant_id"] = x_nexora_tenant_id
         return payload
 
+    def pra_snapshot(x_nexora_tenant_id: str | None = Header(None)) -> dict[str, object]:
+        from nexora_node_sdk.node_actions import execute_node_action
+
+        params: dict[str, object] = {}
+        if x_nexora_tenant_id:
+            params["tenant_id"] = x_nexora_tenant_id
+        result = execute_node_action(service, "pra/snapshot", params=params)
+        payload = {"action": "pra/snapshot", **result}
+        if x_nexora_tenant_id:
+            payload.setdefault("tenant_id", x_nexora_tenant_id)
+        return payload
+
+    def pra_readiness(x_nexora_tenant_id: str | None = Header(None)) -> dict[str, object]:
+        pra_payload = pra(x_nexora_tenant_id=x_nexora_tenant_id)
+        state = service.state.load()
+        snapshots = [s for s in state.get("pra_snapshots", []) if isinstance(s, dict)]
+        if x_nexora_tenant_id:
+            snapshots = [s for s in snapshots if s.get("tenant_id") == x_nexora_tenant_id]
+        pra_score = int(pra_payload.get("pra_score") or 0)
+        backups_count = int(pra_payload.get("backups_count") or 0)
+        ready = pra_score >= 50 and backups_count > 0
+        last_snapshot = snapshots[-1] if snapshots else None
+        recommendations: list[str] = []
+        if backups_count <= 0:
+            recommendations.append("Configure at least one backup before failover operations.")
+        if pra_score < 50:
+            recommendations.append("Improve PRA score above 50 to reach operational readiness.")
+        if not recommendations:
+            recommendations.append("PRA baseline is ready for standard restoration workflows.")
+        payload: dict[str, object] = {
+            "action": "pra/readiness",
+            "ready": ready,
+            "pra_score": pra_score,
+            "backups_count": backups_count,
+            "runbooks": pra_payload.get("runbooks", []),
+            "snapshot_count": len(snapshots),
+            "last_snapshot_at": last_snapshot.get("timestamp") if isinstance(last_snapshot, dict) else None,
+            "recommendations": recommendations,
+        }
+        if x_nexora_tenant_id:
+            payload["tenant_id"] = x_nexora_tenant_id
+        return payload
+
+    def pra_export(x_nexora_tenant_id: str | None = Header(None)) -> dict[str, object]:
+        pra_payload = pra(x_nexora_tenant_id=x_nexora_tenant_id)
+        state = service.state.load()
+        snapshots = [s for s in state.get("pra_snapshots", []) if isinstance(s, dict)]
+        if x_nexora_tenant_id:
+            snapshots = [s for s in snapshots if s.get("tenant_id") == x_nexora_tenant_id]
+        export_payload: dict[str, object] = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "pra": pra_payload,
+            "snapshot_count": len(snapshots),
+            "recent_snapshots": [
+                {
+                    "snapshot_id": snap.get("snapshot_id"),
+                    "timestamp": snap.get("timestamp"),
+                    "tenant_id": snap.get("tenant_id"),
+                }
+                for snap in snapshots[-5:]
+            ],
+            "runbooks": pra_payload.get("runbooks", []),
+        }
+        if x_nexora_tenant_id:
+            export_payload["tenant_id"] = x_nexora_tenant_id
+        return {
+            "action": "pra/export",
+            "export": export_payload,
+            "tenant_id": x_nexora_tenant_id,
+        }
+
     def change_log(x_nexora_tenant_id: str | None = Header(None)) -> dict[str, object]:
         from nexora_node_sdk.governance import change_log as _cl
 
@@ -1219,6 +1376,11 @@ def register_governance_routes(app: FastAPI) -> None:
         return payload
 
     def fail2ban_ban(ip: str = Query(...), x_nexora_tenant_id: str | None = Header(None)) -> dict[str, object]:
+        import ipaddress as _ipmod
+        try:
+            _ipmod.ip_address(ip)
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Invalid IP address: {ip}")
         state = service.state.load()
         from nexora_node_sdk.security_audit import emit_security_event
 
@@ -1331,6 +1493,9 @@ def register_governance_routes(app: FastAPI) -> None:
     app.add_api_route("/api/governance/risks", risk_register, methods=["GET"])
     app.add_api_route("/api/security/posture", security_posture, methods=["GET"])
     app.add_api_route("/api/pra", pra, methods=["GET"])
+    app.add_api_route("/api/pra/snapshot", pra_snapshot, methods=["GET"])
+    app.add_api_route("/api/pra/readiness", pra_readiness, methods=["GET"])
+    app.add_api_route("/api/pra/export", pra_export, methods=["GET"])
     app.add_api_route("/api/governance/changelog", change_log, methods=["GET"])
     app.add_api_route("/api/governance/snapshot-diff", snapshot_diff, methods=["GET"])
     app.add_api_route("/api/security/updates", security_updates, methods=["GET"])
@@ -1353,7 +1518,11 @@ def register_modes_routes(app: FastAPI) -> None:
 
         return _list()
 
+    _VALID_MODES = {"observer", "operator", "architect", "admin"}
+
     def switch_mode(target: str = Query(...), reason: str = Query("")) -> dict[str, object]:
+        if target.lower() not in _VALID_MODES:
+            raise HTTPException(status_code=422, detail=f"Invalid mode '{target}'. Must be one of: {', '.join(sorted(_VALID_MODES))}")
         from nexora_saas.modes import get_mode_manager
 
         return get_mode_manager().switch_mode(target, reason=reason, operator="api")
@@ -1386,11 +1555,28 @@ def register_modes_routes(app: FastAPI) -> None:
         x_nexora_tenant_id: str | None = Header(None),
     ) -> list[dict[str, object]]:
         from nexora_saas.admin_actions import get_admin_action_log
+        from nexora_saas.modes import get_mode_manager
 
         log = get_admin_action_log(50)
+        mode_history = get_mode_manager().get_mode_info().get("history", [])
+        for item in mode_history:
+            if not isinstance(item, dict):
+                continue
+            log.append(
+                {
+                    "timestamp": item.get("timestamp"),
+                    "action": "mode_switch",
+                    "from": item.get("from"),
+                    "to": item.get("to"),
+                    "direction": item.get("direction"),
+                    "reason": item.get("reason"),
+                    "operator": item.get("operator"),
+                    "tenant_id": x_nexora_tenant_id,
+                }
+            )
         if x_nexora_tenant_id:
             log = [entry for entry in log if entry.get("tenant_id") == x_nexora_tenant_id]
-        return log
+        return log[-50:]
 
     app.add_api_route("/api/mode", get_mode, methods=["GET"])
     app.add_api_route("/api/mode/list", list_modes, methods=["GET"])
@@ -1531,7 +1717,7 @@ def register_operations_routes(app: FastAPI) -> None:
 
         return fleet_lifecycle_parity_payload()
 
-    def metrics() -> Response:
+    def metrics(x_nexora_tenant_id: str | None = Header(None)) -> Response:
         """Prometheus-compatible metrics endpoint (text/plain format)."""
         import time as _time
 
@@ -1544,6 +1730,12 @@ def register_operations_routes(app: FastAPI) -> None:
             state = {}
 
         nodes = state.get("nodes", [])
+        if x_nexora_tenant_id:
+            nodes = [
+                node
+                for node in nodes
+                if isinstance(node, dict) and node.get("tenant_id") == x_nexora_tenant_id
+            ]
         status_counts: dict[str, int] = {}
         for n in nodes:
             s = n.get("status", "unknown") if isinstance(n, dict) else "unknown"
@@ -1625,11 +1817,15 @@ def register_subscription_routes(app: FastAPI) -> None:
         return service.get_plans()
 
     def create_org(request: CreateOrgRequest = Body(...)) -> dict[str, object]:
-        return service.create_org(
+        result = service.create_org(
             name=request.name,
             contact_email=request.contact_email,
             billing_address=request.billing_address,
         )
+        org = result.get("organization") if isinstance(result, dict) else None
+        if isinstance(org, dict) and result.get("success"):
+            return {**result, **org}
+        return result
 
     def list_orgs() -> list[dict[str, object]]:
         return service.list_orgs()
@@ -1641,14 +1837,25 @@ def register_subscription_routes(app: FastAPI) -> None:
         return org
 
     def create_sub(request: CreateSubscriptionRequest = Body(...)) -> dict[str, object]:
-        return service.subscribe(
+        result = service.subscribe(
             org_id=request.org_id,
             plan_tier=request.plan_tier,
             tenant_label=request.tenant_label,
         )
+        sub = result.get("subscription") if isinstance(result, dict) else None
+        tenant = result.get("tenant") if isinstance(result, dict) else None
+        if isinstance(sub, dict) and result.get("success"):
+            payload = {**result, **sub}
+            if isinstance(tenant, dict):
+                payload.setdefault("tenant_id", tenant.get("tenant_id"))
+            return payload
+        return result
 
-    def list_subs(org_id: str | None = Query(None)) -> list[dict[str, object]]:
-        return service.list_subs(org_id=org_id)
+    def list_subs(
+        org_id: str | None = Query(None),
+        x_nexora_tenant_id: str | None = Header(None),
+    ) -> list[dict[str, object]]:
+        return service.list_subs(org_id=org_id, tenant_id=x_nexora_tenant_id)
 
     def get_sub(subscription_id: str) -> dict[str, object]:
         sub = service.get_sub(subscription_id)
@@ -1657,13 +1864,23 @@ def register_subscription_routes(app: FastAPI) -> None:
         return sub
 
     def suspend_sub(subscription_id: str, request: SuspendSubscriptionRequest = Body(...)) -> dict[str, object]:
+        if request.reactivate:
+            return service.reactivate_sub(subscription_id)
         return service.suspend_sub(subscription_id, reason=request.reason)
+
+    def reactivate_sub(subscription_id: str) -> dict[str, object]:
+        return service.reactivate_sub(subscription_id)
 
     def cancel_sub(subscription_id: str) -> dict[str, object]:
         return service.cancel_sub(subscription_id)
 
     def upgrade_sub(subscription_id: str, request: UpgradeSubscriptionRequest = Body(...)) -> dict[str, object]:
-        return service.upgrade_sub(subscription_id, request.new_tier)
+        result = service.upgrade_sub(subscription_id, request.new_tier)
+        if not result.get("success"):
+            error = str(result.get("error") or "subscription upgrade failed")
+            status = 404 if "not found" in error.lower() else 422
+            raise HTTPException(status_code=status, detail=error)
+        return result
 
     # Public-facing plan catalog
     app.add_api_route("/api/plans", list_plans_route, methods=["GET"])
@@ -1680,6 +1897,7 @@ def register_subscription_routes(app: FastAPI) -> None:
     app.add_api_route("/api/subscriptions/{subscription_id}", get_sub, methods=["GET"])
     app.add_api_route("/api/subscriptions/{subscription_id}/suspend", suspend_sub, methods=["POST"])
     app.add_api_route("/api/subscriptions/{subscription_id}/cancel", cancel_sub, methods=["POST"])
+    app.add_api_route("/api/subscriptions/{subscription_id}/reactivate", reactivate_sub, methods=["POST"])
     app.add_api_route("/api/subscriptions/{subscription_id}/upgrade", upgrade_sub, methods=["POST"])
 
 
@@ -1904,8 +2122,9 @@ class DockerConfigSaveRequest(BaseModel):
 
 
 class BlueprintDeployRequest(BaseModel):
-    slug: str = Field(..., min_length=1)
+    slug: str = ""
     target_node_id: str = ""
+    node_id: str = ""
     domain: str = ""
     parameters: dict[str, object] = Field(default_factory=dict)
     dry_run: bool = False
@@ -1932,6 +2151,16 @@ class FailoverConfigureRequest(BaseModel):
     primary_node_id: str = "primary"
     secondary_node_id: str = "secondary"
     health_strategy: str = "combined"
+
+    @field_validator("primary_host", "secondary_host")
+    @classmethod
+    def validate_ip(cls, v: str) -> str:
+        import ipaddress as _ip
+        try:
+            _ip.ip_address(v)
+        except ValueError:
+            raise ValueError(f"Invalid IP address: {v}")
+        return v
 
 
 class FailoverExecuteRequest(BaseModel):
@@ -2131,14 +2360,21 @@ def register_blueprint_deploy_routes(app: FastAPI) -> None:
         apps_to_install = raw.get("apps", [])
 
         if dry_run:
+            planned_apps = [
+                a.get("id") if isinstance(a, dict) else a
+                for a in apps_to_install
+            ]
             return {
                 "dry_run": True,
                 "slug": slug,
                 "domain": domain,
-                "apps_planned": [
-                    a.get("id") if isinstance(a, dict) else a
-                    for a in apps_to_install
-                ],
+                "apps_planned": planned_apps,
+                "plan": {
+                    "slug": slug,
+                    "domain": domain,
+                    "apps": planned_apps,
+                    "parameters": body.parameters,
+                },
                 "parameters": body.parameters,
                 "message": "Dry run — no changes made",
             }

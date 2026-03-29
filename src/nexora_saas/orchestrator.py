@@ -19,6 +19,7 @@ from nexora_node_sdk.models import (
     NodeRecord,
     TenantTier,
 )
+from nexora_node_sdk.security_audit import emit_security_event
 from nexora_node_sdk.node_service import NodeService
 from nexora_node_sdk.state import normalize_node_record, transition_node_status
 
@@ -44,6 +45,7 @@ from .subscription import (
     list_organizations,
     list_plans,
     list_subscriptions,
+    reactivate_subscription,
     suspend_subscription,
     upgrade_subscription,
 )
@@ -293,6 +295,46 @@ class NexoraService(NodeService):
         """Create and persist a one-time enrollment token for a node."""
 
         state = self._ensure_identity_state(self.state.load())
+
+        if tenant_id:
+            subscription = get_subscription_by_tenant(state, tenant_id)
+            tier = TenantTier.FREE.value
+
+            if subscription:
+                sub_status = str(subscription.get("status") or "active").strip().lower()
+                tier = str(subscription.get("tier") or TenantTier.FREE.value)
+                if sub_status in {"suspended", "cancelled", "expired"}:
+                    return {
+                        "success": False,
+                        "error": f"Subscription for tenant '{tenant_id}' is '{sub_status}'. Enrollment blocked.",
+                        "reason": f"subscription_{sub_status}",
+                    }
+            else:
+                tenant_record = next(
+                    (
+                        tenant
+                        for tenant in state.get("tenants", [])
+                        if isinstance(tenant, dict) and tenant.get("tenant_id") == tenant_id
+                    ),
+                    {},
+                )
+                tier = str(tenant_record.get("tier") or TenantTier.FREE.value)
+
+            tenant_nodes = [
+                node
+                for node in state.get("nodes", [])
+                if isinstance(node, dict) and node.get("tenant_id") == tenant_id
+            ]
+            if is_quota_exceeded(tier, "max_nodes", len(tenant_nodes)):
+                return {
+                    "success": False,
+                    "error": (
+                        f"Quota exceeded for tenant '{tenant_id}': "
+                        f"max_nodes limit reached ({len(tenant_nodes)}/{get_quota_limit(tier, 'max_nodes')})."
+                    ),
+                    "reason": "quota_max_nodes",
+                }
+
         issued = issue_enrollment_token(
             state,
             requested_by=requested_by,
@@ -302,7 +344,7 @@ class NexoraService(NodeService):
             tenant_id=tenant_id,
         )
         self.state.save(state)
-        return issued
+        return {"success": True, **issued}
 
     def attest_enrollment(self, **payload: Any) -> dict[str, Any]:
         """Validate an enrollment attestation against compatibility policy."""
@@ -541,6 +583,9 @@ class NexoraService(NodeService):
                     "tenant_id": current_tenant_id,
                     "organization_id": tenant.get("org_id"),
                     "tier": tier,
+                    "subscription_status": (
+                        (get_subscription_by_tenant(state, current_tenant_id) or {}).get("status")
+                    ),
                     "entitlements": get_tenant_entitlements(tier),
                     "usage": usage,
                     "limits": limits,
@@ -606,6 +651,15 @@ class NexoraService(NodeService):
             "status": "active",
         }
         state["tenants"].append(new_tenant)
+        emit_security_event(
+            state,
+            "audit",
+            "tenant_onboarded",
+            severity="info",
+            tenant_id=tenant_id,
+            organization_id=organization_id,
+            tier=tier,
+        )
         self.state.save(state)
 
         return {"success": True, "tenant": new_tenant}
@@ -625,6 +679,15 @@ class NexoraService(NodeService):
         state = self.state.load()
         result = create_organization(state, name=name, contact_email=contact_email, billing_address=billing_address)
         if result.get("success"):
+            org = result.get("organization", {})
+            emit_security_event(
+                state,
+                "audit",
+                "organization_created",
+                severity="info",
+                organization_id=org.get("org_id"),
+                organization_name=org.get("name"),
+            )
             self.state.save(state)
         return result
 
@@ -638,11 +701,22 @@ class NexoraService(NodeService):
         state = self.state.load()
         result = create_subscription(state, org_id=org_id, plan_tier=plan_tier, tenant_label=tenant_label)
         if result.get("success"):
+            sub = result.get("subscription", {})
+            emit_security_event(
+                state,
+                "audit",
+                "subscription_created",
+                severity="info",
+                tenant_id=sub.get("tenant_id"),
+                subscription_id=sub.get("subscription_id"),
+                org_id=sub.get("org_id"),
+                tier=sub.get("tier"),
+            )
             self.state.save(state)
         return result
 
-    def list_subs(self, org_id: str | None = None) -> list[dict[str, Any]]:
-        return list_subscriptions(self.state.load(), org_id=org_id)
+    def list_subs(self, org_id: str | None = None, tenant_id: str | None = None) -> list[dict[str, Any]]:
+        return list_subscriptions(self.state.load(), org_id=org_id, tenant_id=tenant_id)
 
     def get_sub(self, subscription_id: str) -> dict[str, Any] | None:
         return get_subscription(self.state.load(), subscription_id)
@@ -651,6 +725,16 @@ class NexoraService(NodeService):
         state = self.state.load()
         result = suspend_subscription(state, subscription_id, reason)
         if result.get("success"):
+            sub = result.get("subscription", {})
+            emit_security_event(
+                state,
+                "audit",
+                "subscription_suspended",
+                severity="warning",
+                tenant_id=sub.get("tenant_id"),
+                subscription_id=subscription_id,
+                reason=reason,
+            )
             self.state.save(state)
         return result
 
@@ -658,6 +742,31 @@ class NexoraService(NodeService):
         state = self.state.load()
         result = cancel_subscription(state, subscription_id)
         if result.get("success"):
+            sub = result.get("subscription", {})
+            emit_security_event(
+                state,
+                "audit",
+                "subscription_cancelled",
+                severity="warning",
+                tenant_id=sub.get("tenant_id"),
+                subscription_id=subscription_id,
+            )
+            self.state.save(state)
+        return result
+
+    def reactivate_sub(self, subscription_id: str) -> dict[str, Any]:
+        state = self.state.load()
+        result = reactivate_subscription(state, subscription_id)
+        if result.get("success"):
+            sub = result.get("subscription", {})
+            emit_security_event(
+                state,
+                "audit",
+                "subscription_reactivated",
+                severity="info",
+                tenant_id=sub.get("tenant_id"),
+                subscription_id=subscription_id,
+            )
             self.state.save(state)
         return result
 
@@ -665,6 +774,18 @@ class NexoraService(NodeService):
         state = self.state.load()
         result = upgrade_subscription(state, subscription_id, new_tier)
         if result.get("success"):
+            sub = result.get("subscription", {})
+            emit_security_event(
+                state,
+                "audit",
+                "subscription_upgrade",
+                severity="info",
+                tenant_id=sub.get("tenant_id"),
+                subscription_id=subscription_id,
+                new_tier=new_tier,
+                previous_tier=result.get("previous_tier"),
+                downgrade=result.get("downgrade", False),
+            )
             self.state.save(state)
         return result
 

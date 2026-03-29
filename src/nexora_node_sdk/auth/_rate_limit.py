@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 _AUTH_FAILURES: dict[str, list[float]] = defaultdict(list)
 _MAX_AUTH_FAILURES = 10
 _AUTH_WINDOW_SECONDS = 300
+_AUTH_FAILURES_SCOPE = ""
 
 
 def _auth_runtime_file() -> Path:
@@ -30,6 +31,16 @@ def _auth_runtime_file() -> Path:
     if state_hint:
         return Path(state_hint).with_name("auth-runtime.json")
     return Path("/opt/nexora/var/auth-runtime.json")
+
+
+def _ensure_runtime_scope() -> None:
+    """Reset in-memory counters when runtime storage scope changes."""
+
+    global _AUTH_FAILURES_SCOPE
+    current_scope = str(_auth_runtime_file())
+    if current_scope != _AUTH_FAILURES_SCOPE:
+        _AUTH_FAILURES.clear()
+        _AUTH_FAILURES_SCOPE = current_scope
 
 
 def _load_auth_runtime_payload() -> dict[str, Any]:
@@ -87,6 +98,7 @@ def _persist_failures(client_ip: str) -> None:
 
 def _check_rate_limit(client_ip: str) -> bool:
     """Return True if the client is rate-limited (too many auth failures)."""
+    _ensure_runtime_scope()
     _merge_persisted_failures(client_ip)
     now = time.time()
     failures = _AUTH_FAILURES[client_ip]
@@ -97,5 +109,6 @@ def _check_rate_limit(client_ip: str) -> bool:
 
 
 def _record_auth_failure(client_ip: str) -> None:
+    _ensure_runtime_scope()
     _AUTH_FAILURES[client_ip].append(time.time())
     _persist_failures(client_ip)

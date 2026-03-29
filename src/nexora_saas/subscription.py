@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any
 
@@ -145,7 +145,9 @@ def create_subscription(
 
     subscription_id = _gen_id("sub")
     tenant_id = _gen_id("tenant")
-    now = _utc_now()
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+    billing_period_end = (now_dt + timedelta(days=30)).isoformat()
 
     subscription = {
         "subscription_id": subscription_id,
@@ -156,6 +158,10 @@ def create_subscription(
         "status": SubscriptionStatus.ACTIVE.value,
         "created_at": now,
         "activated_at": now,
+        "billing_period_start": now,
+        "billing_period_end": billing_period_end,
+        "next_billing_date": billing_period_end,
+        "price_monthly_eur": plan["price_monthly_eur"],
         "features": list(plan["features"]),
         "limits": {
             "max_nodes": plan["max_nodes"],
@@ -202,10 +208,13 @@ def get_subscription_by_tenant(state: dict[str, Any], tenant_id: str) -> dict[st
 def list_subscriptions(
     state: dict[str, Any],
     org_id: str | None = None,
+    tenant_id: str | None = None,
 ) -> list[dict[str, Any]]:
     subs = state.get("subscriptions", [])
     if org_id:
         subs = [s for s in subs if s.get("org_id") == org_id]
+    if tenant_id:
+        subs = [s for s in subs if s.get("tenant_id") == tenant_id]
     return subs
 
 
@@ -224,6 +233,25 @@ def suspend_subscription(state: dict[str, Any], subscription_id: str, reason: st
     for tenant in state.get("tenants", []):
         if tenant.get("tenant_id") == sub["tenant_id"]:
             tenant["status"] = "suspended"
+            break
+
+    return {"success": True, "subscription": sub}
+
+
+def reactivate_subscription(state: dict[str, Any], subscription_id: str) -> dict[str, Any]:
+    sub = get_subscription(state, subscription_id)
+    if not sub:
+        return {"success": False, "error": "Subscription not found"}
+    if sub["status"] != SubscriptionStatus.SUSPENDED.value:
+        return {"success": False, "error": f"Cannot reactivate subscription in status '{sub['status']}'"}
+
+    sub["status"] = SubscriptionStatus.ACTIVE.value
+    sub["reactivated_at"] = _utc_now()
+    sub.pop("suspend_reason", None)
+
+    for tenant in state.get("tenants", []):
+        if tenant.get("tenant_id") == sub["tenant_id"]:
+            tenant["status"] = "active"
             break
 
     return {"success": True, "subscription": sub}
@@ -258,8 +286,12 @@ def upgrade_subscription(state: dict[str, Any], subscription_id: str, new_tier: 
 
     plan = PLAN_CATALOG[tier]
     old_tier = sub["tier"]
+    tier_order = {PlanTier.FREE.value: 0, PlanTier.PRO.value: 1, PlanTier.ENTERPRISE.value: 2}
+    is_downgrade = tier_order.get(new_tier, 0) < tier_order.get(str(old_tier), 0)
+
     sub["tier"] = new_tier
     sub["plan_id"] = plan["plan_id"]
+    sub["price_monthly_eur"] = plan["price_monthly_eur"]
     sub["features"] = list(plan["features"])
     sub["limits"] = {
         "max_nodes": plan["max_nodes"],
@@ -268,6 +300,12 @@ def upgrade_subscription(state: dict[str, Any], subscription_id: str, new_tier: 
     }
     sub["upgraded_at"] = _utc_now()
     sub["previous_tier"] = old_tier
+    if is_downgrade:
+        sub["downgrade"] = True
+        sub["warning"] = f"Downgrade from '{old_tier}' to '{new_tier}'"
+    else:
+        sub.pop("downgrade", None)
+        sub.pop("warning", None)
 
     # Update associated tenant tier
     for tenant in state.get("tenants", []):
@@ -275,7 +313,13 @@ def upgrade_subscription(state: dict[str, Any], subscription_id: str, new_tier: 
             tenant["tier"] = new_tier
             break
 
-    return {"success": True, "subscription": sub, "previous_tier": old_tier}
+    return {
+        "success": True,
+        "subscription": sub,
+        "previous_tier": old_tier,
+        "downgrade": is_downgrade,
+        "warning": sub.get("warning"),
+    }
 
 
 # ---------------------------------------------------------------------------

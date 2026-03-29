@@ -189,7 +189,7 @@ def validate_contrast(foreground: str, background: str) -> dict[str, Any]:
 
 def list_available_palettes() -> list[dict[str, Any]]:
     """List all available theme palettes."""
-    return [{"name": k, **v} for k, v in THEME_PALETTES.items()]
+    return [{"name": k, "primary": v.get("accent"), **v} for k, v in THEME_PALETTES.items()]
 
 
 def list_sector_themes() -> list[dict[str, Any]]:

@@ -1,7 +1,7 @@
 version: 1
-updated_at: 2026-03-26
+updated_at: 2026-03-29
 scope:
-  markdown_docs_count: 26
+  markdown_docs_count: 19
   markdown_root: docs/
 documents:
 - path: docs/API_SURFACE_REFERENCE.md
@@ -13,14 +13,9 @@ documents:
   depends_on:
   - docs/adr/README.md
   - docs/API_SURFACE_REFERENCE.md
-- path: docs/ARCHIVE_AUDITS_2026.md
-  type: audit_snapshot
-  depends_on:
-  - docs/CHANGELOG.md
 - path: docs/CHANGELOG.md
   type: canonical
   depends_on:
-  - docs/DOC_CODE_AUDIT.md
   - docs/ROADMAP.md
   - docs/CI_QUALITY_GATES.md
 - path: docs/CI_QUALITY_GATES.md
@@ -30,11 +25,6 @@ documents:
   - tests/test_ci_guardrails.py
   - tests/test_docs_completeness.py
   - tests/test_docs_inventory_contract.py
-- path: docs/COMMERCIAL_OPERATING_MODEL.md
-  type: canonical
-  depends_on:
-  - docs/SAAS_STRATEGY.md
-  - docs/ROADMAP.md
 - path: docs/CONSOLE_OPERATOR_GUIDE.md
   type: canonical
   depends_on:
@@ -49,11 +39,6 @@ documents:
   depends_on:
   - docs/IMPLEMENTATION_MASTER_PLAN.md
   - docs/adr/README.md
-- path: docs/DOC_CODE_AUDIT.md
-  type: canonical
-  depends_on:
-  - docs/CHANGELOG.md
-  - docs/ROADMAP.md
 - path: docs/IMPLEMENTATION_MASTER_PLAN.md
   type: canonical
   depends_on:
@@ -71,10 +56,6 @@ documents:
 - path: docs/SAAS_STRATEGY.md
   type: canonical
   depends_on:
-  - docs/SECURITY.md
-  type: canonical
-  depends_on:
-  - docs/COMMERCIAL_OPERATING_MODEL.md
   - docs/DEPLOYMENT.md
   - docs/SECURITY.md
 - path: docs/SECURITY.md
@@ -86,25 +67,6 @@ documents:
   depends_on:
   - docs/ROADMAP.md
   - docs/CHANGELOG.md
-- path: docs/finalization-checklist.md
-  type: canonical
-  depends_on:
-  - docs/IMPLEMENTATION_MASTER_PLAN.md
-  - docs/ROADMAP.md
-  - docs/TECH_DEBT_REGISTER.md
-- path: docs/finalization-board.md
-  type: canonical
-  depends_on:
-  - docs/finalization-checklist.md
-- path: docs/finalization-v2.1-backlog.md
-  type: canonical
-  depends_on:
-  - docs/finalization-board.md
-- path: docs/plan-nexoraFinalisation.prompt.md
-  type: canonical
-  depends_on:
-  - docs/IMPLEMENTATION_MASTER_PLAN.md
-  - docs/ROADMAP.md
 - path: docs/adr/0001-control-plane-platform.md
   type: canonical
   depends_on:

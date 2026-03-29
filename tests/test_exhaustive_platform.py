@@ -28,6 +28,7 @@ import secrets
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -1666,9 +1667,87 @@ class FailoverRouteTests(NexoraTestBase):
         self.assertIsInstance(strategies, list)
         self.assertTrue(len(strategies) >= 3)
 
+    def test_failover_execute_updates_state(self):
+        os.environ["NEXORA_OPERATOR_ONLY_ENFORCE"] = "0"
+        configure = {
+            "app_id": "nextcloud",
+            "domain": "cloud.example.org",
+            "primary_host": "10.0.0.10",
+            "secondary_host": "10.0.0.11",
+            "primary_node_id": "node-a",
+            "secondary_node_id": "node-b",
+            "health_strategy": "combined",
+        }
+        r = self.client.post("/api/failover/configure", json=configure, headers=self.headers)
+        self.assertEqual(r.status_code, 200, r.text)
+
+        with patch("nexora_saas.failover.apply_failover_nginx", return_value={"success": True, "path": "/tmp/nx"}):
+            exec_r = self.client.post(
+                "/api/failover/execute",
+                json={"app_id": "nextcloud", "target_node": "secondary", "reason": "test"},
+                headers=self.headers,
+            )
+        self.assertEqual(exec_r.status_code, 200, exec_r.text)
+        payload = exec_r.json()
+        self.assertTrue(payload.get("success"))
+        self.assertEqual(payload.get("active_node"), "secondary")
+
+        status = self.client.get("/api/failover/status", headers=self.headers).json()
+        state_file = Path(status.get("state_file", ""))
+        expected = Path(os.environ["NEXORA_STATE_PATH"]).parent / "failover_state.json"
+        self.assertEqual(state_file, expected)
+        self.assertTrue(status.get("state_exists", False))
+        persisted = json.loads(state_file.read_text(encoding="utf-8"))
+        self.assertEqual(
+            persisted.get("pairs", {}).get("nextcloud", {}).get("active_node"),
+            "secondary",
+        )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  18. TENANT MANAGEMENT
+#  18. APP MIGRATION
+# ═══════════════════════════════════════════════════════════════════════════════
+class MigrationRouteTests(NexoraTestBase):
+    """Migration API routes."""
+
+    def test_migration_execute_updates_state(self):
+        os.environ["NEXORA_OPERATOR_ONLY_ENFORCE"] = "0"
+        create = {
+            "app_id": "nextcloud",
+            "source_node_id": "node-a",
+            "target_node_id": "node-b",
+            "target_domain": "cloud.example.org",
+            "options": {},
+        }
+        r = self.client.post("/api/fleet/apps/migrate", json=create, headers=self.headers)
+        self.assertEqual(r.status_code, 200, r.text)
+        job = r.json()
+        job_id = job.get("job_id")
+        self.assertTrue(job_id)
+
+        with patch("nexora_saas.app_migration._ynh_backup_app", return_value={"success": True, "backup_name": "dummy"}), \
+             patch("nexora_saas.app_migration._rsync_backup_to_target", return_value={"success": True}), \
+             patch("nexora_saas.app_migration._ynh_restore_on_target", return_value={"success": True}):
+            exec_r = self.client.post(
+                f"/api/fleet/apps/migration/{job_id}/execute",
+                json={"target_ssh_host": "node-b"},
+                headers=self.headers,
+            )
+
+        self.assertEqual(exec_r.status_code, 200, exec_r.text)
+        payload = exec_r.json()
+        self.assertEqual(payload.get("status"), "completed")
+        steps = payload.get("steps", [])
+        self.assertTrue(any(step.get("step") == "backup" for step in steps))
+        self.assertTrue(any(step.get("step") == "restore" for step in steps))
+
+        state_file = Path(os.environ["NEXORA_STATE_PATH"]).parent / "migration_state.json"
+        persisted = json.loads(state_file.read_text(encoding="utf-8"))
+        self.assertIn(job_id, persisted.get("jobs", {}))
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  19. TENANT MANAGEMENT
 # ═══════════════════════════════════════════════════════════════════════════════
 class TenantAPITests(NexoraTestBase):
     """Tenant CRUD via API."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import os
 import re
 import subprocess as _sp
 from pathlib import Path
@@ -275,14 +276,27 @@ def remove_maintenance_mode(domain: str) -> dict[str, Any]:
 import json as _json  # noqa: E402
 from pathlib import Path as _Path
 
-_FAILOVER_STATE_FILE = _Path("/opt/nexora/var/failover_state.json")
+_DEFAULT_FAILOVER_STATE_FILE = _Path("/opt/nexora/var/failover_state.json")
+
+
+def _resolve_failover_state_file() -> _Path:
+    override = os.environ.get("NEXORA_FAILOVER_STATE_PATH", "").strip()
+    if override:
+        return _Path(override)
+    state_hint = os.environ.get("NEXORA_STATE_PATH", "").strip()
+    if state_hint:
+        hint_path = _Path(state_hint)
+        base_dir = hint_path.parent if hint_path.suffix else hint_path
+        return base_dir / "failover_state.json"
+    return _DEFAULT_FAILOVER_STATE_FILE
 
 
 def _load_failover_state() -> dict[str, Any]:
     """Load persistent failover state."""
     try:
-        if _FAILOVER_STATE_FILE.exists():
-            return _json.loads(_FAILOVER_STATE_FILE.read_text(encoding="utf-8"))
+        state_file = _resolve_failover_state_file()
+        if state_file.exists():
+            return _json.loads(state_file.read_text(encoding="utf-8"))
     except Exception:
         pass
     return {"pairs": {}, "events": []}
@@ -290,8 +304,9 @@ def _load_failover_state() -> dict[str, Any]:
 
 def _save_failover_state(state: dict[str, Any]) -> None:
     """Persist failover state to disk."""
-    _FAILOVER_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    _FAILOVER_STATE_FILE.write_text(_json.dumps(state, indent=2, default=str), encoding="utf-8")
+    state_file = _resolve_failover_state_file()
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text(_json.dumps(state, indent=2, default=str), encoding="utf-8")
 
 
 def get_failover_pairs() -> list[dict[str, Any]]:
@@ -396,11 +411,12 @@ def get_failover_status() -> dict[str, Any]:
     state = _load_failover_state()
     pairs = state.get("pairs", {})
     events = state.get("events", [])
+    state_file = _resolve_failover_state_file()
     return {
         "pairs": list(pairs.values()),
         "total_protected_apps": len(pairs),
         "active_failovers": sum(1 for p in pairs.values() if p.get("active_node") == "secondary"),
         "recent_events": events[-10:] if events else [],
-        "state_file": str(_FAILOVER_STATE_FILE),
-        "state_exists": _FAILOVER_STATE_FILE.exists(),
+        "state_file": str(state_file),
+        "state_exists": state_file.exists(),
     }

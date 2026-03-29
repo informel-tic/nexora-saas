@@ -28,7 +28,7 @@ class EnrollmentTokenRequest(BaseModel):
 
     requested_by: str
     mode: EnrollmentMode
-    ttl_minutes: int = 30
+    ttl_minutes: int = Field(default=30, ge=1, le=1440)
     node_id: Optional[str] = None
 
 
@@ -43,16 +43,16 @@ class EnrollmentAttestationRequest(BaseModel):
     agent_version: str
     yunohost_version: Optional[str] = None
     debian_version: Optional[str] = None
-    observed_at: str
+    observed_at: Optional[str] = None
 
 
 class EnrollmentRegisterRequest(BaseModel):
     """Request body used to finalize node registration after attestation."""
 
     token: str
-    hostname: str
+    hostname: Optional[str] = None
     node_id: str
-    enrollment_mode: EnrollmentMode
+    enrollment_mode: EnrollmentMode = "pull"
     profile: Optional[str] = None
     roles: List[str] = Field(default_factory=list)
     apps_count: int = 0

@@ -232,5 +232,4 @@ Ce plan assure l'alignement avec le RGPD, SOC2 et les exigences de souveraineté
 
 ## 16. Contacts sécurité
 
-
-Voir `docs/BUG_BOUNTY_2026-03-24.md` pour la politique de divulgation responsable.
+Pour toute divulgation responsable de vulnérabilité, contacter l'équipe sécurité Nexora via le canal interne opérateur.

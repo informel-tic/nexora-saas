@@ -231,9 +231,10 @@ class ModeManager:
             return {"error": f"Unknown mode: {target_mode}"}
 
         token = secrets.token_urlsafe(32)
+        expires_at = time.time() + duration_seconds
         _escalation_tokens[token] = {
             "target_mode": target_mode,
-            "expires_at": time.time() + duration_seconds,
+            "expires_at": expires_at,
             "reason": reason,
             "created_at": datetime.datetime.now().isoformat(),
         }
@@ -242,6 +243,7 @@ class ModeManager:
             "token": token,
             "target_mode": target_mode,
             "expires_in_seconds": duration_seconds,
+            "expires_at": datetime.datetime.fromtimestamp(expires_at, tz=datetime.timezone.utc).isoformat(),
             "note": "Use this token in the X-Nexora-Escalation header to temporarily operate in the target mode.",
         }
 
