@@ -2,120 +2,30 @@
 
 from __future__ import annotations
 
-import datetime
 from pathlib import Path
 from typing import Any
 
-# Pre-built automation templates
-AUTOMATION_TEMPLATES = {
-    "daily_backup": {
-        "name": "Daily backup",
-        "schedule": "0 2 * * *",
-        "description": "Sauvegarde complète quotidienne à 2h",
-        "actions": ["ynh_backup_create"],
-        "risk": "low",
-    },
-    "weekly_security_audit": {
-        "name": "Weekly security audit",
-        "schedule": "0 6 * * 1",
-        "description": "Audit de sécurité hebdomadaire le lundi à 6h",
-        "actions": ["ynh_security_audit", "ynh_security_permissions_audit"],
-        "risk": "low",
-    },
-    "daily_health_check": {
-        "name": "Daily health check",
-        "schedule": "0 7 * * *",
-        "description": "Vérification de santé quotidienne à 7h",
-        "actions": ["ynh_monitor_resources", "ynh_monitor_services", "ynh_monitor_ssl"],
-        "risk": "low",
-    },
-    "weekly_pra_snapshot": {
-        "name": "Weekly PRA snapshot",
-        "schedule": "0 3 * * 0",
-        "description": "Snapshot PRA hebdomadaire le dimanche à 3h",
-        "actions": ["ynh_pra_snapshot", "ynh_pra_check_readiness"],
-        "risk": "low",
-    },
-    "monthly_executive_report": {
-        "name": "Monthly executive report",
-        "schedule": "0 8 1 * *",
-        "description": "Rapport exécutif mensuel le 1er à 8h",
-        "actions": ["executive_report", "risk_register"],
-        "risk": "low",
-    },
-    "cert_renewal_check": {
-        "name": "Certificate renewal check",
-        "schedule": "0 9 * * *",
-        "description": "Vérification quotidienne des certificats",
-        "actions": ["ynh_domain_cert_status"],
-        "risk": "low",
-    },
-    "weekly_update_check": {
-        "name": "Weekly update check",
-        "schedule": "0 10 * * 3",
-        "description": "Vérification des mises à jour le mercredi",
-        "actions": ["ynh_system_update", "ynh_security_check_updates"],
-        "risk": "low",
-    },
-    "backup_rotation": {
-        "name": "Backup rotation",
-        "schedule": "0 4 * * *",
-        "description": "Rotation des sauvegardes (garder 7 dernières)",
-        "actions": ["backup_rotate"],
-        "risk": "moderate",
-        "params": {"keep_count": 7},
-    },
-}
+# Canonical templates now live in nexora_node_sdk.automation_engine.
+# Re-export here for backward compatibility.
+from nexora_node_sdk.automation_engine import (
+    AUTOMATION_TEMPLATES,
+    generate_automation_plan,
+    generate_crontab,
+)
+
+__all__ = [
+    "AUTOMATION_TEMPLATES",
+    "generate_automation_plan",
+    "generate_crontab",
+    "list_automation_templates",
+    "CHECKLISTS",
+]
+
 
 
 def list_automation_templates() -> list[dict[str, Any]]:
     """List all available automation templates."""
     return [{"id": k, **v} for k, v in AUTOMATION_TEMPLATES.items()]
-
-
-def generate_automation_plan(profile: str = "standard") -> dict[str, Any]:
-    """Generate a recommended automation plan for a given profile."""
-    profiles = {
-        "minimal": ["daily_backup", "cert_renewal_check"],
-        "standard": [
-            "daily_backup",
-            "daily_health_check",
-            "weekly_security_audit",
-            "weekly_pra_snapshot",
-            "cert_renewal_check",
-        ],
-        "professional": list(AUTOMATION_TEMPLATES.keys()),
-    }
-    selected = profiles.get(profile, profiles["standard"])
-    jobs = [{"id": k, **AUTOMATION_TEMPLATES[k]} for k in selected if k in AUTOMATION_TEMPLATES]
-
-    return {
-        "profile": profile,
-        "jobs": jobs,
-        "job_count": len(jobs),
-        "crontab_preview": "\n".join(
-            f"# {j['name']}\n{j['schedule']} /opt/nexora/venv/bin/nexora-job {j['id']}" for j in jobs
-        ),
-        "timestamp": datetime.datetime.now().isoformat(),
-    }
-
-
-def generate_crontab(jobs: list[dict[str, Any]], user: str = "nexora") -> str:
-    """Generate a crontab file from a list of job definitions."""
-    lines = [
-        f"# Nexora automated jobs — generated {datetime.datetime.now().isoformat()}",
-        f"# User: {user}",
-        "SHELL=/bin/bash",
-        "PATH=/usr/bin:/usr/sbin:/opt/nexora/venv/bin",
-        "",
-    ]
-    for job in jobs:
-        lines.append(f"# {job.get('name', job.get('id', 'job'))}")
-        schedule = job.get("schedule", "0 * * * *")
-        job_id = job.get("id", "unknown")
-        lines.append(f"{schedule} {user} /opt/nexora/venv/bin/nexora-job {job_id}")
-        lines.append("")
-    return "\n".join(lines)
 
 
 # ── Checklists ────────────────────────────────────────────────────────
