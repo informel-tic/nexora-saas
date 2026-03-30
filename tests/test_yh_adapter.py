@@ -288,9 +288,6 @@ class TestServicesWithFallback(unittest.TestCase):
     def test_falls_back_to_systemctl_on_error(self):
         from nexora_node_sdk.yh_adapter import services_with_fallback
 
-        active_proc = _completed(0, "active")
-        props_proc = _completed(0, "ActiveState=active\nSubState=running\nDescription=NGINX\nMainPID=1\nLoadState=loaded\n")
-
         with patch("nexora_node_sdk.yh_adapter.ynh_services", return_value={"_error": "no root"}), \
              patch("nexora_node_sdk.yh_adapter.systemctl_status", return_value={
                  "name": "nginx",
