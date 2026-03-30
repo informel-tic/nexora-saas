@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
 
 
 def _make_node(node_id, apps=None, domains=None, services=None):

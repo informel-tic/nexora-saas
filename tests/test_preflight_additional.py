@@ -1,4 +1,3 @@
-import json
 
 from nexora_node_sdk import preflight
 
@@ -20,10 +19,10 @@ def test_build_install_preflight_blocked(monkeypatch):
     assert report["status"] == "blocked"
     assert not report["allowed"]
     assert any(b.startswith("compatibility:") for b in report["blocking_issues"]) or "compatibility:unsupported" in report["blocking_issues"]
-    assert any("path_already_used" in b for b in report["blocking_issues"]) 
+    assert any("path_already_used" in b for b in report["blocking_issues"])
     assert "no_backup_detected" in report["warnings"]
-    assert any(w.startswith("unhealthy_services:") for w in report["warnings"]) 
-    assert any(w.startswith("public_permissions:") for w in report["warnings"]) 
+    assert any(w.startswith("unhealthy_services:") for w in report["warnings"])
+    assert any(w.startswith("public_permissions:") for w in report["warnings"])
 
 
 def test_build_install_preflight_allowed(monkeypatch):

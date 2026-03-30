@@ -1,6 +1,4 @@
-import re
 from pathlib import Path
-import datetime
 
 import nexora_node_sdk.edge as edge
 
@@ -29,7 +27,7 @@ def test_generate_haproxy_config_and_dns_and_network_map():
 
     dns = edge.generate_dns_failover({"ip": "1.2.3.4", "node_id": "p"}, {"ip": "5.6.7.8", "node_id": "s"}, "ex.com")
     assert dns["domain"] == "ex.com"
-    assert any(r["priority"] == "primary" for r in dns["records"]) 
+    assert any(r["priority"] == "primary" for r in dns["records"])
 
     nodes = [{"node_id": "n1", "role": "apps", "ip": "1.2.3.4", "inventory": {"domains": {"domains": ["ex.com"]}}}]
     nm = edge.generate_network_map(nodes, edges=None)

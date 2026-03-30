@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import nexora_node_sdk.overlay as overlay
 

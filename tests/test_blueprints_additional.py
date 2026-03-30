@@ -5,7 +5,7 @@ from __future__ import annotations
 import textwrap
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 def _write_profile(directory: Path, slug: str, data: str) -> None:
@@ -238,9 +238,9 @@ class TestResolveBlueprintPlan(unittest.TestCase):
         self.assertTrue(plan["allowed"])
 
     def test_plan_blocked_when_app_profile_error(self):
+        from nexora_node_sdk.app_profiles import AppProfileError
         from nexora_node_sdk.blueprints import resolve_blueprint_plan
         from nexora_node_sdk.models import Blueprint
-        from nexora_node_sdk.app_profiles import AppProfileError
 
         bp = Blueprint(
             slug="s",

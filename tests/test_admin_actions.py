@@ -2,8 +2,19 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
 import unittest
 from unittest.mock import patch
+
+from nexora_saas.admin_actions import (
+    _audit_log,
+    _ynh,
+    install_app,
+    remove_app,
+    restore_backup,
+    upgrade_app,
+)
 
 
 def _ynh_ok(data=None):
@@ -42,8 +53,6 @@ def _preflight_blocked():
 
 class TestInstallApp(unittest.TestCase):
     def test_install_rejected_when_preflight_blocked(self):
-        from nexora_saas.admin_actions import install_app
-
         with patch("nexora_saas.admin_actions.build_install_preflight", return_value=_preflight_blocked()), \
              patch("nexora_saas.admin_actions._audit_log"):
             result = install_app("nextcloud", "example.tld")
@@ -54,8 +63,6 @@ class TestInstallApp(unittest.TestCase):
         self.assertEqual(result["action"], "install_app")
 
     def test_install_returns_rollback_hint_on_success(self):
-        from nexora_saas.admin_actions import install_app
-
         with patch("nexora_saas.admin_actions.build_install_preflight", return_value=_preflight_ok()), \
              patch("nexora_saas.admin_actions._ynh", return_value=_ynh_ok()), \
              patch("nexora_saas.admin_actions._audit_log"):
@@ -66,8 +73,6 @@ class TestInstallApp(unittest.TestCase):
         self.assertIn("nextcloud", result["rollback"])
 
     def test_install_no_rollback_on_failure(self):
-        from nexora_saas.admin_actions import install_app
-
         with patch("nexora_saas.admin_actions.build_install_preflight", return_value=_preflight_ok()), \
              patch("nexora_saas.admin_actions._ynh", return_value=_ynh_fail()), \
              patch("nexora_saas.admin_actions._audit_log"):
@@ -77,8 +82,6 @@ class TestInstallApp(unittest.TestCase):
         self.assertIsNone(result["rollback"])
 
     def test_install_includes_label(self):
-        from nexora_saas.admin_actions import install_app
-
         captured_cmd = []
 
         def fake_ynh(cmd, timeout=300):
@@ -94,8 +97,6 @@ class TestInstallApp(unittest.TestCase):
         self.assertIn("My Cloud", captured_cmd)
 
     def test_install_preflight_included_in_result(self):
-        from nexora_saas.admin_actions import install_app
-
         pf = _preflight_ok()
         with patch("nexora_saas.admin_actions.build_install_preflight", return_value=pf), \
              patch("nexora_saas.admin_actions._ynh", return_value=_ynh_ok()), \
@@ -107,8 +108,6 @@ class TestInstallApp(unittest.TestCase):
 
 class TestRemoveApp(unittest.TestCase):
     def test_remove_success(self):
-        from nexora_saas.admin_actions import remove_app
-
         with patch("nexora_saas.admin_actions._ynh", return_value=_ynh_ok()), \
              patch("nexora_saas.admin_actions._audit_log"):
             result = remove_app("nextcloud")
@@ -119,8 +118,6 @@ class TestRemoveApp(unittest.TestCase):
         self.assertIsNotNone(result["rollback"])
 
     def test_remove_failure(self):
-        from nexora_saas.admin_actions import remove_app
-
         with patch("nexora_saas.admin_actions._ynh", return_value=_ynh_fail("app not found")), \
              patch("nexora_saas.admin_actions._audit_log"):
             result = remove_app("nonexistent")
@@ -148,8 +145,6 @@ class TestUpgradeApp(unittest.TestCase):
         }
 
     def test_upgrade_blocked_when_preflight_fails(self):
-        from nexora_saas.admin_actions import upgrade_app
-
         with patch("nexora_saas.admin_actions.build_upgrade_preflight", return_value=self._preflight_upgrade_blocked()), \
              patch("nexora_saas.admin_actions._audit_log"):
             result = upgrade_app("nextcloud")
@@ -159,8 +154,6 @@ class TestUpgradeApp(unittest.TestCase):
         self.assertIsNone(result["rollback"])
 
     def test_upgrade_success_single_app(self):
-        from nexora_saas.admin_actions import upgrade_app
-
         with patch("nexora_saas.admin_actions.build_upgrade_preflight", return_value=self._preflight_upgrade_ok()), \
              patch("nexora_saas.admin_actions._ynh", return_value=_ynh_ok()), \
              patch("nexora_saas.admin_actions._audit_log"):
@@ -171,8 +164,6 @@ class TestUpgradeApp(unittest.TestCase):
         self.assertIn("rollback", result)
 
     def test_upgrade_all_apps(self):
-        from nexora_saas.admin_actions import upgrade_app
-
         with patch("nexora_saas.admin_actions.build_upgrade_preflight", return_value=self._preflight_upgrade_ok()), \
              patch("nexora_saas.admin_actions._ynh", return_value=_ynh_ok()), \
              patch("nexora_saas.admin_actions._audit_log"):
@@ -181,8 +172,6 @@ class TestUpgradeApp(unittest.TestCase):
         self.assertEqual(result["app"], "all")
 
     def test_upgrade_failure_returns_error(self):
-        from nexora_saas.admin_actions import upgrade_app
-
         with patch("nexora_saas.admin_actions.build_upgrade_preflight", return_value=self._preflight_upgrade_ok()), \
              patch("nexora_saas.admin_actions._ynh", return_value=_ynh_fail("network error")), \
              patch("nexora_saas.admin_actions._audit_log"):
@@ -194,8 +183,6 @@ class TestUpgradeApp(unittest.TestCase):
 
 class TestRestoreBackup(unittest.TestCase):
     def test_restore_success(self):
-        from nexora_saas.admin_actions import restore_backup
-
         with patch("nexora_saas.admin_actions._ynh", return_value=_ynh_ok()), \
              patch("nexora_saas.admin_actions._audit_log"):
             result = restore_backup("20240101-backup")
@@ -205,8 +192,6 @@ class TestRestoreBackup(unittest.TestCase):
         self.assertEqual(result["action"], "restore_backup")
 
     def test_restore_failure(self):
-        from nexora_saas.admin_actions import restore_backup
-
         with patch("nexora_saas.admin_actions._ynh", return_value=_ynh_fail("backup not found")), \
              patch("nexora_saas.admin_actions._audit_log"):
             result = restore_backup("missing-backup")
@@ -215,8 +200,6 @@ class TestRestoreBackup(unittest.TestCase):
         self.assertIn("backup not found", result["error"])
 
     def test_restore_with_apps_and_system(self):
-        from nexora_saas.admin_actions import restore_backup
-
         captured_cmd = []
 
         def fake_ynh(cmd, timeout=300):
@@ -233,9 +216,6 @@ class TestRestoreBackup(unittest.TestCase):
 
 class TestYnhHelper(unittest.TestCase):
     def test_ynh_helper_returns_success_false_on_timeout(self):
-        from nexora_saas.admin_actions import _ynh
-        import subprocess
-
         with patch("subprocess.run", side_effect=subprocess.TimeoutExpired("cmd", 300)):
             result = _ynh(["app", "list"])
 
@@ -243,18 +223,12 @@ class TestYnhHelper(unittest.TestCase):
         self.assertIn("Timeout", result["error"])
 
     def test_ynh_helper_returns_success_false_on_exception(self):
-        from nexora_saas.admin_actions import _ynh
-
         with patch("subprocess.run", side_effect=RuntimeError("unexpected")):
             result = _ynh(["app", "list"])
 
         self.assertFalse(result["success"])
 
     def test_ynh_helper_parses_json_output(self):
-        import json
-        import subprocess
-        from nexora_saas.admin_actions import _ynh
-
         proc = subprocess.CompletedProcess([], 0, stdout=json.dumps({"apps": []}), stderr="")
         with patch("subprocess.run", return_value=proc):
             result = _ynh(["app", "list"])
@@ -265,9 +239,6 @@ class TestYnhHelper(unittest.TestCase):
 
 class TestAuditLog(unittest.TestCase):
     def test_audit_log_does_not_raise_on_permission_error(self):
-        from nexora_saas.admin_actions import _audit_log
-        from unittest.mock import mock_open
-
         with patch("pathlib.Path.mkdir", side_effect=PermissionError("no access")):
             # Should silently handle the error
             _audit_log("test_action", {"details": "test"})

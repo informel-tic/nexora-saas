@@ -1,6 +1,6 @@
+import json
 import sys
 import types
-import json
 
 import nexora_node_sdk.docker as docker
 
@@ -26,7 +26,7 @@ def test_generate_nginx_proxy_for_container():
 def test_estimate_docker_resources():
     r = docker.estimate_docker_resources(["redis", "custom-service"])
     assert r["total_mem_mb"] == 256 + 256
-    assert any(s["service"] == "redis" for s in r["services"]) 
+    assert any(s["service"] == "redis" for s in r["services"])
     assert r["recommended_ram_gb"] >= 2
 
 

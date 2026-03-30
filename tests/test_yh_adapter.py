@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import subprocess
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 def _completed(returncode=0, stdout="", stderr=""):

@@ -274,7 +274,7 @@ class TestGetJobHistory(unittest.TestCase):
         self.assertEqual(result["success_rate"], 0)
 
     def test_returns_filtered_by_tier(self):
-        from nexora_node_sdk.automation_engine import record_job_execution, get_job_history
+        from nexora_node_sdk.automation_engine import get_job_history, record_job_execution
 
         record_job_execution("daily_backup", success=True, tier="free", state_path=self.history_file)
         record_job_execution("weekly_pra_snapshot", success=True, tier="pro", state_path=self.history_file)
@@ -282,7 +282,7 @@ class TestGetJobHistory(unittest.TestCase):
         self.assertEqual(result["total_executions"], 1)
 
     def test_success_rate_calculation(self):
-        from nexora_node_sdk.automation_engine import record_job_execution, get_job_history
+        from nexora_node_sdk.automation_engine import get_job_history, record_job_execution
 
         record_job_execution("daily_backup", success=True, tier="free", state_path=self.history_file)
         record_job_execution("daily_backup", success=False, tier="free", state_path=self.history_file)
@@ -301,7 +301,6 @@ class TestGetAutomationStatus(unittest.TestCase):
 
     def test_status_structure(self):
         from nexora_node_sdk.automation_engine import get_automation_status
-        from unittest.mock import patch
 
         with patch("nexora_node_sdk.automation_engine.get_job_history", return_value={
             "total_executions": 0, "success_rate": 0.0, "last_execution": None, "recent": []
@@ -312,7 +311,6 @@ class TestGetAutomationStatus(unittest.TestCase):
 
     def test_free_tier_blocked_count_positive(self):
         from nexora_node_sdk.automation_engine import get_automation_status
-        from unittest.mock import patch
 
         with patch("nexora_node_sdk.automation_engine.get_job_history", return_value={
             "total_executions": 0, "success_rate": 0.0, "last_execution": None, "recent": []

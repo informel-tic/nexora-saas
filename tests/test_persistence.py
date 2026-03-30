@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 def _make_repo(tmp_path: Path):
-    from nexora_node_sdk.state import StateStore
     from nexora_node_sdk.persistence import JsonStateRepository
+    from nexora_node_sdk.state import StateStore
 
     state_file = tmp_path / "state.json"
     store = StateStore(state_file)
