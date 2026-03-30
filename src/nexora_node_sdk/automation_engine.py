@@ -14,26 +14,14 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from nexora_node_sdk.models import TenantTier
+
 try:
-    from nexora_core.automation import (
-        AUTOMATION_TEMPLATES,
-        generate_automation_plan,
-        generate_crontab,
-        list_automation_templates,
-    )
-    from nexora_core.models import TenantTier
-    from nexora_core.subscriber_features import (
-        get_automation_profile_for_tier,
-        is_feature_available,
-    )
+    # Preferred path when packaged as a shared core distribution.
+    from nexora_core.automation import AUTOMATION_TEMPLATES, generate_automation_plan, generate_crontab
 except ImportError:
-    AUTOMATION_TEMPLATES = {}
-    generate_automation_plan = None  # type: ignore[assignment]
-    generate_crontab = None  # type: ignore[assignment]
-    list_automation_templates = None  # type: ignore[assignment]
-    TenantTier = None  # type: ignore[assignment,misc]
-    get_automation_profile_for_tier = None  # type: ignore[assignment]
-    is_feature_available = None  # type: ignore[assignment]
+    # Local fallback for monorepo/dev environments.
+    from nexora_saas.automation import AUTOMATION_TEMPLATES, generate_automation_plan, generate_crontab
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +45,13 @@ _PROFILE_TEMPLATES = {
     },
     "professional": set(AUTOMATION_TEMPLATES.keys()),
 }
+
+
+def get_automation_profile_for_tier(tier: TenantTier | str) -> str:
+    """Return the automation profile allowed for a subscription tier."""
+
+    resolved = _resolve_tier(tier)
+    return _TIER_PROFILES.get(resolved, "minimal")
 
 
 def _resolve_tier(tier: TenantTier | str) -> TenantTier:
